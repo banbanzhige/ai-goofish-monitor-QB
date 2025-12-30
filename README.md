@@ -96,21 +96,22 @@ docker项目地址
 **使用docker compose开箱即用**:
 
   ```yaml
-  services:
-  app:
-  image: banbanzhige/ai-goofish-monitor-qb:latest
-  container_name: ai-goofish-monitor-qb
-  pull_policy: always
-  ports:
-      - "8001:8000"
-  volumes:
+services:
+ app:
+   image: banbanzhige/ai-goofish-monitor-qb:latest
+   container_name: ai-goofish-monitor-qb
+   pull_policy: always
+   ports:
+     - "8001:8000"
+   volumes:
   #  - ./.env:/app/.env (一般情况下不需要，如果你想单独管理可以挂载）
-      - ./logs:/app/logs
-      - ./jsonl:/app/jsonl
-      - ./images:/app/images
-      - ./criteria:/app/criteria
-      - ./requirement:/app/requirement
-  restart: unless-stopped
+     - ./logs:/app/logs
+     - ./jsonl:/app/jsonl
+     - ./images:/app/images
+     - ./criteria:/app/criteria
+     - ./requirement:/app/requirement
+   restart: unless-stopped
+
   ```
 
 
