@@ -139,6 +139,6 @@ echo 正在启动Web管理界面...
 echo 请在浏览器访问 http://127.0.0.1:8000  
 echo 按下 Ctrl+C 可停止服务 
 echo.
-python web_server.py
+python -u web_server.py
 
 pause
