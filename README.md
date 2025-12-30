@@ -95,7 +95,7 @@ docker项目地址
 
 **使用docker compose开箱即用**:
 
-    ```yaml:
+    ```yaml
     services:
     app:
     image: banbanzhige/ai-goofish-monitor-qb:latest
@@ -116,20 +116,18 @@ docker项目地址
 
 ## windows部署
 
-### 0.拉取项目代码
-    ```bash
-    git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
-    cd banbanzhige/ai-goofish-monitor-QB
-    ```
-### 方式1：
-    直接使用start_web_server.bat启动 (推荐)
+### 1.使用start_web_server.bat启动(推荐)
 
-### 方式2：
-### 1. 安装依赖
+   - 拉取项目代码
 
-    ```bash
-    docker push banbanzhige/ai-goofish-monitor-qb:tagname
-    ```
+  ```PowerShell
+  git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
+  cd banbanzhige/ai-goofish-monitor-QB
+  ```
+  - 安装好python 3.8+的环境
+  - 双击打开start_web_server.bat启动
+
+
 ### 2. 配置环境变量
 
 - 1，直接编辑.env文件：
@@ -137,7 +135,7 @@ docker项目地址
 
 ### 3. 启动Web管理界面与后端代码
 
-```bash
+```PowerShell
 python web_server.py
 ```
 
@@ -178,9 +176,9 @@ python web_server.py
 <summary>方式三：运行登录脚本，生成登录状态文件：</summary>
 
 
-    ```bash
-    python login.py
-    ```
+  ```PowerShell
+  python login.py
+  ```
 
     根据提示完成登录操作，登录状态将保存到xianyu_state.json文件中。
 </details>
