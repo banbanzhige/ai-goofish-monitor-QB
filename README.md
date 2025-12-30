@@ -44,6 +44,9 @@
 
 ![通知配置.png](Example/通知配置.png)
 ![通知配置2.png](Example/通知配置2.png)
+![企业微信群机器人2.jpg](Example/企业微信群机器人2.jpg)
+![企业微信应用渠道2.jpg](Example/企业微信应用渠道2.jpg)
+
 
 </details>
 
@@ -79,42 +82,6 @@
   </p>
 </div>
 
-<div style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin: 20px 0;">
-
-  <div style="text-align: center; margin: 0;">
-    <img src="Example/企业微信群机器人.jpg"
-         style="width: 100%; max-width: 300px; height: auto;
-                border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                border: 4px solid #fff; background: #f9f9f9;"
-         alt="企业微信群机器人通知效果展示">
-    <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
-      企业微信群机器人通知效果展示
-    </p>
-  </div>
-
-  <div style="text-align: center; margin: 0;">
-    <img src="Example/企业微信应用渠道.jpg"
-         style="width: 100%; max-width: 300px; height: auto;
-                border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                border: 4px solid #fff; background: #f9f9f9;"
-         alt="企业微信应用渠道通知效果展示">
-    <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
-      企业微信应用渠道效果展示
-    </p>
-  </div>
-
-  <div style="text-align: center; margin: 0;">
-    <img src="Example/移动端浏览效果.jpg"
-         style="width: 100%; max-width: 300px; height: auto;
-                border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                border: 4px solid #fff; background: #f9f9f9;"
-         alt="移动端浏览效果.jpg">
-    <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
-      移动端浏览效果展示
-    </p>
-  </div>
-
-</div>
 
 # 快速部署
 
@@ -259,47 +226,6 @@ python web_server.py
 
 - 可以手动启动任务
 - 或等待定时任务自动执行
-
-## 工作流程
-
-
-```mermaid
-graph TD
-    A["1. 登录阶段<br/>- Playwright模拟登录<br/>- 保存状态至xianyu_state.json"]:::stage --> B["2. 配置阶段<br/>- Web界面配置监控任务"]:::stage
-    B --> C["3. 监控阶段<br/>- 定时/手动启动<br/>- 加载状态+访问搜索页<br/>- 采集商品数据"]:::stage
-    C --> D["4. 分析阶段<br/>- 数据发送至AI<br/>- AI筛选商品<br/>- 生成分析报告"]:::stage
-    D --> E["5. 通知阶段<br/>- 多渠道推送符合条件商品"]:::stage
-    D --> F["6. 存储阶段<br/>- 结果保存为JSONL格式<br/>- 存入jsonl/目录"]:::stage
-
-    %% 样式定义
-    classDef stage fill:#f0f8ff,stroke:#2f80ed,stroke-width:2px,rx:10,ry:10,font-size:14px;
-    linkStyle 0-4 stroke:#666,stroke-width:1.5px;
-```
-
-在实际使用中，`web_server.py` 会作为主服务，根据用户操作或定时调度来启动一个或多个这样的任务进程。
-```mermaid
-graph TD
-    %% 节点定义与美化
-    A[启动监控任务]:::start --> B[搜索商品]:::process
-    B --> C{发现新商品?}:::judge
-    C -- 是 --> D[抓取商品详情 & 卖家信息]:::process
-    D --> E[下载商品图片]:::process
-    E --> F[调用AI分析]:::process
-    F --> G{AI是否推荐?}:::judge
-    G -- 是 --> H[发送通知]:::process
-    H --> I[保存记录到JSONL]:::process
-    G -- 否 --> I
-    C -- 否 --> J[翻页/等待]:::process
-    J --> B
-    I --> C
-
-    %% 样式定义（区分节点类型，提升辨识度）
-    classDef start fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,rx:12,ry:12,font-size:14px,font-weight:bold
-    classDef process fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1.5px,rx:12,ry:12,font-size:14px
-    classDef judge fill:#fff3e0,stroke:#f57c00,stroke-width:2px,rx:12,ry:12,font-size:14px
-    %% 连接线样式
-    linkStyle 0-10 stroke:#666,stroke-width:1.2px,arrowheadStyle:filled
-```
 
 
 ### Cron表达式
