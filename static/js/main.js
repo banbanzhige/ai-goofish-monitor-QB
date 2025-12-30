@@ -1449,8 +1449,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="slider round"></span>
                         </label>
                         <div style="flex: 1;">
-                            <div style="font-weight: 500;">默认使用Edge浏览器</div>
-                            <p class="form-hint" style="margin: 2px 0;">不勾选则使用Chrome浏览器</p>
+                            <div style="font-weight: 500;">使用Edge浏览器</div>
+                            <p class="form-hint" style="margin: 2px 0;">默认使用Chrome浏览器</p>
                         </div>
                     </div>
                 </div>
@@ -2558,6 +2558,21 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
             refreshBtn.addEventListener('click', async () => {
+            // 首先检查AI配置是否完整
+            try {
+                const aiSettingsResponse = await fetch('/api/settings/ai');
+                const aiSettings = await aiSettingsResponse.json();
+                
+                if (!aiSettings.OPENAI_BASE_URL || !aiSettings.OPENAI_MODEL_NAME) {
+                    alert('请先配置ai模型api接口');
+                    return;
+                }
+            } catch (error) {
+                console.error('检查AI配置失败:', error);
+                alert('检查AI配置失败，请稍后重试');
+                return;
+            }
+            
             if (form.checkValidity() === false) {
                 form.reportValidity();
                 return;
