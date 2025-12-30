@@ -95,7 +95,7 @@ docker项目地址
 
 **使用docker compose开箱即用**:
 
-  ```yaml
+```yaml
 services:
  app:
    image: banbanzhige/ai-goofish-monitor-qb:latest
@@ -112,7 +112,10 @@ services:
      - ./requirement:/app/requirement
    restart: unless-stopped
 
-  ```
+```
+
+
+  
 
 
 ## windows部署
