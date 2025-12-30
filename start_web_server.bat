@@ -1,130 +1,144 @@
 @echo off
-chcp 65001 >nul 2>&1
-cls
-title 咸鱼智能监控机器人 - Web管理界面启动器
+:: 设置UTF-8编码
+chcp 65001 >nul
+:: 启用变量延迟扩展
+setlocal enabledelayedexpansion
 
-:: 清理临时变量，避免环境变量污染
-set "PYTHON_VERSION="
-set "PYTHON_MAJOR="
-set "PYTHON_MINOR="
-
-:: 1. 定义转义字符，用于设置颜色
-for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do rem"') do (
-  set ESC=%%b
-)
-
-
-echo.
-echo ================================================
-echo 咸鱼智能监控机器人 - Web管理界面启动器
-echo ================================================
+echo ==========================
+echo  咸鱼鱼智能监控机器人启动脚本
+echo ==========================
 echo.
 
-:: -------------------------- 1. 检查Python环境（严格校验3.9+） --------------------------
-echo 1. 检查Python环境...
-python --version >nul 2>&1
+:: 检查Python是否安装
+where python >nul 2>nul
 if %errorlevel% neq 0 (
-    echo  错误：未找到Python环境，请先安装Python 3.9或更高版本。
-    echo  官方下载地址：https://www.python.org/downloads/
+    echo [ERROR] Python未安装，请先安装Python 3.8或更高版本！
     pause
     exit /b 1
 )
 
-:: 提取Python版本号（拆分主/次版本，用于校验）
-for /f "tokens=2 delims=." %%a in ('python --version 2^>^&1') do set "PYTHON_MAJOR=%%a"
-for /f "tokens=3 delims=." %%b in ('python --version 2^>^&1') do set "PYTHON_MINOR=%%b"
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set "PYTHON_VERSION=%%i"
+:: 获取Python版本
+for /f "tokens=2" %%i in ('python --version 2^>nul') do set "PYTHON_VERSION=%%i"
+if not defined PYTHON_VERSION (  
+    echo [ERROR] 无法获取Python版本信息！
+    pause
+    exit /b 1
+) 
+echo 当前Python版本: !PYTHON_VERSION!
 
-:: 校验Python版本≥3.9
-if %PYTHON_MAJOR% lss 3 (
-    echo  错误：Python版本过低（当前%PYTHON_VERSION%），需安装3.9及以上版本！
+:: 简化的Python版本检查
+for /f "tokens=1,2 delims=." %%a in ("!PYTHON_VERSION!") do (
+    set "PYTHON_MAJOR=%%a"
+    set "PYTHON_MINOR=%%b"
+)
+
+if !PYTHON_MAJOR! lss 3 (  
+    echo [ERROR] Python版本需要3.8或更高！
     pause
     exit /b 1
 )
-if %PYTHON_MAJOR% equ 3 if %PYTHON_MINOR% lss 9 (
-    echo  错误：Python版本过低（当前%PYTHON_VERSION%），需安装3.9及以上版本！
+if !PYTHON_MAJOR! equ 3 if !PYTHON_MINOR! lss 8 (  
+    echo [ERROR] Python版本需要3.8或更高！
     pause
     exit /b 1
 )
-
-echo  Python %PYTHON_VERSION% 已安装（符合3.9+版本要求）
+  
+echo Python版本检查通过 (3.8+)
 echo.
 
-:: -------------------------- 2. 检查依赖配置文件 --------------------------
-echo 2. 检查依赖配置文件...
-if not exist "requirements.txt" (
-    echo  错误：未找到requirements.txt文件！
-    echo  请确保本批处理文件在项目根目录下运行。
-    pause
-    exit /b 1
-)
-echo  requirements.txt 文件存在
-echo.
-
-:: -------------------------- 3. 检查8000端口占用 --------------------------
-echo 3. 检查8000端口占用情况...
-netstat -ano | findstr ":8000" >nul 2>&1
-if %errorlevel% equ 0 (
-    echo   警告：8000端口已被占用！
-    echo  解决方案：1.关闭占用端口的程序 2.修改web_server.py的端口号
-    choice /c YN /m "是否继续启动（可能失败）？[Y/N]"
-    if errorlevel 2 (
-        echo  用户取消启动
-        pause
-        exit /b 0
-    )
-) else (
-    echo  8000端口未被占用
-)
-echo.
-
-:: -------------------------- 4. 检查并安装依赖（优化pip路径问题） --------------------------
-echo 4. 检查项目依赖...
-python -c "import fastapi, playwright, openai" >nul 2>&1
-if %errorlevel% equ 0 (
-    echo  项目依赖已安装，无需重复安装
-) else (
-    echo  正在安装项目依赖（可能需要1-3分钟）...
-    echo  若安装缓慢，可手动用国内源：python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-    
-    :: 优先用python -m pip（避免pip路径缺失问题），并升级pip
-    python -m pip install --upgrade pip >nul 2>&1
-    python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-    
-    if %errorlevel% neq 0 (
-        echo  依赖安装失败！
-        echo  排查方向：1.检查网络连接 2.确认Python环境正常 3.检查requirements.txt语法
+:: 创建虚拟环境（如果不存在）
+if not exist "venv" (  
+    echo 正在创建虚拟环境...
+    python -m venv venv
+    if %errorlevel% neq 0 (  
+        echo [ERROR] 创建虚拟环境失败！
         pause
         exit /b 1
-    ) else (
-        echo  项目依赖安装完成
-    )
+    )  
+    echo 虚拟环境创建成功
 )
-echo.
 
-:: -------------------------- 5. 启动Web服务器（捕获启动失败） --------------------------
-echo 5. 启动Web管理界面...
-echo  访问地址：%ESC%[34m【http://localhost:8000】%ESC%[0m (可Ctrl+左键链接直接打开)
-echo  默认用户名：admin 
-echo  默认密码：admin123
-echo.
-echo   提示：按 Ctrl+C 可停止Web服务器（停止后按任意键退出）
-echo   第一次启动提示：若出现.env配置相关警告/错误、重新加载定时任务相关警告/错误，可忽略（首次配置后会自动消失）
-echo ================================================
-echo.
-
-:: 启动服务并捕获启动失败场景
-python web_server.py || (
-    echo.
-    echo  Web服务器启动失败！
+:: 激活虚拟环境   
+echo 正在激活虚拟环境...
+call "venv\Scripts\activate.bat"
+if %errorlevel% neq 0 (  
+    echo [ERROR] 激活虚拟环境失败！
     pause
     exit /b 1
+)  
+echo 虚拟环境已激活
+echo.
+ 
+:: 更新pip  
+echo 正在检查pip版本...
+python -m pip install --upgrade pip >nul 2>nul  
+echo pip已更新到最新版本
+echo.
+
+:: 安装依赖 - 添加网络重试和镜像源备用机制，并隐藏已安装提示  
+echo 正在安装项目依赖...
+set "RETRY_COUNT=3"
+set "CURRENT_RETRY=0"
+set "INSTALL_SUCCESS=0"
+
+:install_retry
+if %CURRENT_RETRY% gtr 0 ( 
+    echo 第 %CURRENT_RETRY% 次重试...
 )
 
-:: 清理临时变量
-set "PYTHON_VERSION="
-set "PYTHON_MAJOR="
-set "PYTHON_MINOR="
+:: 尝试用默认源安装，隐藏已安装提示
+pip install -r requirements.txt >nul 2>&1
+if %errorlevel% equ 0 (
+    set "INSTALL_SUCCESS=1"
+    goto install_success
+)
+
+set /a CURRENT_RETRY+=1
+if %CURRENT_RETRY% leq %RETRY_COUNT% ( 
+    echo 安装失败，正在重试...
+    timeout /t 3 /nobreak >nul
+    goto install_retry
+)
+
+:: 默认源多次重试失败，尝试用清华大学镜像源 
+echo 默认源安装失败，尝试使用清华大学镜像源... 
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/ >nul 2>&1
+if %errorlevel% equ 0 (
+    set "INSTALL_SUCCESS=1"
+    goto install_success
+)
+
+:: 清华大学镜像源也失败，尝试用阿里云镜像源 
+echo 清华大学镜像源安装失败，尝试使用阿里云镜像源... 
+pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ >nul 2>&1
+if %errorlevel% equ 0 (
+    set "INSTALL_SUCCESS=1"
+    goto install_success
+)
+
+:: 所有镜像源都失败 
+echo [ERROR] 所有镜像源安装依赖均失败！ 
+echo 请检查网络连接，或尝试手动安装依赖： 
+echo pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
+pause
+exit /b 1
+
+:install_success
+echo 所有依赖安装完成 
+echo.
+
+:: 检查登录状态文件 
+if not exist "xianyu_state.json" ( 
+    echo [WARNING] 登录状态文件 xianyu_state.json 不存在！  
+    echo 请先运行 login.py 获取登录状态后再启动Web服务。 
+    echo.
+)
+ 
+
+echo 正在启动Web管理界面...  
+echo 请在浏览器访问 http://127.0.0.1:8000  
+echo 按下 Ctrl+C 可停止服务 
+echo.
+python web_server.py
 
 pause
-exit /b 0
