@@ -89,6 +89,10 @@
 
 使用 Docker 可以将应用及其所有依赖项打包到一个标准化的单元中，实现快速、可靠和一致的部署。
 
+docker项目地址
+  - https://hub.docker.com/r/banbanzhige/ai-goofish-monitor-qb
+  
+
 **使用docker compose开箱即用**:
 
     ```yaml:
