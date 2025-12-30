@@ -1,0 +1,16 @@
+uvicorn
+fastapi
+pydantic
+python-dotenv
+aiofiles
+apscheduler
+openai
+httpx
+beautifulsoup4
+lxml
+requests
+selenium
+webdriver-manager
+python-telegram-bot
+playwright
+jinja2

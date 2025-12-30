@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Xianyu Login State Extractor",
+  "version": "1.0",
+  "description": "Extract complete login state for Xianyu monitoring robot",
+  "permissions": [
+    "activeTab",
+    "cookies"
+  ],
+  "host_permissions": [
+    "*://*.goofish.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Extract Xianyu Login State"
+  }
+}

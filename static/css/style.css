@@ -1,0 +1,1305 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    background-color: #f0f2f5;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+header {
+    background-color: #fff;
+    padding: 0 24px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 64px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px #f0f1f2;
+    z-index: 10;
+}
+
+header h1 {
+    font-size: 20px;
+    margin: 0;
+    color: #1a1a1a;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.system-status {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transition: background-color 0.3s;
+}
+
+.status-stopped {
+    background-color: #f5222d;
+}
+
+.status-running {
+    background-color: #52c41a;
+}
+
+.status-loading {
+    background-color: #faad14;
+}
+
+
+.control-button {
+    padding: 8px 16px;
+    border: 1px solid #d9d9d9;
+    background-color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.control-button:hover {
+    border-color: #40a9ff;
+    color: #40a9ff;
+}
+
+#start-all-tasks {
+    background-color: #1890ff;
+    color: #fff;
+    border-color: #1890ff;
+}
+
+#start-all-tasks:hover {
+    background-color: #40a9ff;
+    border-color: #40a9ff;
+}
+
+#stop-all-tasks {
+    background-color: #ff4d4f;
+    color: white;
+    border-color: #ff4d4f;
+}
+
+#stop-all-tasks:hover {
+    background-color: #ff7875;
+    border-color: #ff7875;
+}
+
+.control-button.danger-btn {
+    background-color: #ff4d4f;
+    color: white;
+    border-color: #ff4d4f;
+}
+
+.control-button.danger-btn:hover {
+    background-color: #ff7875;
+    border-color: #ff7875;
+    color: white;
+}
+
+
+.container {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+aside {
+    width: 200px;
+    background-color: #fff;
+    border-right: 1px solid #e8e8e8;
+    padding-top: 24px;
+    flex-shrink: 0;
+}
+
+aside nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+aside nav ul li a {
+    display: block;
+    padding: 12px 24px;
+    text-decoration: none;
+    color: rgba(0, 0, 0, 0.85);
+    font-size: 14px;
+    border-right: 3px solid transparent;
+    transition: background-color 0.3s, color 0.3s;
+    text-align: left;
+}
+
+aside nav ul li a:hover {
+    background-color: #e6f7ff;
+}
+
+aside nav ul li a.active {
+    color: #1890ff;
+    background-color: #e6f7ff;
+    border-right-color: #1890ff;
+    font-weight: 600;
+}
+
+main {
+    flex-grow: 1;
+    padding: 24px;
+    overflow-y: auto;
+    background-color: #f0f2f5;
+}
+
+/* 内容部分的基本样式 */
+.content-section {
+    display: none;
+    animation: fadeIn 0.5s;
+    background-color: #fff;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+.content-section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+h2 {
+    font-size: 22px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 16px;
+    color: #1a1a1a;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.section-header h2 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.primary-btn {
+    background-color: #1890ff;
+    color: #fff;
+    border-color: #1890ff;
+}
+
+.primary-btn:hover {
+    background-color: #40a9ff;
+    border-color: #40a9ff;
+    color: #fff;
+}
+
+
+/* 任务表格样式 */
+.tasks-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.tasks-table th, .tasks-table td {
+    padding: 12px 16px;
+    text-align: center;
+    border-bottom: 1px solid #e8e8e8;
+    vertical-align: middle;
+    color: #333;
+}
+
+.tasks-table th {
+    background-color: #fafafa;
+    font-weight: 600;
+    color: #555;
+    border: 1px solid #e8e8e8;
+    font-size: 14px;
+}
+
+.tasks-table td {
+    border: 1px solid #e8e8e8;
+    font-size: 14px;
+}
+
+/* Center content in specific columns */
+.tasks-table th:nth-child(1), /* 启用 */
+.tasks-table th:nth-child(2), /* 任务名称 */
+.tasks-table th:nth-child(3), /* 运行状态 */
+.tasks-table th:nth-child(4), /* 关键词 */
+.tasks-table th:nth-child(5), /* 价格范围 */
+.tasks-table th:nth-child(6), /* 筛选条件 */
+.tasks-table th:nth-child(7), /* 最大页数 */
+.tasks-table th:nth-child(8), /* AI 标准 */
+.tasks-table th:nth-child(9), /* 定时规则 */
+.tasks-table th:nth-child(10)  /* 操作 */ {
+    text-align: center;
+}
+
+.tasks-table td:nth-child(2) { /* 任务名称 */
+    text-align: left; /* Keep task name left-aligned for better readability */
+}
+
+/* 刷新按钮样式 */
+#refresh-results-btn {
+    background-color: #52c41a; /* 设置绿色背景 */
+    border-color: #52c41a; /* 设置绿色边框 */
+    color: white; /* 设置白色文字 */
+}
+
+#refresh-results-btn:hover {
+    background-color: #73d13d; /* 设置悬停时的浅绿色 */
+    border-color: #73d13d; /* 设置悬停时的浅绿色边框 */
+}
+
+/* Ensure consistent styles for all tags */
+.tag {
+    background-color: #e6f7ff;
+    border: 1px solid #91d5ff;
+    color: #096dd9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.tag.personal {
+    background-color: #f6ffed;
+    border-color: #b7eb8f;
+    color: #389e0d;
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+.tasks-table tbody tr:hover {
+    background-color: #f5faff;
+}
+
+.tag {
+    background-color: #e6f7ff;
+    border: 1px solid #91d5ff;
+    color: #096dd9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.tag.personal {
+    background-color: #f6ffed;
+    border-color: #b7eb8f;
+    color: #389e0d;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: #1890ff;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.action-btn:hover {
+    text-decoration: underline;
+}
+
+.action-btn.delete-btn {
+    color: #ff4d4f;
+}
+
+.criteria {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.refresh-criteria {
+    padding: 4px 8px;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.criteria-btn {
+    padding: 4px 8px;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.refresh-criteria.danger-btn {
+    background-color: #ff4d4f;
+}
+
+.refresh-criteria.danger-btn:hover {
+    background-color: #cf1322;
+}
+
+.refresh-criteria.success-btn {
+    background-color: #52c41a;
+}
+
+.refresh-criteria.success-btn:hover {
+    background-color: #43a047;
+}
+
+.criteria-btn.success-btn {
+    background-color: #52c41a;
+}
+
+.criteria-btn.success-btn:hover {
+    background-color: #43a047;
+}
+
+.criteria-btn.danger-btn {
+    background-color: #ff4d4f;
+}
+
+.criteria-btn.danger-btn:hover {
+    background-color: #cf1322;
+}
+
+/* 切换开关 */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: #52c41a;
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px #52c41a;
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+/* 任务表格中内联编辑的样式 */
+.tasks-table tr.editing td {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    vertical-align: middle;
+}
+
+.tasks-table input[type="text"] {
+    width: 95%;
+    padding: 8px 10px;
+    font-size: 14px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    transition: all 0.3s;
+    box-sizing: border-box;
+    background-color: #fff;
+}
+
+.tasks-table input[type="text"]:focus {
+    border-color: #40a9ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.tasks-table select {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 14px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    transition: border-color 0.3s;
+    box-sizing: border-box;
+    background-color: #fff;
+}
+
+/* Improve styles for edit mode buttons */
+.tasks-table .save-btn,
+.tasks-table .cancel-btn {
+    padding: 4px 12px;
+    border: 1px solid;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.3s;
+}
+
+.tasks-table .save-btn {
+    color: #52c41a;
+    border-color: #52c41a;
+    background-color: #fff;
+}
+
+.tasks-table .save-btn:hover {
+    color: #fff;
+    background-color: #52c41a;
+    border-color: #52c41a;
+    text-decoration: none;
+}
+
+.tasks-table .cancel-btn {
+    color: #faad14;
+    border-color: #faad14;
+    background-color: #fff;
+}
+
+.tasks-table .cancel-btn:hover {
+    color: #fff;
+    background-color: #faad14;
+    border-color: #faad14;
+    text-decoration: none;
+}
+
+
+/* 模态框样式 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.modal-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    transform: scale(0.95);
+    transition: transform 0.3s;
+}
+
+.modal-overlay.visible .modal-content {
+    transform: scale(1);
+}
+
+.modal-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    border: none;
+    padding: 0;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: #888;
+    line-height: 1;
+}
+
+.close-button:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="password"],
+.form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    transition: border-color 0.3s;
+    box-sizing: border-box;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group input[type="password"]:focus,
+.form-group textarea:focus {
+    border-color: #40a9ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.form-group-inline {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+}
+
+.form-group-inline > div {
+    flex-grow: 1;
+}
+
+.form-group-inline > span {
+    padding-bottom: 10px;
+}
+
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Logs page styling */
+.log-controls {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.log-controls .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+}
+
+.log-controls .filter-label {
+    font-weight: 500;
+    font-size: 0.9em;
+    color: #333;
+}
+
+.log-controls select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: white;
+    color: #333;
+    cursor: pointer;
+}
+
+.log-controls select:focus {
+    outline: none;
+    border-color: #5e72e4;
+    box-shadow: 0 0 0 2px rgba(94, 114, 228, 0.1);
+}
+
+/* 日志查看器样式 */
+#log-content-container {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+    padding: 15px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 70vh;
+    overflow-y: auto;
+    font-family: "SF Mono", "Consolas", "Menlo", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* 按钮的旋转加载图标 */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    -webkit-animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        -webkit-transform: rotate(360deg);
+    }
+}
+
+@-webkit-keyframes spin {
+    to {
+        -webkit-transform: rotate(360deg);
+    }
+}
+
+/* 结果视图样式 */
+.results-filter-bar {
+    display: flex; /* 使用flex布局 */
+    gap: 8px; /* 减小所有筛选组之间的间距 */
+    margin-bottom: 24px;
+    background-color: #fafafa;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #f0f0f0;
+    align-items: flex-end; /* 底部对齐 */
+    flex-wrap: wrap; /* 允许在小屏幕上换行 */
+    justify-content: flex-start; /* 从左侧开始排列 */
+}
+
+/* 统一所有筛选组的固定宽度 */
+.results-filter-bar .filter-group {
+    width: 120px; /* 设置统一固定宽度 */
+    flex: none; /* 不分配额外空间 */
+}
+
+/* 为前面5个主要筛选组设置更大的固定宽度 */
+.results-filter-bar .filter-group:nth-child(1), /* 结果文件 */
+.results-filter-bar .filter-group:nth-child(2), /* 任务名称 */
+.results-filter-bar .filter-group:nth-child(3), /* 关键词 */
+.results-filter-bar .filter-group:nth-child(4), /* AI标准 */
+.results-filter-bar .filter-group:nth-child(5)  /* 排序字段 */ {
+    width: 220px; /* 增大固定宽度 */
+    margin-right: 8px; /* 为主要筛选组增加额外的右外边距 */
+}
+
+/* 为后面4个操作类筛选组设置更紧凑的宽度，更适合内容 */
+.results-filter-bar .filter-group:nth-child(6) { /* 排序方式 */
+    width: 110px; /* 设置合适宽度 */
+}
+
+.results-filter-bar .filter-group:nth-child(7) { /* 删除 */
+    width: 120px; /* 设置合适宽度 */
+    margin-right: 12px; /* 调整删除按钮与刷新按钮之间的间距 */
+}
+
+.results-filter-bar .filter-group:nth-child(8) { /* 刷新 */
+    width: 110px; /* 设置合适宽度 */
+    margin-right: 8px; /* 调整刷新按钮与仅看AI推荐之间的间距 */
+}
+
+.results-filter-bar .filter-group:nth-child(9) { /* 仅看AI推荐 */
+    width: 130px; /* 设置合适宽度 */
+}
+
+/* 统一所有筛选组的样式 */
+.results-filter-bar .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: flex-end; /* 确保所有筛选组底部对齐 */
+    align-items: center; /* 表头和控件居中对齐 */
+}
+
+/* 移除可能导致宽度变化的旧样式 */
+.results-filter-bar .filter-group:nth-child(7), /* 删除 */
+.results-filter-bar .filter-group:nth-child(8) { /* 仅看AI推荐 */
+    flex: none; /* 确保不分配额外空间 */
+}
+
+/* 确保按钮和筛选框高度一致 */
+.results-filter-bar button,
+.results-filter-bar select {
+    height: 36px; /* 统一高度 */
+    padding: 0 12px; /* 调整内边距以适应高度 */
+}
+
+.results-filter-bar .filter-label {
+    font-size: 14px; /* 任务管理页表头字体大小 */
+    font-weight: 600; /* 任务管理页表头字体粗细 */
+    color: #555; /* 任务管理页表头字体颜色 */
+    text-transform: none; /* 取消任务管理页表头文字大写 */
+    text-align: center; /* Center align the label */
+}
+
+.results-filter-bar select {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #d9d9d9;
+    font-size: 14px;
+    background-color: #fff;
+    text-align: center; /* 选框当前选择的内容居中对齐 */
+    text-align-last: center; /* 选框当前选择的内容居中对齐 (针对不同浏览器) */
+}
+
+/* 为排序方式筛选框设置合适宽度 */
+.results-filter-bar #sort-order-selector {
+    width: 100%; /* 使用100%宽度以适应容器 */
+}
+
+/* 为其他筛选框设置统一的宽度 */
+.results-filter-bar select:not(#sort-order-selector) {
+    width: 100%; /* Keep select width 100% to ensure consistent length */
+    min-width: 200px; /* Set minimum width for consistent appearance */
+}
+
+/* 下拉框里的内容左对齐 */
+.results-filter-bar select option {
+    text-align: left;
+}
+
+/* 确保所有筛选组的元素垂直对齐 */
+.results-filter-bar .filter-group {
+    height: 70px; /* 设置固定高度 */
+    justify-content: flex-end; /* 确保所有内容底部对齐 */
+}
+
+/* 仅看AI推荐的筛选组 */
+.results-filter-bar .filter-group:nth-child(8) {
+    align-items: center; /* 确保元素居中对齐 */
+    height: 70px; /* 设置与其他筛选组相同的高度 */
+}
+
+/* 调整仅看AI推荐的label样式 */
+.results-filter-bar .filter-group:nth-child(8) label {
+    font-size: 14px; /* 与其他筛选标签相同的字体大小 */
+    font-weight: 600; /* 与其他筛选标签相同的字体粗细 */
+    color: #555; /* 与其他筛选标签相同的字体颜色 */
+    display: flex;
+    align-items: center; /* 垂直居中对齐 */
+    gap: 6px;
+    cursor: pointer;
+    height: 36px; /* 与其他控件相同的高度 */
+}
+
+/* 确保切换开关和文字在一行且垂直居中 */
+.results-filter-bar .filter-group:nth-child(8) .switch {
+    vertical-align: middle; /* 垂直居中 */
+    margin-top: -2px; /* 微调位置 */
+}
+
+.results-filter-bar #refresh-results-btn,
+.results-filter-bar #delete-results-btn {
+    width: 120px; /* 固定按钮长度 */
+}
+
+.results-filter-bar label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#results-grid-container {
+    padding-top: 8px;
+}
+
+#results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, max-content));
+    gap: 24px;
+    align-items: start; /* Ensure cards align to the top */
+}
+
+.result-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+    width: 300px; /* 设置固定宽度 */
+    min-width: 300px; /* 确保最小宽度 */
+    max-width: 300px; /* 确保最大宽度 */
+    position: relative; /* Add this to position delete button absolutely */
+}
+
+.delete-card-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background-color: #ff4d4f;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 22px; /* Increase font size for bigger x */
+    width: 32px; /* Make button slightly larger */
+    height: 32px; /* Make button slightly larger */
+    border-radius: 6px; /* Change to square with rounded corners */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    opacity: 0; /* Hidden by default */
+    transition: opacity 0.2s ease; /* Smooth fade-in transition */
+    font-weight: bold; /* Make x bolder */
+}
+
+.result-card:hover .delete-card-btn {
+    opacity: 1; /* Visible when hovering the card */
+}
+
+.delete-card-btn::after {
+    content: '×'; /* Cross symbol */
+}
+
+.result-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-image {
+    width: 100%;
+    height: 200px;
+    background-color: #f0f0f0;
+    overflow: hidden;
+}
+
+.card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.result-card:hover .card-image img {
+    transform: scale(1.05);
+}
+
+.card-content {
+    padding: 16px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Allow the content to shrink if needed */
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    line-height: 1.4;
+    color: #1a1a1a;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 44.8px; /* 16px * 1.4 * 2 */
+    word-break: break-word;
+}
+
+.card-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.card-title a:hover {
+    color: #1890ff;
+}
+
+.card-price {
+    font-size: 20px;
+    font-weight: bold;
+    color: #ff4d4f;
+    margin: 0 0 12px;
+    word-break: break-word;
+}
+
+.card-ai-summary {
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Allow the summary to shrink if needed */
+}
+
+.card-ai-summary.not-recommended {
+    background-color: #fff1f0;
+    border-color: #ffa39e;
+}
+
+.card-ai-summary strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #389e0d;
+    word-break: break-word;
+}
+
+.card-ai-summary.not-recommended strong {
+    color: #cf1322;
+}
+
+.card-ai-summary p {
+    margin: 0;
+    color: #555;
+    white-space: pre-wrap; /* Allow wrapping */
+    word-break: break-word; /* Break long words */
+    flex-grow: 1;
+    overflow-wrap: break-word;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between; /* Keep buttons on the right */
+    align-items: flex-end; /* Align items to the bottom */
+    font-size: 14px; /* Increase font size */
+    color: #888;
+    border-top: 1px solid #f0f0f0;
+    padding: 12px 16px;
+    margin-top: auto;
+    gap: 12px;
+}
+
+.card-footer .seller-time-info {
+    flex: 1;
+}
+
+.card-footer .card-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-self: flex-end; /* 改为底部对齐 */
+    flex-shrink: 0;
+}
+
+.seller-info {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+    color: #555;
+    margin-bottom: 4px; /* 减小卖家信息与时间信息之间的间距 */
+    font-size: 15px; /* 增大卖家名字 */
+}
+
+/* 时间信息样式调整 - 优化字体和行间距 */
+.time-info {
+    display: flex;
+    flex-direction: column; /* 恢复纵向排列 */
+    gap: 2px; /* 时间项之间的小间距 */
+}
+
+.time-info p {
+    margin: 0;
+    font-size: 12px; /* 增大时间文案字体 */
+    line-height: 1.2; /* 减小行间距 */
+    font-weight: 400; /* 正常字体粗细 */
+    text-align: left; /* 左对齐 */
+}
+
+/* Align seller-time-info to the left and ensure proper spacing */
+.card-footer .seller-time-info {
+    flex: 1;
+    text-align: left; /* Align all content in seller-time-info to the left */
+}
+
+.card-footer .action-btn {
+    flex-shrink: 0; /* Prevent the button from shrinking */
+    align-self: center; /* Align buttons to the center for better visual appeal */
+    margin-top: 2px;
+    background-color: #1890ff;
+    color: white;
+    border: 1px solid #1890ff;
+    border-radius: 4px;
+    padding: 6px 12px;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.3s;
+}
+
+.card-footer .action-btn:hover {
+    background-color: #40a9ff;
+    border-color: #40a9ff;
+    color: white;
+    text-decoration: none;
+}
+
+.card-footer .action-btn.send-notification-btn {
+    background-color: #52c41a;
+    border-color: #52c41a;
+}
+
+.card-footer .action-btn.send-notification-btn:hover {
+    background-color: #73d13d;
+    border-color: #73d13d;
+}
+
+/* Buttons container */
+.card-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.view-json-btn {
+    font-size: 13px;
+}
+
+/* JSON查看器模态框 */
+#json-viewer-modal .modal-content {
+    max-width: 800px;
+}
+
+#json-viewer-content {
+    background-color: #2b2b2b;
+    color: #f0f0f0;
+    padding: 15px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 60vh;
+    overflow-y: auto;
+    font-family: "SF Mono", "Consolas", "Menlo", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* 设置页面样式 */
+.settings-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.settings-card h3 {
+    font-size: 20px; /* 增大标题字号 */
+    font-weight: 600; /* 加粗标题 */
+    margin-top: 0;
+    margin-bottom: 20px; /* 增加标题底部外边距 */
+    border-bottom: 2px solid #f0f0f0; /* 加粗底边框 */
+    padding-bottom: 14px; /* 增加标题内边距 */
+    color: #222; /* 加深标题颜色 */
+}
+
+.notification-channel-card h4 {
+    font-size: 18px; /* 增大通知渠道标题字号 */
+    font-weight: 500; /* 加粗通知渠道标题 */
+    color: #333; /* 加深通知渠道标题颜色 */
+}
+
+/* 添加表单提示文字样式 */
+.form-group p {
+    font-size: 11px; /* 缩小提示文字字号 */
+    color: #999; /* 提示文字颜色变浅 */
+    margin: 6px 0 0;
+    padding: 0;
+    font-style: italic; /* 保持斜体 */
+    line-height: 1.4; /* 调整行高 */
+}
+
+.notification-channel-card {
+    background-color: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: all 0.3s;
+}
+
+.notification-channel-card:hover {
+    border-color: #1890ff;
+    box-shadow: 0 2px 12px rgba(24, 144, 255, 0.1);
+}
+
+.notification-channel-card h4 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 18px; /* 增大通知渠道标题字号 */
+    font-weight: 500; /* 加粗通知渠道标题 */
+    color: #333; /* 加深通知渠道标题颜色 */
+}
+
+.status-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 14px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-item .label {
+    font-weight: 500;
+    color: #555;
+}
+
+.status-item .value .tag {
+    font-weight: normal;
+}
+
+.status-ok {
+    background-color: #f6ffed;
+    border-color: #b7eb8f;
+    color: #389e0d;
+}
+
+.status-error {
+    background-color: #fff1f0;
+    border-color: #ffa39e;
+    color: #cf1322;
+}
+
+.prompt-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.prompt-list-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.prompt-list-container label {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+#prompt-selector {
+    min-width: 250px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #d9d9d9;
+    font-size: 14px;
+    background-color: #fff;
+}
+
+.prompt-editor-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#prompt-editor {
+    width: 100%;
+    min-height: 400px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    padding: 12px;
+    font-family: "SF Mono", "Consolas", "Menlo", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+#prompt-editor:focus {
+    border-color: #40a9ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+#save-prompt-btn {
+    align-self: flex-end;
+}

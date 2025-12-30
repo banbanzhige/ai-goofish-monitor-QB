@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>咸鱼智能监控机器人 - 管理后台</title>
+    <link rel="icon" type="image/png" href="/logo/favicon 32x32.png" sizes="32x32">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            display: inline-block;
+            line-height: 1.5;
+            text-align: center;
+            vertical-align: baseline;
+            white-space: nowrap;
+        }
+
+        .status-running {
+            background-color: #28a745; /* green */
+        }
+
+        .status-stopped {
+            background-color: #6c757d; /* gray */
+        }
+
+        .tasks-table .action-btn {
+            padding: 6px 10px;
+            margin-right: 5px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .tasks-table .run-task-btn {
+            background-color: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+
+        .tasks-table .run-task-btn:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+
+        .tasks-table .stop-task-btn {
+            background-color: #dc3545;
+            color: white;
+            border-color: #dc3545;
+        }
+
+        .tasks-table .stop-task-btn:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+        }
+
+        .tasks-table .edit-btn {
+            background-color: #ffc107;
+            color: #212529;
+            border-color: #ffc107;
+        }
+
+        .tasks-table .edit-btn:hover {
+            background-color: #e0a800;
+            border-color: #d39e00;
+        }
+
+        .tasks-table .copy-btn {
+            background-color: #17a2b8;
+            color: white;
+            border-color: #17a2b8;
+        }
+
+        .tasks-table .copy-btn:hover {
+            background-color: #138496;
+            border-color: #117a8b;
+        }
+
+        .tasks-table .delete-btn {
+            background-color: #6c757d;
+            color: white;
+            border-color: #6c757d;
+        }
+
+        .tasks-table .delete-btn:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+
+        .tasks-table .action-btn:disabled {
+            background-color: #cccccc;
+            border-color: #cccccc;
+            cursor: not-allowed;
+            opacity: 0.65;
+        }
+
+        .modal-content.large {
+            max-width: 800px;
+        }
+
+        .instructions {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            padding-left: 35px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .instructions li {
+            margin-bottom: 10px;
+        }
+
+        .code-block {
+            position: relative;
+            background-color: #eef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .code-block pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 0.9em;
+            color: #333;
+        }
+
+        .code-block .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 2px 6px;
+        }
+
+        .login-status-widget {
+            cursor: pointer;
+            z-index: 101; /* Ensure it's above other header content */
+            padding-bottom: 5px;
+        }
+
+        .login-status-widget .status-text {
+            padding: 8px 12px;
+            border-radius: 16px;
+            color: white;
+            font-size: 0.9em;
+            display: inline-block;
+        }
+
+        .login-status-widget .status-ok {
+            background-color: #28a745;
+        }
+
+        .login-status-widget .status-error {
+            background-color: #dc3545;
+        }
+
+        .login-status-widget .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            min-width: 120px;
+            padding: 5px 0;
+        }
+
+        .login-status-widget:hover .dropdown-menu {
+            display: block;
+        }
+
+        .login-status-widget .dropdown-item {
+            display: block;
+            padding: 8px 12px;
+            color: #333;
+            text-decoration: none;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+
+        .login-status-widget .dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .login-status-widget .dropdown-item.delete {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+<header style="position: relative; height: 64px; display: flex; align-items: center; padding: 0 24px;">
+    <div style="width: 100%; text-align: center; display: flex; justify-content: center;">
+        <img src="/logo/logo 128x128.png" alt="Logo" style="height: 40px; border-radius: 8px; vertical-align: middle; margin-right: 12px;">
+        <h1 style="font-size: 22px; margin: 0; color: #1a1a1a; vertical-align: middle; display: inline-block;">咸鱼智能监控机器人 - 管理后台</h1>
+    </div>
+    <div id="login-status-widget-container" style="position: absolute; top: 50%; right: 24px; transform: translateY(-50%); z-index: 10;"></div>
+</header>
+<div class="container">
+    <aside>
+        <nav>
+            <ul>
+                <li><a href="#tasks" class="nav-link active">任务管理</a></li>
+                <li><a href="#results" class="nav-link">结果查看</a></li>
+                <li><a href="#logs" class="nav-link">运行日志</a></li>
+                <li><a href="#notifications" class="nav-link">通知配置</a></li>
+                <li><a href="#settings" class="nav-link">系统设置</a></li>
+            </ul>
+        </nav>
+    </aside>
+    <main id="main-content">
+        <!-- 内容将根据侧边栏选择动态加载 -->
+    </main>
+</div>
+
+<!-- Add Task Modal -->
+<div id="add-task-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>创建新监控任务 (AI驱动)</h2>
+            <button id="close-modal-btn" class="close-button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="add-task-form">
+                <div class="form-group">
+                    <label for="task-name">任务名称</label>
+                    <input type="text" id="task-name" name="task_name" placeholder="例如：索尼 A7M4 相机" required>
+                </div>
+                <div class="form-group">
+                    <label for="keyword">搜索关键词</label>
+                    <input type="text" id="keyword" name="keyword" placeholder="例如：a7m4" required>
+                </div>
+                <div class="form-group form-group-inline">
+                    <div>
+                        <label for="min-price">价格范围 (可选)</label>
+                        <input type="number" id="min-price" name="min_price" placeholder="最低价">
+                    </div>
+                    <span>-</span>
+                    <div>
+                        <label for="max-price">&nbsp;</label>
+                        <input type="number" id="max-price" name="max_price" placeholder="最高价">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="max-pages">最大搜索页数</label>
+                    <input type="number" id="max-pages" name="max_pages" value="3" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="task-cron">定时执行 (Cron 表达式) <a href="https://crontab.guru/" target="_blank"
+                                                                     title="点击查看Cron表达式帮助">[?]</a></label>
+                    <input type="text" id="task-cron" name="cron" placeholder="分 时 日 月 周 (例如: 0 8 * * *)">
+                    <p class="form-hint">留空则不启用定时执行。例如 "0 22 * * *" 表示每晚22:00执行。</p>
+                </div>
+<div class="form-group">
+                    <label for="reference-file-selector">参考文件模板</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <select id="reference-file-selector" style="flex: 1; padding: 10px 12px; font-size: 14px; border: 1px solid #d9d9d9; border-radius: 4px; transition: border-color 0.3s; box-sizing: border-box;">
+                            <option value="">正在加载...</option>
+                        </select>
+<button id="preview-reference-file-btn" class="control-button" style="flex-shrink: 0; background-color: #52c41a; color: white; border-color: #52c41a; padding: 10px 16px;">预览</button>
+                    </div>
+                    <p class="form-hint">选择AI生成标准的参考文件模板</p>
+                </div>
+                <div class="form-group" id="reference-preview-container" style="display: none;">
+                    <label for="reference-file-preview">参考文件预览</label>
+                    <pre id="reference-file-preview" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto;">参考文件内容...</pre>
+                    <p class="form-hint">预览内容不可修改，修改请前往系统设置 > Prompt 管理</p>
+                </div>
+                <div class="form-group">
+                    <label for="task-description">详细购买需求</label>
+                    <textarea id="task-description" name="description" rows="6"
+                              placeholder="请用自然语言详细描述你的购买需求，AI将根据此描述生成分析标准。例如：我想买一台95新以上的索尼A7M4相机，预算在10000到13000元之间，快门数要低于5000。必须是国行且配件齐全。优先考虑个人卖家..."
+                              required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="personal-only" name="personal_only" checked>
+                        仅筛选个人闲置卖家
+                    </label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button id="cancel-add-task-btn" class="control-button">取消</button>
+            <button id="save-new-task-btn" class="control-button primary-btn">
+                <span class="btn-text">创建任务</span>
+                <span class="spinner" style="display: none;"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- refresh criteria Modal -->
+<div id="refresh-criteria-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>新生成AI标准</h2>
+            <button id="close-refresh-criteria-btn" class="close-button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="refresh-criteria-form">
+                <div class="form-group">
+                    <label for="refresh-reference-file-selector">参考文件模板</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <select id="refresh-reference-file-selector" style="flex: 1; padding: 10px 12px; font-size: 14px; border: 1px solid #d9d9d9; border-radius: 4px; transition: border-color 0.3s; box-sizing: border-box;">
+                            <option value="">正在加载...</option>
+                        </select>
+<button id="refresh-preview-reference-file-btn" class="control-button" style="flex-shrink: 0; background-color: #52c41a; color: white; border-color: #52c41a; padding: 10px 16px;">预览</button>
+                    </div>
+                    <p class="form-hint">选择AI生成标准的参考文件模板</p>
+                </div>
+                <div class="form-group" id="refresh-reference-preview-container" style="display: none;">
+                    <label for="refresh-reference-file-preview">参考文件预览</label>
+                    <pre id="refresh-reference-file-preview" style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto;">参考文件内容...</pre>
+                    <p class="form-hint">预览内容不可修改，修改请前往系统设置 > Prompt 管理</p>
+                </div>
+                <div class="form-group">
+                    <label for="refresh-criteria-description">详细购买需求</label>
+                    <textarea id="refresh-criteria-description" name="description" rows="6"
+                              placeholder="请用自然语言详细描述你的购买需求，AI将根据此描述生成分析标准。例如：我想买一台95新以上的索尼A7M4相机，预算在10000到13000元之间，快门数要低于5000。必须是国行且配件齐全。优先考虑个人卖家..."
+                              required></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button id="cancel-refresh-criteria-btn" class="control-button">取消</button>
+                <button id="refresh-criteria-btn" class="control-button primary-btn" style="background-color: red; color: white;">
+                    <span class="btn-text">新生成</span>
+                    <span class="spinner" style="display: none;"></span>
+                    <span class="loading-text" style="display: none; margin-left: 8px;">正在后台生成</span>
+                </button>
+        </div>
+    </div>
+</div>
+
+    <!-- JSON Viewer Modal -->
+    <div id="json-viewer-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>AI 分析详情</h2>
+                <button id="close-json-viewer-btn" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="json-viewer-content"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Criteria Editor Modal -->
+    <div id="criteria-editor-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2>AI标准文件编辑</h2>
+                <button id="close-criteria-editor-btn" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <button id="back-from-editor-btn" class="control-button">⬅️ 返回任务管理</button>
+                </div>
+                <div class="form-group">
+                    <label for="criteria-filename">文件名:</label>
+                    <input type="text" id="criteria-filename" readonly style="background-color: #f5f5f5;">
+                </div>
+                <div class="form-group">
+                    <label for="criteria-editor">文件内容:</label>
+                    <textarea id="criteria-editor" spellcheck="false" style="height: 400px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-criteria-editor-btn" class="control-button">取消</button>
+                <button id="save-criteria-editor-btn" class="control-button primary-btn">保存更改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Login State Modal -->
+    <div id="login-state-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h2>手动更新登录状态 (Cookie)</h2>
+            <button id="close-login-state-modal-btn" class="close-button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="login-state-form" onsubmit="return false;">
+
+                <!-- Chrome Extension Method -->
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">使用Chrome扩展（推荐）</h3>
+                <p>此方法用于在无法运行图形化浏览器的服务器上更新闲鱼登录凭证。</p>
+                <p>安装Chrome扩展来提取闲鱼登录状态：</p>
+                <ol class="instructions">
+                    <li>在Chrome浏览器中安装 <a href="https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa" target="_blank"
+                                                rel="noopener noreferrer">闲鱼登录状态提取扩展</a></li>
+                    <li>打开并登录 <a href="https://www.goofish.com" target="_blank"
+                                      rel="noopener noreferrer">闲鱼官网</a>。
+                    </li>
+                    <li>登录成功后，点击浏览器工具栏中的该扩展图标。</li>
+                    <li>点击"提取登录状态"按钮获取登录信息。</li>
+                    <li>点击"复制到剪贴板"按钮。</li>
+                    <li>将复制的内容粘贴到下方的文本框中，然后点击"保存"。</li>
+                </ol>
+                <div class="form-group">
+                    <label for="login-state-content">粘贴JSON内容:</label>
+                    <textarea id="login-state-content" name="content" rows="8"
+                              placeholder="请在此处粘贴从浏览器扩展复制的JSON文本..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button id="cancel-login-state-btn" type="button" class="control-button">取消</button>
+            <button id="save-login-state-btn" type="button" class="control-button primary-btn">保存</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/main.js"></script>
+</body>
+</html>
