@@ -156,7 +156,7 @@ def initialize_ai_client():
 
         # 检查配置是否齐全
         if not all([base_url, model_name]):
-            print("警告：未在 .env 文件中完整设置 OPENAI_BASE_URL 和 OPENAI_MODEL_NAME。AI相关功能可能无法使用。")
+            print("[异常]API接口文件未填写，AI相关功能可能无法使用，请在Web管理界面填写或手动修改.env文件")
             client = None
             return False
 
