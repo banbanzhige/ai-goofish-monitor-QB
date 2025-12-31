@@ -198,9 +198,9 @@ services:
   git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
   cd banbanzhige/ai-goofish-monitor-QB
   ```
-  - 安装好python 3.8+的环境
+  - **需要自行准备** ：python 3.8+的环境
   - 双击打开start_web_server.bat启动
-
+  - start_web_server.bat会自行创建虚拟环境，安装依赖，检测端口，并且自行启动web_server.py
 
 ### 2. 配置环境变量
 
@@ -208,6 +208,7 @@ services:
 - 2，或者在web界面中系统设置中直接配置环境变量（推荐）
 
 ### 3. 启动Web管理界面与后端代码
+- 如果使用start_web_server.bat则不需要这步可一键启动
 
 ```PowerShell
 python web_server.py
