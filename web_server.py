@@ -437,7 +437,11 @@ async def reload_scheduler_jobs():
     scheduler.remove_all_jobs()
     try:
         async with aiofiles.open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            tasks = json.loads(await f.read())
+            content = await f.read()
+            if not content.strip():  # 检查文件内容是否为空
+                tasks = []
+            else:
+                tasks = json.loads(content)
 
         for i, task in enumerate(tasks):
             task_name = task.get("task_name")
