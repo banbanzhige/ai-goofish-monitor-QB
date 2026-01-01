@@ -40,14 +40,14 @@
         }
 
         .tasks-table .run-task-btn {
-            background-color: #28a745;
+            background-color: #52c41a;
             color: white;
-            border-color: #28a745;
+            border-color: #52c41a;
         }
 
         .tasks-table .run-task-btn:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
+            background-color: #389e0d;
+            border-color: #389e0d;
         }
 
         .tasks-table .stop-task-btn {
@@ -62,14 +62,14 @@
         }
 
         .tasks-table .edit-btn {
-            background-color: #ffc107;
+            background-color: #fff533;
             color: #212529;
-            border-color: #ffc107;
+            border-color: #fff533;
         }
 
         .tasks-table .edit-btn:hover {
-            background-color: #e0a800;
-            border-color: #d39e00;
+            background-color: #e8de2b;
+            border-color: #dcd028;
         }
 
         .tasks-table .copy-btn {
@@ -177,9 +177,9 @@
             padding: 5px 0;
         }
 
-        .login-status-widget:hover .dropdown-menu {
+        /* .login-status-widget:hover .dropdown-menu {
             display: block;
-        }
+        } */
 
         .login-status-widget .dropdown-item {
             display: block;
@@ -201,6 +201,9 @@
 </head>
 <body>
 <header style="position: relative; height: 64px; display: flex; align-items: center; padding: 0 24px;">
+    <div style="position: absolute; left: 24px; top: 50%; transform: translateY(-50%);">
+        <span id="version-info" style="font-size: 14px; color: #666; font-weight: bold;">{{ version }}</span>
+    </div>
     <div style="width: 100%; text-align: center; display: flex; justify-content: center;">
         <img src="/logo/logo 128x128.png" alt="Logo" style="height: 40px; border-radius: 8px; vertical-align: middle; margin-right: 12px;">
         <h1 style="font-size: 22px; margin: 0; color: #1a1a1a; vertical-align: middle; display: inline-block;">咸鱼智能监控机器人 - 管理后台</h1>
@@ -336,7 +339,7 @@
         </div>
         <div class="modal-footer">
             <button id="cancel-refresh-criteria-btn" class="control-button">取消</button>
-                <button id="refresh-criteria-btn" class="control-button primary-btn" style="background-color: red; color: white; display: flex; align-items: center; justify-content: center; gap: 8px;">
+<button id="refresh-criteria-btn" class="control-button primary-btn" style="background-color: #fff533; color: #212529; border-color: #fff533; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <span class="btn-text">新生成</span>
                     <span class="spinner" style="display: none;"></span>
                     <span class="loading-text" style="display: none;">正在后台生成</span>
@@ -423,6 +426,31 @@
         </div>
     </div>
 </div>
+
+    <!-- Manual Login Confirmation Modal -->
+    <div id="manual-login-confirm-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>自动获取咸鱼cookie登录状态</h2>
+                <button id="close-manual-login-confirm-modal" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3 style="margin-top: 20px; margin-bottom: 10px;">自动转跳首页获取咸鱼登录状态</h3>              
+                <p>此方法用于可图形化浏览器情况自动获取凭证。</p>
+                <ol class="instructions">
+                    <li>程序自动打开咸鱼首页</li>
+                    <li>在咸鱼首页扫码登录</li>
+                    <li>登录完成后会自动刷新获取cookie，<strong style="color: red;">请不要手动关闭网页</strong></li>
+                    <li>获取登录信息完成后网页会自动关->登录成功</li>
+                </ol>
+                <p>注：遇到网络问题获取cookie失败请使用手动登录</p>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-manual-login-confirm-btn" class="control-button">取消</button>
+                <button id="confirm-manual-login-confirm-btn" class="control-button primary-btn">开始</button>
+            </div>
+        </div>
+    </div>
 
 <script src="/static/js/main.js"></script>
 </body>
