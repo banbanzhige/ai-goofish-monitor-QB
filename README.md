@@ -96,34 +96,34 @@
 <details>
 <summary>📋任务管理界面：优化了整体ui排版，拆分了运行逻辑，增加了更多的任务状态指示与操作，减少了任务阻塞。现在可以复制任务，详细定制每条任务的ai筛选标准了</summary>
 
-![任务管理1.png](Example/Archive/任务管理1.png)
-![任务管理2.png](Example/Archive/任务管理2.png)
-![任务管理3.png](Example/Archive/任务管理3.png)
+![任务管理1.png](Example/old/任务管理1.png)
+![任务管理2.png](Example/old/任务管理2.png)
+![任务管理3.png](Example/old/任务管理3.png)
 </details>
 <details>
 <summary>🎯结果查看界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
 
-![结果查看1.png](Example/Archive/结果查看1.png)
-![结果查看2.png](Example/Archive/结果查看2.png)
-![结果查看3.png](Example/Archive/结果查看3.png)
+![结果查看1.png](Example/old/结果查看1.png)
+![结果查看2.png](Example/old/结果查看2.png)
+![结果查看3.png](Example/old/结果查看3.png)
 
 </details>
 
 <details>
 <summary>📊运行日志界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
 
-![运行日志.png](Example/Archive/运行日志.png)
-![运行日志2.png](Example/Archive/运行日志2.png)
+![运行日志.png](Example/old/运行日志.png)
+![运行日志2.png](Example/old/运行日志2.png)
 
 </details>
 
 <details>
 <summary>📱通知配置界面：拆分优化了通知模块，把通知配置界面也单独拎到导航栏，添加在通知中手机版5H链接，方便在通信软件如微信中直接打开移动版咸鱼，并且添加了企业微信应用渠道支持，添加了测试通知</summary>
 
-![通知配置.png](Example/Archive/通知配置.png)
-![通知配置2.png](Example/Archive/通知配置2.png)
-![企业微信群机器人2.jpg](Example/Archive/企业微信群机器人2.jpg)
-![企业微信应用渠道2.jpg](Example/Archive/企业微信应用渠道2.jpg)
+![通知配置.png](Example/old/通知配置.png)
+![通知配置2.png](Example/old/通知配置2.png)
+![企业微信群机器人2.jpg](Example/old/企业微信群机器人2.jpg)
+![企业微信应用渠道2.jpg](Example/old/企业微信应用渠道2.jpg)
 
 
 </details>
@@ -132,8 +132,8 @@
 <details>
 <summary>🖥️系统设置界面：优化了.env与系统同步逻辑，web里添加了更多可选的环境设置，并且双向保存同步了，对docker用户更加友好。现在可以直接在系统管理里管理Prompt实现了核心ai标准的增删改查工作，能更方便配置自定义个性化ai需求了。</summary>
 
-![系统设置1.png](Example/Archive/系统设置1.png)
-![系统设置2.png](Example/Archive/系统设置2.png)
+![系统设置1.png](Example/old/系统设置1.png)
+![系统设置2.png](Example/old/系统设置2.png)
 
 </details>
 
