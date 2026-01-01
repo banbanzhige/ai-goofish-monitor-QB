@@ -990,8 +990,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 return text.replace(regex, '<span style="background-color: #fff3cd; color: #856404; padding: 2px 4px; border-radius: 3px; font-weight: bold;">$1</span>');
             };
 
+            // 只存储必要的信息用于发送通知
+            const notificationData = {
+                商品信息: {
+                    商品标题: info.商品标题,
+                    当前售价: info.当前售价,
+                    商品链接: info.商品链接,
+                    卖家昵称: info.卖家昵称 || seller.卖家昵称,
+                    发布时间: publishTime,
+                    商品图片列表: info.商品图片列表 // 包含商品图片列表
+                },
+                ai_analysis: {
+                    is_recommended: ai.is_recommended,
+                    reason: ai.reason,
+                    risk_tags: ai.risk_tags
+                },
+                爬取时间: item.爬取时间,
+                搜索关键字: item.搜索关键字,
+                任务名称: item.任务名称,
+                AI标准: item.AI标准
+            };
+            
             return `
-            <div class="result-card" data-item='${escapeHtml(JSON.stringify(item))}'>
+            <div class="result-card" data-notification='${escapeHtml(JSON.stringify(notificationData))}'>
             <button class="delete-card-btn" title="删除此商品"></button>
                 <div class="card-image">
                     <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(info.商品标题) || '商品图片'}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJhzwvdGV4dD48L3N2Zz4=';"></a>
@@ -2174,9 +2195,9 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
         if (button.matches('.delete-card-btn')) {
             const card = button.closest('.result-card');
-            const itemData = JSON.parse(card.dataset.item);
+            // Note: We removed the JSON.parse from card.dataset.item to avoid the error
             if (confirm('你确定要删除此商品吗？')) {
-                // Here you would implement the API call to delete the item
+                // Here you would implement the API call to delete the item if needed
                 card.remove();
             }
             return;
@@ -2482,14 +2503,14 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             setTimeout(() => modal.classList.add('visible'), 10);
         } else if (button.matches('.send-notification-btn')) {
             const card = button.closest('.result-card');
-            const itemData = JSON.parse(card.dataset.item);
+            const notificationData = JSON.parse(card.dataset.notification);
             
             // Change button text to indicate loading
             button.disabled = true;
             button.textContent = '发送中...';
             
             // Send the notification
-            sendNotification(itemData).then(result => {
+            sendNotification(notificationData).then(result => {
                 if (result) {
                     if (result.channels) {
                         const successChannels = Object.entries(result.channels)
