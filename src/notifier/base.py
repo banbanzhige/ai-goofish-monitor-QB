@@ -79,15 +79,27 @@ class BaseNotifier(ABC):
         ai_analysis = product_info['ai_analysis']
         ai_reason = ai_analysis.get('reason', '') if ai_analysis else ''
         
-        # 构建消息内容 - 只发送手机端链接
-        if reason and reason != "AI推荐的优质商品" and ai_reason:
-            message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{ai_reason}\n\n手机端链接: {mobile_link}"
-        elif reason == "用户手动发送通知" and ai_reason:
-            message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{ai_reason}\n\n手机端链接: {mobile_link}"
-        elif reason:
-            message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{reason}\n\n手机端链接: {mobile_link}"
+        # 构建消息内容
+        if config["PCURL_TO_MOBILE"]:
+            # 只发送手机端链接
+            if reason and reason != "AI推荐的优质商品" and ai_reason:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{ai_reason}\n\n手机端链接: {mobile_link}"
+            elif reason == "用户手动发送通知" and ai_reason:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{ai_reason}\n\n手机端链接: {mobile_link}"
+            elif reason:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{reason}\n\n手机端链接: {mobile_link}"
+            else:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n手机端链接: {mobile_link}"
         else:
-            message = f"价格: {price}\n发布时间: {publish_time}\n\n手机端链接: {mobile_link}"
+            # 同时发送手机端和电脑端链接
+            if reason and reason != "AI推荐的优质商品" and ai_reason:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{ai_reason}\n\n手机端链接: {mobile_link}\n电脑端链接: {pc_link}"
+            elif reason == "用户手动发送通知" and ai_reason:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{ai_reason}\n\n手机端链接: {mobile_link}\n电脑端链接: {pc_link}"
+            elif reason:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n推荐理由:\n{reason}\n\n手机端链接: {mobile_link}\n电脑端链接: {pc_link}"
+            else:
+                message = f"价格: {price}\n发布时间: {publish_time}\n\n手机端链接: {mobile_link}\n电脑端链接: {pc_link}"
         
         notification_title = f"🚨 新推荐! {title[:30]}..."
         
