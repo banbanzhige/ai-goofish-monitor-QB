@@ -283,6 +283,7 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
 
 #  ---用于进程和调度器管理的全局变量---
 scraper_processes = {}  # 将单个进程变量改为字典，以管理多个任务进程 {task_id: process}
+login_process = None     # 跟踪当前运行的登录进程
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 
 # 自定义静态文件处理器，添加认证
@@ -1577,12 +1578,26 @@ async def delete_login_state(username: str = Depends(verify_credentials)):
     return {"message": "登录状态文件不存在，无需删除。"}
 
 
+# 重新定义清理函数，不使用嵌套函数
+async def _cleanup_login_process(process):
+    """清理登录进程的后台任务"""
+    await process.wait()
+    global login_process
+    login_process = None
+    print(f"自动登录程序 (PID: {process.pid}) 已结束。")
+
 @app.post("/api/manual-login", response_model=dict)
 async def start_manual_login(username: str = Depends(verify_credentials)):
     """
-    启动手动登录程序 login.py
+    启动自动登录程序 login.py
     """
+    global login_process
+    
     try:
+        # 检查是否已有登录进程在运行
+        if login_process is not None and login_process.returncode is None:
+            return {"message": "已有登录进程在运行中，请等待其完成或关闭后再尝试。"}
+        
         # 使用 asyncio 启动 login.py 进程
         child_env = os.environ.copy()
         child_env["PYTHONIOENCODING"] = "utf-8"
@@ -1595,12 +1610,20 @@ async def start_manual_login(username: str = Depends(verify_credentials)):
             env=child_env
         )
         
-        # 不等待进程结束，让它在后台运行
-        print(f"手动登录程序已启动，PID: {process.pid}")
+        # 保存进程引用
+        login_process = process
         
-        return {"message": "手动登录程序已成功启动，请在服务器上查看浏览器窗口并完成登录。"}
+        # 不等待进程结束，让它在后台运行
+        print(f"自动登录程序已启动，PID: {process.pid}")
+        
+        # 创建一个后台任务来清理进程引用
+        asyncio.create_task(_cleanup_login_process(process))
+        
+        return {"message": "自动登录程序已成功启动，请在服务器上查看浏览器窗口并完成登录。"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"启动手动登录程序时出错: {str(e)}")
+        # 确保进程引用被清理
+        login_process = None
+        raise HTTPException(status_code=500, detail=f"启动自动登录程序时出错: {str(e)}")
 
 
 @app.get("/api/settings/notifications", response_model=dict)
