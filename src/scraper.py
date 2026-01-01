@@ -14,7 +14,7 @@ from playwright.async_api import (
 from src.ai_handler import (
     download_all_images,
     get_ai_analysis,
-    send_ntfy_notification,
+    send_all_notifications,
     cleanup_task_images,
 )
 from src.config import (
@@ -536,7 +536,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                                 
                                 # 直接发送通知，将所有商品标记为推荐
                                 log_time("商品已跳过AI分析，准备发送通知...", task_name=task_name)
-                                await send_ntfy_notification(item_data, "商品已跳过AI分析，直接通知")
+                                await send_all_notifications(item_data, "商品已跳过AI分析，直接通知")
                             else:
                                 log_time(f"开始对商品 #{item_data['商品ID']} 进行实时AI分析...", task_name=task_name)
                                 
@@ -579,7 +579,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                                     # 创建item_data的副本并将ai_analysis添加到其中
                                     item_data_with_analysis = item_data.copy()
                                     item_data_with_analysis['ai_analysis'] = ai_analysis_result
-                                    await send_ntfy_notification(item_data_with_analysis, ai_analysis_result.get("reason", "无"))
+                                    await send_all_notifications(item_data_with_analysis, ai_analysis_result.get("reason", "无"))
                             # --- END: 实时AI分析和通知 ---
 
                             # 4. 保存包含AI结果的完整记录
