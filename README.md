@@ -1,8 +1,22 @@
+
+<div style="text-align: center; margin: 20px 0;">
+  <img src="logo/logo 128x128.png" 
+       style="width: 100%; max-width: 128px; height: auto; 
+              border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
+              border: 4px solid #fff; background: #f9f9f9;" 
+       alt="logo">
+</div>
+
+
+
 # 🐡咸鱼智能监控机器人
 基于 Playwright 和 AI 的闲鱼多任务实时监控工具机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
 基于原仓库地址代码：https://github.com/Usagi-org/ai-goofish-monitor 大量修改优化代码与操作逻辑调整到更舒适的使用体验风格。
 
 新手和ai agent合作的练习作品，希望多多指教
+
+
+
 ## ✨ 核心功能
 
 - **Web管理界面**：提供直观的Web UI，方便配置和管理
@@ -13,6 +27,118 @@
 - **多任务管理**：支持配置多个监控任务，每个任务可以设置不同的关键词、价格范围等、支持并发运行
 - **灵活的调度**：支持定时任务配置，可自定义监控频率
 - **Docker 一键部署**: 提供 `docker-compose` 配置，实现开箱即用
+
+
+# 📸 截图展示
+<div align="center" style="margin: 2em 0;">
+  <img src="Example/0.9.0/任务管理1.png" 
+       style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
+       alt="新任务管理界面">
+  <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
+    新任务管理界面
+  </p>
+</div>
+
+<div align="center" style="margin: 2em 0;">
+  <img src="Example/0.9.0/结果查看1.png" 
+       style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
+       alt="新结果管理界面">
+  <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
+    新结果管理界面
+  </p>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 20px 0;">
+  <!-- 第一张图 -->
+  <div style="flex: 1 1 280px; min-width: 200px; max-width: 300px;">
+    <img src="Example/0.9.0/微信应用通知渠道.jpg" 
+         style="width: 100%; height: auto; border-radius: 8px;" 
+         alt="微信应用通知渠道">
+  </div>
+  <!-- 第二张图 -->
+  <div style="flex: 1 1 280px; min-width: 200px; max-width: 300px;">
+    <img src="Example/0.9.0/微信群机器人通知渠道.jpg" 
+         style="width: 100%; height: auto; border-radius: 8px;" 
+         alt="微信群机器人通知渠道">
+  </div>
+</div>
+
+
+
+
+# 🆕 新特性
+**近期更新：**
+
+<details>
+<summary>v0.9.0更新日志-2026-01-01</summary>
+  <ul>
+    <li>元旦快乐</li>
+    <li>添加了自动获取cookie登录按钮，优化了login.py的登录逻辑</li>
+    <li>在搜索结果添加了手动搜索，并且能高光显示搜索匹配内容</li>
+    <li>优化了管理界面的UI视觉效果，现在更好看了</li>
+    <li>添加了版本号，与docker版本号接轨</li>
+    <li>优化了start_web_server.bat的字体颜色和添加了版本号，引导更清晰了</li>
+    <li>优化了微信群机器人等渠道通知逻辑：如果选择了发送手机链接则微信群机器人不发送电脑端链接</li>
+    <li>商品卡如果没有抓取到图片则选择默认logo</li>
+    <li>卖家名字过长的分行到第二行，避免挤压到发送通知</li>
+    <li>修改了scraper.py和ai_handler.py里的冗余通知代码，通知全部转移到专用的notifier里</li>
+  </ul>
+
+  <p></p> <!-- 加一个空行，让列表和图片之间有间隔 -->
+
+  <img src="Example/0.9.0/删除与更新凭证.png" alt="任务管理1">
+  <img src="Example/0.9.0/手动筛选.png" alt="任务管理2">
+  <img src="Example/0.9.0/删除与更新凭证.png" alt="任务管理3">
+</details>
+
+**归档日志**
+我针对了原版goofish代码做出了一些优化，对我个人而言使用上更加顺畅，逻辑上更加清晰
+<details>
+<summary>📋任务管理界面：优化了整体ui排版，拆分了运行逻辑，增加了更多的任务状态指示与操作，减少了任务阻塞。现在可以复制任务，详细定制每条任务的ai筛选标准了</summary>
+
+![任务管理1.png](Example/Archive/任务管理1.png)
+![任务管理2.png](Example/Archive/任务管理2.png)
+![任务管理3.png](Example/Archive/任务管理3.png)
+</details>
+<details>
+<summary>🎯结果查看界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
+
+![结果查看1.png](Example/Archive/结果查看1.png)
+![结果查看2.png](Example/Archive/结果查看2.png)
+![结果查看3.png](Example/Archive/结果查看3.png)
+
+</details>
+
+<details>
+<summary>📊运行日志界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
+
+![运行日志.png](Example/Archive/运行日志.png)
+![运行日志2.png](Example/Archive/运行日志2.png)
+
+</details>
+
+<details>
+<summary>📱通知配置界面：拆分优化了通知模块，把通知配置界面也单独拎到导航栏，添加在通知中手机版5H链接，方便在通信软件如微信中直接打开移动版咸鱼，并且添加了企业微信应用渠道支持，添加了测试通知</summary>
+
+![通知配置.png](Example/Archive/通知配置.png)
+![通知配置2.png](Example/Archive/通知配置2.png)
+![企业微信群机器人2.jpg](Example/Archive/企业微信群机器人2.jpg)
+![企业微信应用渠道2.jpg](Example/Archive/企业微信应用渠道2.jpg)
+
+
+</details>
+
+
+<details>
+<summary>🖥️系统设置界面：优化了.env与系统同步逻辑，web里添加了更多可选的环境设置，并且双向保存同步了，对docker用户更加友好。现在可以直接在系统管理里管理Prompt实现了核心ai标准的增删改查工作，能更方便配置自定义个性化ai需求了。</summary>
+
+![系统设置1.png](Example/Archive/系统设置1.png)
+![系统设置2.png](Example/Archive/系统设置2.png)
+
+</details>
+
+
+
 
 ## 🚀核心流程
 
@@ -82,75 +208,6 @@ mindmap
       首要结论：<font color="#ffffffff">个人卖家，可信度高</font>
 ```
 
-
-# 🆕 新特性
-我针对了原版goofish代码做出了一些优化，对我个人而言使用上更加顺畅，逻辑上更加清晰
-<details>
-<summary>📋任务管理界面：优化了整体ui排版，拆分了运行逻辑，增加了更多的任务状态指示与操作，减少了任务阻塞。现在可以复制任务，详细定制每条任务的ai筛选标准了</summary>
-
-![任务管理1.png](Example/任务管理1.png)
-![任务管理2.png](Example/任务管理2.png)
-![任务管理3.png](Example/任务管理3.png)
-</details>
-<details>
-<summary>🎯结果查看界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
-
-![结果查看1.png](Example/结果查看1.png)
-![结果查看2.png](Example/结果查看2.png)
-![结果查看3.png](Example/结果查看3.png)
-
-</details>
-
-<details>
-<summary>📊运行日志界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
-
-![运行日志.png](Example/运行日志.png)
-![运行日志2.png](Example/运行日志2.png)
-
-</details>
-
-<details>
-<summary>📱通知配置界面：拆分优化了通知模块，把通知配置界面也单独拎到导航栏，添加在通知中手机版5H链接，方便在通信软件如微信中直接打开移动版咸鱼，并且添加了企业微信应用渠道支持，添加了测试通知</summary>
-
-![通知配置.png](Example/通知配置.png)
-![通知配置2.png](Example/通知配置2.png)
-![企业微信群机器人2.jpg](Example/企业微信群机器人2.jpg)
-![企业微信应用渠道2.jpg](Example/企业微信应用渠道2.jpg)
-
-
-</details>
-
-
-<details>
-<summary>🖥️系统设置界面：优化了.env与系统同步逻辑，web里添加了更多可选的环境设置，并且双向保存同步了，对docker用户更加友好。现在可以直接在系统管理里管理Prompt实现了核心ai标准的增删改查工作，能更方便配置自定义个性化ai需求了。</summary>
-
-![系统设置1.png](Example/系统设置1.png)
-![系统设置2.png](Example/系统设置2.png)
-
-</details>
-
-# 📸 截图展示
-<div style="text-align: center; margin: 20px 0;">
-  <img src="Example/任务管理1.png" 
-       style="width: 100%; max-width: 1200px; height: auto; 
-              border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
-              border: 4px solid #fff; background: #f9f9f9;" 
-       alt="新任务管理界面">
-  <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
-    新任务管理界面
-  </p>
-</div>
-
-<div style="text-align: center; margin: 20px 0;">
-  <img src="Example/结果查看1.png" 
-       style="width: 100%; max-width: 1200px; height: auto; 
-              border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
-              border: 4px solid #fff; background: #f9f9f9;" 
-       alt="新任务管理界面">
-  <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
-    新结果管理界面
-  </p>
-</div>
 
 
 # 🚀 快速部署
@@ -226,7 +283,20 @@ python web_server.py
 
 ### 2. 登录咸鱼账号
 
-方式一：在线获取Chrome插件获取登录信息
+- 方式一：在WEB管理界面右上角使用自动登录（推荐）
+
+  - 程序自动打开咸鱼首页
+  - 在咸鱼首页扫码登录
+  - 登录完成后会自动刷新获取cookie，请不要手动关闭网页
+  - 获取登录信息完成后网页会自动关->登录成功
+![自动登录按钮.png](Example/0.9.0/自动登录按钮.png)
+
+
+
+
+
+<details>
+<summary>方式二：在线获取Chrome插件获取登录信息</summary>
 
 -    1.在您的个人电脑上，使用Chrome浏览器安装[闲鱼登录状态提取扩展](https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa)
 -    2.打开并登录闲鱼官网
@@ -234,10 +304,10 @@ python web_server.py
 -    4.点击"提取登录状态"按钮获取登录信息
 -    5.点击"复制到剪贴板"按钮
 -    6.将复制的内容粘贴到Web UI中保存即可
-
+</details>
 
 <details>
-<summary>方式二：本地安装Chrome插件获取登录信息</summary>
+<summary>方式三：本地安装Chrome插件获取登录信息</summary>
 
 -    1. 打开Chrome浏览器
 -    2. 访问chrome://extensions/
@@ -247,16 +317,6 @@ python web_server.py
 </details>
 
 
-<details>
-<summary>方式三：运行登录脚本，生成登录状态文件：</summary>
-
-
-  ```PowerShell
-  python login.py
-  ```
-
-    根据提示完成登录操作，登录状态将保存到xianyu_state.json文件中。
-</details>
 
 
 ### 3. 配置系统配置
