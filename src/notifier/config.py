@@ -24,17 +24,24 @@ class NotificationConfig:
         return {
             # 通知渠道配置
             "NTFY_TOPIC_URL": env_config.get("NTFY_TOPIC_URL", ""),
+            "NTFY_ENABLED": env_config.get("NTFY_ENABLED", "false").lower() == "true",
             "GOTIFY_URL": env_config.get("GOTIFY_URL", ""),
             "GOTIFY_TOKEN": env_config.get("GOTIFY_TOKEN", ""),
+            "GOTIFY_ENABLED": env_config.get("GOTIFY_ENABLED", "false").lower() == "true",
             "BARK_URL": env_config.get("BARK_URL", ""),
+            "BARK_ENABLED": env_config.get("BARK_ENABLED", "false").lower() == "true",
             "WX_BOT_URL": env_config.get("WX_BOT_URL", ""),
+            "WX_BOT_ENABLED": env_config.get("WX_BOT_ENABLED", "false").lower() == "true",
             "WX_CORP_ID": env_config.get("WX_CORP_ID", ""),
             "WX_AGENT_ID": env_config.get("WX_AGENT_ID", ""),
             "WX_SECRET": env_config.get("WX_SECRET", ""),
             "WX_TO_USER": env_config.get("WX_TO_USER", "@all"),
+            "WX_APP_ENABLED": env_config.get("WX_APP_ENABLED", "false").lower() == "true",
             "TELEGRAM_BOT_TOKEN": env_config.get("TELEGRAM_BOT_TOKEN", ""),
             "TELEGRAM_CHAT_ID": env_config.get("TELEGRAM_CHAT_ID", ""),
+            "TELEGRAM_ENABLED": env_config.get("TELEGRAM_ENABLED", "false").lower() == "true",
             "WEBHOOK_URL": env_config.get("WEBHOOK_URL", ""),
+            "WEBHOOK_ENABLED": env_config.get("WEBHOOK_ENABLED", "false").lower() == "true",
             
             # Webhook配置
             "WEBHOOK_METHOD": env_config.get("WEBHOOK_METHOD", "POST").upper(),

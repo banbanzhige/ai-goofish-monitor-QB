@@ -14,7 +14,7 @@ class NtfyNotifier(BaseNotifier):
         super().__init__("ntfy")
     
     async def send_test_notification(self) -> bool:
-        if not config["NTFY_TOPIC_URL"]:
+        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
             return False
             
         try:
@@ -40,23 +40,41 @@ class NtfyNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["NTFY_TOPIC_URL"]:
+        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
             return False
             
         try:
             product_info = self._get_product_info(product)
-            notification_title, message = self._format_notification_content(product_info, reason)
+            actual_product = product_info['actual_product']
+            main_image = product_info['main_image']
+            product_link = product_info['mobile_link'] if config["PCURL_TO_MOBILE"] else product_info['pc_link']
+            
+            title = actual_product.get('商品标题', 'N/A')
+            price = actual_product.get('当前售价', 'N/A')
+            publish_time = actual_product.get('发布时间', 'N/A')
+            
+            # 构建和Telegram一样的文案逻辑
+            notification_title = f"🚨 新推荐!"
+            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}\n📝 推荐理由: {reason}\n"
+            
+            # 构建请求头
+            headers = {
+                "Title": notification_title.encode('utf-8'),
+                "Priority": "urgent",
+                "Tags": "bell,vibration",
+                "Click": product_link.encode('utf-8')  # 添加点击跳转链接
+            }
+            
+            # 如果有商品图片，添加图片头
+            if main_image:
+                headers["Attach"] = main_image.encode('utf-8')
             
             await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
                     config["NTFY_TOPIC_URL"],
                     data=message.encode('utf-8'),
-                    headers={
-                        "Title": notification_title.encode('utf-8'),
-                        "Priority": "urgent",
-                        "Tags": "bell,vibration"
-                    },
+                    headers=headers,
                     timeout=10
                 )
             )
@@ -73,7 +91,7 @@ class GotifyNotifier(BaseNotifier):
         super().__init__("gotify")
     
     async def send_test_notification(self) -> bool:
-        if not config["GOTIFY_URL"] or not config["GOTIFY_TOKEN"]:
+        if not config["GOTIFY_URL"] or not config["GOTIFY_TOKEN"] or not config["GOTIFY_ENABLED"]:
             return False
             
         try:
@@ -102,12 +120,20 @@ class GotifyNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["GOTIFY_URL"] or not config["GOTIFY_TOKEN"]:
+        if not config["GOTIFY_URL"] or not config["GOTIFY_TOKEN"] or not config["GOTIFY_ENABLED"]:
             return False
             
         try:
             product_info = self._get_product_info(product)
-            notification_title, message = self._format_notification_content(product_info, reason)
+            actual_product = product_info['actual_product']
+            
+            title = actual_product.get('商品标题', 'N/A')
+            price = actual_product.get('当前售价', 'N/A')
+            publish_time = actual_product.get('发布时间', 'N/A')
+            
+            # 构建和Telegram一样的文案逻辑
+            notification_title = f"🚨 新推荐!"
+            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}\n📝 推荐理由: {reason}\n"
             
             payload = {
                 'title': (None, notification_title),
@@ -138,7 +164,7 @@ class BarkNotifier(BaseNotifier):
         super().__init__("bark")
     
     async def send_test_notification(self) -> bool:
-        if not config["BARK_URL"]:
+        if not config["BARK_URL"] or not config["BARK_ENABLED"]:
             return False
             
         try:
@@ -169,12 +195,22 @@ class BarkNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["BARK_URL"]:
+        if not config["BARK_URL"] or not config["BARK_ENABLED"]:
             return False
             
         try:
             product_info = self._get_product_info(product)
-            notification_title, message = self._format_notification_content(product_info, reason)
+            actual_product = product_info['actual_product']
+            main_image = product_info['main_image']
+            product_link = product_info['mobile_link'] if config["PCURL_TO_MOBILE"] else product_info['pc_link']
+            
+            title = actual_product.get('商品标题', 'N/A')
+            price = actual_product.get('当前售价', 'N/A')
+            publish_time = actual_product.get('发布时间', 'N/A')
+            
+            # 构建和Telegram一样的文案逻辑
+            notification_title = f"🚨 新推荐!"
+            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}\n📝 推荐理由: {reason}\n"
             
             bark_payload = {
                 "title": notification_title,
@@ -183,11 +219,9 @@ class BarkNotifier(BaseNotifier):
                 "group": "闲鱼监控"
             }
             
-            link_to_use = product_info['mobile_link'] if config["PCURL_TO_MOBILE"] else product_info['pc_link']
-            bark_payload["url"] = link_to_use
+            bark_payload["url"] = product_link
             
             # 添加图标
-            main_image = product_info['main_image']
             if main_image:
                 bark_payload['icon'] = main_image
             
@@ -215,7 +249,7 @@ class WeChatBotNotifier(BaseNotifier):
         super().__init__("wx_bot")
     
     async def send_test_notification(self) -> bool:
-        if not config["WX_BOT_URL"]:
+        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
             return False
             
         try:
@@ -248,33 +282,70 @@ class WeChatBotNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["WX_BOT_URL"]:
+        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
             return False
             
         try:
             product_info = self._get_product_info(product)
             notification_title, message = self._format_notification_content(product_info, reason)
-            
-            full_message = f"{notification_title}\n\n{message}"
-            
-            payload = {
-                "msgtype": "text",
-                "text": {
-                    "content": full_message
-                }
-            }
+            main_image = product_info['main_image']
             
             headers = { "Content-Type": "application/json" }
+            
+            # 1. 发送包含商品链接的文字消息
+            text_payload = {
+                "msgtype": "text",
+                "text": {
+                    "content": f"{notification_title}\n\n{message}"
+                }
+            }
             
             await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
                     config["WX_BOT_URL"],
-                    json=payload,
+                    json=text_payload,
                     headers=headers,
                     timeout=10
                 )
             )
+            
+            # 2. 如果有商品图片，发送图文消息（包含标题+价格+发布时间）
+            if main_image:
+                try:
+                    # 从商品信息中提取需要的字段
+                    product_title = product.get('商品信息', {}).get('商品标题', '未知商品')
+                    price = product.get('商品信息', {}).get('当前售价', '未知价格')
+                    publish_time = product.get('商品信息', {}).get('发布时间', '未知时间')
+                    
+                    # 构建图文消息
+                    news_payload = {
+                        "msgtype": "news",
+                        "news": {
+                            "articles": [
+                                {
+                                    "title": product_title[:128],  # 处理标题不超过128字符的限制
+                                    "description": f"价格: {price}\n发布时间: {publish_time}",
+                                    "url": product_info['mobile_link'] if config["PCURL_TO_MOBILE"] else product_info['pc_link'],
+                                    "picurl": main_image
+                                }
+                            ]
+                        }
+                    }
+                    
+                    await asyncio.get_running_loop().run_in_executor(
+                        None,
+                        lambda: requests.post(
+                            config["WX_BOT_URL"],
+                            json=news_payload,
+                            headers=headers,
+                            timeout=10
+                        )
+                    )
+                except Exception as img_e:
+                    print(f"   -> 发送商品图文消息失败: {img_e}")
+                    # 图文消息发送失败不影响整个通知流程
+            
             return True
         except Exception as e:
             print(f"   -> 发送企业微信机器人通知失败: {e}")
@@ -288,7 +359,7 @@ class WeChatAppNotifier(BaseNotifier):
         super().__init__("wx_app")
     
     async def send_test_notification(self) -> bool:
-        if not config["WX_CORP_ID"] or not config["WX_AGENT_ID"] or not config["WX_SECRET"]:
+        if not config["WX_CORP_ID"] or not config["WX_AGENT_ID"] or not config["WX_SECRET"] or not config["WX_APP_ENABLED"]:
             return False
             
         try:
@@ -312,7 +383,7 @@ class WeChatAppNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["WX_CORP_ID"] or not config["WX_AGENT_ID"] or not config["WX_SECRET"]:
+        if not config["WX_CORP_ID"] or not config["WX_AGENT_ID"] or not config["WX_SECRET"] or not config["WX_APP_ENABLED"]:
             return False
             
         try:
@@ -455,7 +526,7 @@ class TelegramNotifier(BaseNotifier):
         super().__init__("telegram")
     
     async def send_test_notification(self) -> bool:
-        if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"]:
+        if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"] or not config["TELEGRAM_ENABLED"]:
             return False
             
         try:
@@ -491,7 +562,7 @@ class TelegramNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"]:
+        if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"] or not config["TELEGRAM_ENABLED"]:
             return False
             
         try:
@@ -499,38 +570,83 @@ class TelegramNotifier(BaseNotifier):
             actual_product = product_info['actual_product']
             pc_link = product_info['pc_link']
             mobile_link = product_info['mobile_link']
+            main_image = product_info['main_image']
             
             title = actual_product.get('商品标题', 'N/A')
             price = actual_product.get('当前售价', 'N/A')
+            publish_time = actual_product.get('发布时间', 'N/A')
             
-            # 构建 Telegram 消息
-            telegram_message = f"🚨 <b>新推荐!</b>\n\n"
-            telegram_message += f"<b>{title[:50]}...</b>\n\n"
-            telegram_message += f"💰 价格: {price}\n"
-            telegram_message += f"📝 原因: {reason}\n"
+            # 选择合适的链接
+            product_link = mobile_link if config["PCURL_TO_MOBILE"] else pc_link
             
-            if config["PCURL_TO_MOBILE"]:
-                telegram_message += f"📱 <a href='{mobile_link}'>手机端链接</a>\n"
-            telegram_message += f"💻 <a href='{pc_link}'>电脑端链接</a>"
+            # 构建图片描述
+            caption = f"🚨 <b>新推荐!</b>\n\n"
+            caption += f"<b>{title}</b>\n\n"
+            caption += f"💰 价格: {price}\n"
+            caption += f"⏰ 发布时间: {publish_time}\n"
+            caption += f"📝 推荐理由: {reason}\n"
             
-            telegram_payload = {
-                "chat_id": config["TELEGRAM_CHAT_ID"],
-                "text": telegram_message,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False
-            }
+            # 构建 Telegram 图片消息
+            telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendPhoto"
             
-            headers = {"Content-Type": "application/json"}
-            
-            await asyncio.get_running_loop().run_in_executor(
-                None,
-                lambda: requests.post(
-                    f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage",
-                    json=telegram_payload,
-                    headers=headers,
-                    timeout=10
+            # 如果有商品图片，发送图片+按钮
+            if main_image:
+                telegram_payload = {
+                    "chat_id": config["TELEGRAM_CHAT_ID"],
+                    "photo": main_image,  # 直接使用图片URL
+                    "caption": caption,
+                    "parse_mode": "HTML",
+                    "reply_markup": {
+                        "inline_keyboard": [
+                            [
+                                {
+                                    "text": "查看商品",
+                                    "url": product_link
+                                }
+                            ]
+                        ]
+                    }
+                }
+                
+                headers = {"Content-Type": "application/json"}
+                
+                await asyncio.get_running_loop().run_in_executor(
+                    None,
+                    lambda: requests.post(
+                        telegram_api_url,
+                        json=telegram_payload,
+                        headers=headers,
+                        timeout=10
+                    )
                 )
-            )
+            else:
+                # 如果没有商品图片，回退到原来的文本消息格式
+                telegram_message = f"🚨 <b>新推荐!</b>\n\n"
+                telegram_message += f"<b>{title[:50]}...</b>\n\n"
+                telegram_message += f"💰 价格: {price}\n"
+                telegram_message += f"📝 原因: {reason}\n"
+                
+                if config["PCURL_TO_MOBILE"]:
+                    telegram_message += f"📱 <a href='{mobile_link}'>手机端链接</a>\n"
+                telegram_message += f"💻 <a href='{pc_link}'>电脑端链接</a>"
+                
+                telegram_payload = {
+                    "chat_id": config["TELEGRAM_CHAT_ID"],
+                    "text": telegram_message,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": False
+                }
+                
+                await asyncio.get_running_loop().run_in_executor(
+                    None,
+                    lambda: requests.post(
+                        f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage",
+                        json=telegram_payload,
+                        headers=headers,
+                        timeout=10
+                    )
+                )
+            
             return True
         except Exception as e:
             print(f"   -> 发送 Telegram 通知失败: {e}")
@@ -544,7 +660,7 @@ class WebhookNotifier(BaseNotifier):
         super().__init__("webhook")
     
     async def send_test_notification(self) -> bool:
-        if not config["WEBHOOK_URL"]:
+        if not config["WEBHOOK_URL"] or not config["WEBHOOK_ENABLED"]:
             return False
             
         try:
@@ -561,7 +677,7 @@ class WebhookNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["WEBHOOK_URL"]:
+        if not config["WEBHOOK_URL"] or not config["WEBHOOK_ENABLED"]:
             return False
             
         try:
