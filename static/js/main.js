@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p>正在加载任务列表...</p>
                 </div>
             </section>`,
-        results: () => `
+            results: () => `
             <section id="results-section" class="content-section">
                 <div class="section-header">
                     <h2>结果查看</h2>
@@ -24,7 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="results-filter-bar">
                     <div class="filter-group">
                         <div class="filter-label">结果文件</div>
-                        <select id="result-file-selector"><option>加载中...</option></select>
+                        <select id="result-file-selector">
+                            <option value="">正在加载...</option>
+                        </select>
                     </div>
                     <div class="filter-group">
                         <div class="filter-label">任务名称</div>
@@ -58,6 +60,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             <option value="desc">降序</option>
                             <option value="asc">升序</option>
                         </select>
+                    </div>
+                    <div class="filter-group">
+                        <div class="filter-label">手动筛选</div>
+                        <input type="text" id="manual-keyword-filter" placeholder="输入关键词筛选" style="width: 250px; height: 36px; box-sizing: border-box; padding: 0 10px;">
                     </div>
                     <div class="filter-group">
                         <div class="filter-label">删除</div>
@@ -401,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function fetchResultContent(filename, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder) {
+    async function fetchResultContent(filename, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword) {
         try {
             const params = new URLSearchParams({
                 page: 1,
@@ -411,7 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 keyword: keyword,
                 ai_criteria: aiCriteria,
                 sort_by: sortBy,
-                sort_order: sortOrder
+                sort_order: sortOrder,
+                manual_keyword: manualKeyword || ''
             });
             const response = await fetch(`/api/results/${filename}?${params}`);
             if (!response.ok) throw new Error(`无法获取文件 ${filename} 的内容`);
@@ -474,6 +481,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify(itemData),
             });
+            
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.detail || '发送通知失败');
@@ -512,25 +520,134 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const loginState = status.login_state_file;
         let content = '';
-
+        
+        // Create manual login button HTML with dropdown for "已获取cookie" state
+        let manualLoginBtnHtml = '';
         if (loginState && loginState.exists) {
-            content = `
+                manualLoginBtnHtml = `
                 <div class="login-status-widget">
-                    <span class="status-text status-ok">✓ 已登录</span>
-                    <div class="dropdown-menu">
-                        <a href="#" class="dropdown-item" id="update-login-state-btn-widget">手动更新</a>
-                        <a href="#" class="dropdown-item delete" id="delete-login-state-btn-widget">删除凭证</a>
+                <div style="position: relative; display: inline-block; vertical-align: middle; margin-right: 15px;">
+                        <button class="control-button primary-btn" style="background-color: #fff533; color: black; padding: 8px 12px; border: 1px solid #fff533;">
+                            ✓ 已获取cookie
+                        </button>
+                        <div class="dropdown-menu">
+                            <a href="#" class="dropdown-item" id="update-login-state-btn-widget">自动更新</a>
+                            <a href="#" class="dropdown-item delete" id="delete-login-state-btn-widget">删除凭证</a>
+                        </div>
+                    </div>
+                    <div style="position: relative; display: inline-block; vertical-align: middle;">
+                        <button class="control-button primary-btn status-ok" style="background-color: #fff533; color: black; border: 1px solid #fff533;">✓ 已登录</button>
+                        <div class="dropdown-menu">
+                            <a href="#" class="dropdown-item" id="update-login-state-btn-widget">手动更新</a>
+                            <a href="#" class="dropdown-item delete" id="delete-login-state-btn-widget">删除凭证</a>
+                        </div>
                     </div>
                 </div>
             `;
-        } else {
+            content = manualLoginBtnHtml;
+            } else {
+            const loginBtnColor = '#dc3545';
+            const loginBtnText = '点击自动获取cookie登录';
+            manualLoginBtnHtml = `
+                <button id="manual-login-btn-header" class="control-button primary-btn" style="background-color: ${loginBtnColor}; border: 1px solid ${loginBtnColor}; color: white; padding: 8px 12px; margin-right: 15px; display: inline-block; vertical-align: middle;">
+                    ${loginBtnText}
+                </button>
+            `;
             content = `
                 <div class="login-status-widget">
-                    <span class="status-text status-error" id="update-login-state-btn-widget">! 闲鱼未登录 (点击设置)</span>
+                    ${manualLoginBtnHtml}
+                    <button id="update-login-state-btn-widget" class="control-button primary-btn status-error" style="background-color: #dc3545; border: 1px solid #dc3545; color: white; display: inline-block; vertical-align: middle;">! 闲鱼未登录 (手动登录)</button>
                 </div>
             `;
         }
         container.innerHTML = content;
+        
+        // Add click event for manual login button (need to add it after setting innerHTML)
+        const manualLoginBtn = document.getElementById('manual-login-btn-header');
+        if (manualLoginBtn) {
+            manualLoginBtn.addEventListener('click', async () => {
+                // Show custom modal instead of browser confirm dialog
+                const confirmModal = document.getElementById('manual-login-confirm-modal');
+                if (!confirmModal) return;
+                
+                // Display the modal
+                confirmModal.style.display = 'flex';
+                setTimeout(() => confirmModal.classList.add('visible'), 10);
+                
+                // Get modal elements
+                const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
+                const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
+                const closeBtn = document.getElementById('close-manual-login-confirm-modal');
+                
+                // Function to close the modal
+                const closeModal = () => {
+                    confirmModal.classList.remove('visible');
+                    setTimeout(() => {
+                        confirmModal.style.display = 'none';
+                    }, 300); // Match the modal transition duration
+                };
+                
+                    // Function to handle the confirmation action
+                    const handleConfirmation = async () => {
+                        try {
+                            const response = await fetch('/api/manual-login', {
+                                method: 'POST'
+                            });
+                            
+                            if (!response.ok) {
+                                const errorData = await response.json();
+                                alert('启动失败: ' + (errorData.detail || '未知错误'));
+                            } else {
+                                // 开始轮询检查登录状态
+                                const pollInterval = 2000; // 每 2 秒检查一次
+                                const pollTimeout = 300000; // 300 秒后超时
+                                let pollAttempts = 0;
+                                const maxAttempts = pollTimeout / pollInterval;
+                                
+                                // 开始轮询检查登录状态
+                                const intervalId = setInterval(async () => {
+                                    pollAttempts++;
+                                    
+                                    try {
+                                        const status = await fetchSystemStatus();
+                                        if (status && status.login_state_file && status.login_state_file.exists) {
+                                            // 登录状态已更新，刷新登录状态 widget
+                                            await refreshLoginStatusWidget();
+                                            // 停止轮询
+                                            clearInterval(intervalId);
+                                            return;
+                                        }
+                                    } catch (error) {
+                                        console.error('轮询检查登录状态时出错:', error);
+                                    }
+                                    
+                                    // 检查是否超时
+                                    if (pollAttempts >= maxAttempts) {
+                                        console.log('轮询检查登录状态超时');
+                                        clearInterval(intervalId);
+                                        return;
+                                    }
+                                }, pollInterval);
+                            }
+                            // No alert for success - directly close the modal
+                        } catch (error) {
+                            alert('启动失败: ' + error.message);
+                        } finally {
+                            closeModal();
+                        }
+                    };
+                
+                // Add event listeners with once: true to avoid memory leaks
+                confirmBtn.addEventListener('click', handleConfirmation, { once: true });
+                cancelBtn.addEventListener('click', closeModal, { once: true });
+                closeBtn.addEventListener('click', closeModal, { once: true });
+                
+                    // Add click outside to close functionality
+                    confirmModal.addEventListener('click', (e) => {
+                        if (e.target === confirmModal) closeModal();
+                    }, { once: true });
+            });
+        }
     }
 
     function renderNotificationSettings(settings) {
@@ -751,6 +868,46 @@ document.addEventListener('DOMContentLoaded', function() {
         const status = await fetchSystemStatus();
         if (status) {
             renderLoginStatusWidget(status);
+            
+        // Add click event for login status widget to toggle dropdowns for both "已获取cookie" and "已登录" buttons
+        const loginStatusWidget = document.querySelector('.login-status-widget');
+        if (loginStatusWidget) {
+            // Select only the first two control buttons which have dropdowns
+            const buttons = loginStatusWidget.querySelectorAll('.control-button');
+            // Process only the first two buttons which should have dropdowns
+            for (let i = 0; i < Math.min(buttons.length, 2); i++) {
+                const btn = buttons[i];
+                let dropdownMenu = btn.nextElementSibling;
+                
+                // Check if we found a dropdown menu
+                if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        // Toggle this dropdown
+                        dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+                        
+                        // Close other dropdowns in the widget
+                        loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
+                            if (menu !== dropdownMenu) {
+                                menu.style.display = 'none';
+                            }
+                        });
+                    });
+                    
+                    // Prevent event bubbling to avoid unexpected behavior
+                    btn.addEventListener('click', (e) => e.stopPropagation());
+                }
+            }
+            
+            // Click outside to close all dropdowns
+            document.addEventListener('click', (e) => {
+                if (!loginStatusWidget.contains(e.target)) {
+                    loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
+                        menu.style.display = 'none';
+                    });
+                }
+            });
+        }
         }
     }
 
@@ -803,7 +960,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return '<p>没有找到符合条件的商品记录。</p>';
         }
 
-        const cards = data.items.map(item => {
+            const manualKeyword = document.getElementById('manual-keyword-filter')?.value || '';
+            const cards = data.items.map(item => {
             const info = item.商品信息 || {};
             const seller = item.卖家信息 || {};
             const ai = item.ai_analysis || {};
@@ -813,19 +971,23 @@ document.addEventListener('DOMContentLoaded', function() {
             const recommendationText = isRecommended ? '推荐' : (ai.is_recommended === false ? '不推荐' : '待定');
 
             // 尽量使用商品图片列表的第二张图片，没有的话使用第一张
-            const imageUrl = (info.商品图片列表 && info.商品图片列表.length > 1) ? info.商品图片列表[1] : (info.商品图片列表 && info.商品图片列表[0]) ? info.商品图片列表[0] : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            const imageUrl = (info.商品图片列表 && info.商品图片列表.length > 1) ? info.商品图片列表[1] : (info.商品图片列表 && info.商品图片列表[0]) ? info.商品图片列表[0] : '/logo/logo 2048x2048.png';
             const crawlTime = item.爬取时间 ? new Date(item.爬取时间).toLocaleString('sv-SE').slice(0, 16) : '未知';
             const publishTime = info.发布时间 || '未知';
 
             // Escape HTML to prevent XSS
             const escapeHtml = (unsafe) => {
                 if (typeof unsafe !== 'string') return unsafe;
-                return unsafe
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
+                const div = document.createElement('div');
+                div.textContent = unsafe;
+                return div.innerHTML;
+            };
+
+            // Highlight keywords in text
+            const highlightKeyword = (text, keyword) => {
+                if (!keyword || !text) return text;
+                const regex = new RegExp(`(${escapeHtml(keyword)})`, 'gi');
+                return text.replace(regex, '<span style="background-color: #fff3cd; color: #856404; padding: 2px 4px; border-radius: 3px; font-weight: bold;">$1</span>');
             };
 
             return `
@@ -835,11 +997,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(info.商品标题) || '商品图片'}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJhzwvdGV4dD48L3N2Zz4=';"></a>
                 </div>
                 <div class="card-content">
-                    <h3 class="card-title"><a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" title="${escapeHtml(info.商品标题) || ''}">${escapeHtml(info.商品标题) || '无标题'}</a></h3>
-                    <p class="card-price">${escapeHtml(info.当前售价) || '价格未知'}</p>
+                <h3 class="card-title"><a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" title="${escapeHtml(info.商品标题) || ''}">${highlightKeyword(escapeHtml(info.商品标题), manualKeyword) || '无标题'}</a></h3>
+                    <p class="card-price">${highlightKeyword(escapeHtml(info.当前售价), manualKeyword) || '价格未知'}</p>
                     <div class="card-ai-summary ${recommendationClass}">
                         <strong>AI建议: ${escapeHtml(recommendationText)}</strong>
-                        <p title="${escapeHtml(ai.reason) || ''}">原因: ${escapeHtml(ai.reason) || '无分析'}</p>
+                        <p title="${escapeHtml(ai.reason) || ''}">原因: ${highlightKeyword(escapeHtml(ai.reason), manualKeyword) || '无分析'}</p>
                     </div>
                     <div class="card-footer">
                         <div class="seller-time-info">
@@ -923,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const actionButton = isRunning
                 ? `<button class="action-btn stop-task-btn" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>停止</button>`
-                : `<button class="action-btn run-task-btn" data-task-id="${task.id}" ${!task.enabled || (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) || isGeneratingAI ? 'disabled ' : ''} ${!task.enabled ? 'title="任务已禁用"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'title="请先点击生成"' : (isGeneratingAI ? 'title="正在生成AI标准"' : '')} ${isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'style="background-color: red; color: white;"' : ''}>运行</button>`;
+                : `<button class="action-btn run-task-btn" data-task-id="${task.id}" ${!task.enabled || (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) || isGeneratingAI ? 'disabled ' : ''} ${!task.enabled ? 'title="任务已禁用"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'title="请先点击生成"' : (isGeneratingAI ? 'title="正在生成AI标准"' : '')} ${isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'style="background-color: #ccc; color: white;"' : ''}>运行</button>`;
             
             // Determine if buttons should be disabled
             const buttonDisabledAttr = isGeneratingAI ? 'disabled' : '';
@@ -946,13 +1108,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td style="text-align: center;">${task.max_pages || 3}</td>
                 <td style="text-align: left !important;">
                     <div class="criteria" style="display: inline-block; text-align: left;">
-                        ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement') ? `
-                            <button class="refresh-criteria success-btn" title="新生成AI标准" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>生成</button>
+${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement') ? `
+                            <div class="red-dot-container">
+                                <button class="refresh-criteria success-btn" title="新生成AI标准" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>待生成</button>
+                                <span class="red-dot"></span>
+                            </div>
                             <button class="criteria-btn danger-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
                                 ${criteriaBtnText}
                             </button>
                         ` : `
-                            <button class="refresh-criteria danger-btn" title="新生成AI标准" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>生成</button>
+                            <button class="refresh-criteria danger-btn" title="新生成AI标准" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>重生成</button>
                             ${criteriaFile !== 'N/A' ? `
                                 <button class="criteria-btn success-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
                                     ${criteriaBtnText}
@@ -1155,14 +1320,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const taskNameFilter = document.getElementById('task-name-filter');
         const keywordFilter = document.getElementById('keyword-filter');
         const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
+        const manualKeywordFilter = document.getElementById('manual-keyword-filter');
         const container = document.getElementById('results-grid-container');
 
-        if (!selector || !checkbox || !container || !sortBySelector || !sortOrderSelector || !taskNameFilter || !keywordFilter || !aiCriteriaFilter) return;
+        if (!selector || !checkbox || !container || !sortBySelector || !sortOrderSelector || !taskNameFilter || !keywordFilter || !aiCriteriaFilter || !manualKeywordFilter) return;
 
         const selectedFile = selector.value;
         const recommendedOnly = checkbox.checked; // Checkbox is now an input type="checkbox"
         const taskName = taskNameFilter.value;
         const keyword = keywordFilter.value;
+        const manualKeyword = manualKeywordFilter.value;
         const aiCriteria = aiCriteriaFilter.value;
         const sortBy = sortBySelector.value;
         const sortOrder = sortOrderSelector.value;
@@ -1177,7 +1344,7 @@ document.addEventListener('DOMContentLoaded', function() {
         container.innerHTML = '<p>正在加载结果...</p>';
         // 使用所有筛选条件获取结果，但如果是查看所有结果或切换结果文件，则获取所有结果以更新筛选选项
         const dataForFilters = await fetchResultContent(selectedFile, false, 'all', 'all', 'all', 'crawl_time', 'desc');
-        const dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder);
+        const dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword);
         
         // 总是更新筛选控件的选项，无论当前筛选条件是什么
         if (dataForFilters && dataForFilters.items) {
@@ -1249,9 +1416,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const taskNameFilter = document.getElementById('task-name-filter');
             const keywordFilter = document.getElementById('keyword-filter');
             const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
+            const manualKeywordFilter = document.getElementById('manual-keyword-filter');
             if (taskNameFilter) taskNameFilter.addEventListener('change', fetchAndRenderResults);
             if (keywordFilter) keywordFilter.addEventListener('change', fetchAndRenderResults);
             if (aiCriteriaFilter) aiCriteriaFilter.addEventListener('change', fetchAndRenderResults);
+            if (manualKeywordFilter) manualKeywordFilter.addEventListener('input', fetchAndRenderResults);
             
             // Add existing event listeners
             sortBySelector.addEventListener('change', fetchAndRenderResults);
@@ -1407,11 +1576,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Render all sections as separate cards with the same level
     const settingsSection = document.querySelector('#settings-section');
     
-    // 1. Render System Status first to avoid the stuck issue
+        // 1. Render System Status first to avoid the stuck issue
     const statusContainer = document.getElementById('system-status-container');
     const status = await fetchSystemStatus();
     statusContainer.innerHTML = renderSystemStatus(status);
-
+    
     // 2. Create Generic Settings Card
     const genericContainer = document.createElement('div');
     genericContainer.className = 'settings-card';
@@ -2653,6 +2822,109 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial load
     refreshLoginStatusWidget();
+    
+    // Add manual login button to the top header status widget
+    const loginStatusWidget = document.querySelector('.login-status-widget');
+    if (loginStatusWidget) {
+        // Create the button
+        const manualLoginBtn = document.createElement('button');
+        manualLoginBtn.id = 'manual-login-btn-header';
+        manualLoginBtn.className = 'control-button primary-btn';
+        manualLoginBtn.style.backgroundColor = '#dc3545';
+        manualLoginBtn.style.border = '1px solid #dc3545';
+        manualLoginBtn.style.color = 'white';
+        manualLoginBtn.style.padding = '8px 12px';
+        manualLoginBtn.style.marginRight = '15px';
+        manualLoginBtn.textContent = '点击自动获取cookie登录';
+        
+        // Add click event to show modal instead of confirm dialog
+        manualLoginBtn.addEventListener('click', () => {
+            // Show the custom modal
+            const modal = document.getElementById('manual-login-confirm-modal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('visible'), 10);
+            
+            // Get modal elements
+            const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
+            const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
+            const closeBtn = document.getElementById('close-manual-login-confirm-modal');
+            
+            // Function to close the modal
+            const closeModal = () => {
+                modal.classList.remove('visible');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                }, 300); // Match the modal transition duration
+            };
+            
+                // Function to handle the confirmation action
+                const handleConfirmation = async () => {
+                    try {
+                        const response = await fetch('/api/manual-login', {
+                            method: 'POST'
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            alert('启动失败: ' + (errorData.detail || '未知错误'));
+                        } else {
+                            // 开始轮询检查登录状态
+                            const pollInterval = 2000; // 每 2 秒检查一次
+                            const pollTimeout = 300000; // 300 秒后超时
+                            let pollAttempts = 0;
+                            const maxAttempts = pollTimeout / pollInterval;
+                            
+                            // 开始轮询检查登录状态
+                            const intervalId = setInterval(async () => {
+                                pollAttempts++;
+                                
+                                try {
+                                    const status = await fetchSystemStatus();
+                                    if (status && status.login_state_file && status.login_state_file.exists) {
+                                        // 登录状态已更新，刷新登录状态 widget
+                                        await refreshLoginStatusWidget();
+                                        // 停止轮询
+                                        clearInterval(intervalId);
+                                        return;
+                                    }
+                                } catch (error) {
+                                    console.error('轮询检查登录状态时出错:', error);
+                                }
+                                
+                                // 检查是否超时
+                                if (pollAttempts >= maxAttempts) {
+                                    console.log('轮询检查登录状态超时');
+                                    clearInterval(intervalId);
+                                    return;
+                                }
+                            }, pollInterval);
+                        }
+                        // No alert for success - directly close the modal
+                    } catch (error) {
+                        alert('启动失败: ' + error.message);
+                    } finally {
+                        closeModal();
+                    }
+                };
+            
+            // Add event listeners with once: true to avoid memory leaks
+            confirmBtn.addEventListener('click', handleConfirmation, { once: true });
+            cancelBtn.addEventListener('click', closeModal, { once: true });
+            closeBtn.addEventListener('click', closeModal, { once: true });
+            
+                // Add click outside to close functionality
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                }, { once: true });
+        });
+        
+        // Insert the button before the status text
+        const statusText = loginStatusWidget.querySelector('.status-text');
+        if (statusText) {
+            loginStatusWidget.insertBefore(manualLoginBtn, statusText);
+        }
+    }
+    
     navigateTo(window.location.hash || '#tasks');
 
     // --- Global Event Listener for header/modals ---
