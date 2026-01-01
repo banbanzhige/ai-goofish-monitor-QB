@@ -1,15 +1,11 @@
 
-<div style="text-align: center; margin: 20px 0;">
-  <img src="logo/logo 128x128.png" 
-       style="width: 100%; max-width: 128px; height: auto; 
-              border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
-              border: 4px solid #fff; background: #f9f9f9;" 
-       alt="logo">
-</div>
+
+<a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" title="ai-goofish-monitor-QB">
+  <img src="/logo/banner.png" alt="ai-goofish-monitor-QB Banner" width="80%">
+</a>
 
 
-
-# 🐡咸鱼智能监控机器人
+# 咸鱼智能监控机器人
 基于 Playwright 和 AI 的闲鱼多任务实时监控工具机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
 基于原仓库地址代码：https://github.com/Usagi-org/ai-goofish-monitor 大量修改优化代码与操作逻辑调整到更舒适的使用体验风格。
 
@@ -48,20 +44,11 @@
   </p>
 </div>
 
-<div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 20px 0;">
-  <!-- 第一张图 -->
-  <div style="flex: 1 1 280px; min-width: 200px; max-width: 300px;">
-    <img src="Example/0.9.0/微信应用通知渠道.jpg" 
-         style="width: 100%; height: auto; border-radius: 8px;" 
-         alt="微信应用通知渠道">
-  </div>
-  <!-- 第二张图 -->
-  <div style="flex: 1 1 280px; min-width: 200px; max-width: 300px;">
-    <img src="Example/0.9.0/微信群机器人通知渠道.jpg" 
-         style="width: 100%; height: auto; border-radius: 8px;" 
-         alt="微信群机器人通知渠道">
-  </div>
-</div>
+
+| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 |
+|:---:|:---:|
+| ![微信应用通知渠道效果](Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](Example/0.9.0/微信群机器人通知渠道.jpg) |
+
 
 
 
