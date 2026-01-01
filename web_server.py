@@ -20,6 +20,9 @@ from typing import List, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+# 导入版本信息
+from src.version import VERSION, get_current_version
+
 from src.file_operator import FileOperator
 from src.task import get_task, update_task
 
@@ -492,7 +495,19 @@ async def read_root(request: Request, username: str = Depends(verify_credentials
     """
     提供 Web UI 的主页面。
     """
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {"request": request, "version": VERSION})
+
+
+@app.get("/api/version")
+async def get_version(username: str = Depends(verify_credentials)):
+    """
+    获取当前系统版本信息。
+    """
+    from src.version import get_current_version_info
+    return {
+        "version": VERSION,
+        "info": get_current_version_info()
+    }
 
 # --- API 端点 ---
 
@@ -1177,7 +1192,7 @@ async def delete_result_file(filename: str, username: str = Depends(verify_crede
 
 
 @app.get("/api/results/{filename}")
-async def get_result_file_content(filename: str, page: int = 1, limit: int = 20, recommended_only: bool = False, task_name: str = None, keyword: str = None, ai_criteria: str = None, sort_by: str = "crawl_time", sort_order: str = "desc", username: str = Depends(verify_credentials)):
+async def get_result_file_content(filename: str, page: int = 1, limit: int = 20, recommended_only: bool = False, task_name: str = None, keyword: str = None, ai_criteria: str = None, sort_by: str = "crawl_time", sort_order: str = "desc", manual_keyword: str = None, username: str = Depends(verify_credentials)):
     """
     读取指定的 .jsonl 文件内容，支持分页、筛选和排序。
     如果 filename 是 "all"，则返回所有结果文件的内容。
@@ -1250,6 +1265,25 @@ async def get_result_file_content(filename: str, page: int = 1, limit: int = 20,
         # AI标准筛选
         if ai_criteria and ai_criteria != "all":
             if record.get("AI标准") != ai_criteria:
+                match = False
+        
+        # 手动关键词筛选
+        if manual_keyword:
+            manual_keyword_lower = manual_keyword.lower()
+            # 检查商品标题、描述等字段是否包含关键词
+            商品信息 = record.get("商品信息", {})
+            商品标题 = 商品信息.get("商品标题", "").lower()
+            商品描述 = 商品信息.get("商品描述", "").lower()
+            卖家昵称 = 商品信息.get("卖家昵称", "").lower()
+            当前售价 = 商品信息.get("当前售价", "").lower()
+            AI建议 = record.get("ai_analysis", {}).get("reason", "").lower()
+            
+            # 检查所有相关字段是否包含关键词
+            if manual_keyword_lower not in 商品标题 and \
+               manual_keyword_lower not in 商品描述 and \
+               manual_keyword_lower not in 卖家昵称 and \
+               manual_keyword_lower not in 当前售价 and \
+               manual_keyword_lower not in AI建议:
                 match = False
         
         if match:
@@ -1543,6 +1577,32 @@ async def delete_login_state(username: str = Depends(verify_credentials)):
     return {"message": "登录状态文件不存在，无需删除。"}
 
 
+@app.post("/api/manual-login", response_model=dict)
+async def start_manual_login(username: str = Depends(verify_credentials)):
+    """
+    启动手动登录程序 login.py
+    """
+    try:
+        # 使用 asyncio 启动 login.py 进程
+        child_env = os.environ.copy()
+        child_env["PYTHONIOENCODING"] = "utf-8"
+        child_env["PYTHONUTF8"] = "1"
+        
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-u", "login.py",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=child_env
+        )
+        
+        # 不等待进程结束，让它在后台运行
+        print(f"手动登录程序已启动，PID: {process.pid}")
+        
+        return {"message": "手动登录程序已成功启动，请在服务器上查看浏览器窗口并完成登录。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"启动手动登录程序时出错: {str(e)}")
+
+
 @app.get("/api/settings/notifications", response_model=dict)
 async def get_notification_settings(username: str = Depends(verify_credentials)):
     """
@@ -1748,7 +1808,7 @@ async def test_ai_settings(settings: dict, username: str = Depends(verify_creden
 
 
 # Import the notification functions from ai_handler.py
-from src.ai_handler import send_ntfy_notification, send_all_notifications, send_test_notification
+from src.ai_handler import send_all_notifications, send_test_notification
 
 # Define a new Pydantic model for the notification request
 class NotificationRequest(BaseModel):
