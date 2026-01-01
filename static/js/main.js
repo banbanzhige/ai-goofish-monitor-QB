@@ -674,6 +674,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="notification-channel-card">
                     <h4>Ntfy 通知</h4>
                     <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="ntfy-enabled" name="NTFY_ENABLED" ${settings.NTFY_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用 Ntfy 通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label for="ntfy-topic-url">Topic URL</label>
                         <input type="text" id="ntfy-topic-url" name="NTFY_TOPIC_URL" value="${settings.NTFY_TOPIC_URL || ''}" placeholder="例如: https://ntfy.sh/your_topic">
                         <p class="form-hint">用于发送通知到 ntfy.sh 服务</p>
@@ -685,6 +696,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <div class="notification-channel-card">
                     <h4>Gotify 通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="gotify-enabled" name="GOTIFY_ENABLED" ${settings.GOTIFY_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用 Gotify 通知</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="gotify-url">服务地址</label>
                         <input type="text" id="gotify-url" name="GOTIFY_URL" value="${settings.GOTIFY_URL || ''}" placeholder="例如: https://push.example.de">
@@ -704,6 +726,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="notification-channel-card">
                     <h4>Bark 通知</h4>
                     <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="bark-enabled" name="BARK_ENABLED" ${settings.BARK_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用 Bark 通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label for="bark-url">推送地址</label>
                         <input type="text" id="bark-url" name="BARK_URL" value="${settings.BARK_URL || ''}" placeholder="例如: https://api.day.app/your_key">
                         <p class="form-hint">Bark 推送地址</p>
@@ -716,6 +749,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="notification-channel-card">
                     <h4>企业微信机器人通知</h4>
                     <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="wx-bot-enabled" name="WX_BOT_ENABLED" ${settings.WX_BOT_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用企业微信机器人通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label for="wx-bot-url">Webhook URL</label>
                         <input type="text" id="wx-bot-url" name="WX_BOT_URL" value="${settings.WX_BOT_URL || ''}" placeholder="例如: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your_key">
                         <p class="form-hint">企业微信机器人的 Webhook 地址</p>
@@ -727,6 +771,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <div class="notification-channel-card">
                     <h4>企业微信应用通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="wx-app-enabled" name="WX_APP_ENABLED" ${settings.WX_APP_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用企业微信应用通知</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="wx-corp-id">企业 ID</label>
                         <input type="text" id="wx-corp-id" name="WX_CORP_ID" value="${settings.WX_CORP_ID || ''}" placeholder="例如: wwxxxxxxxxx">
@@ -758,6 +813,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="notification-channel-card">
                     <h4>Telegram 机器人通知</h4>
                     <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="telegram-enabled" name="TELEGRAM_ENABLED" ${settings.TELEGRAM_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用 Telegram 机器人通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label for="telegram-bot-token">Bot Token</label>
                         <input type="text" id="telegram-bot-token" name="TELEGRAM_BOT_TOKEN" value="${settings.TELEGRAM_BOT_TOKEN || ''}" placeholder="例如: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz123456789">
                         <p class="form-hint">Telegram 机器人的 Token，从 @BotFather 获取</p>
@@ -775,6 +841,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <div class="notification-channel-card">
                     <h4>通用 Webhook 通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="webhook-enabled" name="WEBHOOK_ENABLED" ${settings.WEBHOOK_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用通用 Webhook 通知</div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="webhook-url">URL 地址</label>
                         <input type="text" id="webhook-url" name="WEBHOOK_URL" value="${settings.WEBHOOK_URL || ''}" placeholder="例如: https://your-webhook-url.com/endpoint">
@@ -1724,7 +1801,10 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 
                 <div class="form-group">
                     <label for="web-password">Web服务密码</label>
-                    <input type="password" id="web-password" name="WEB_PASSWORD" value="${genericSettings.WEB_PASSWORD || 'admin123'}">
+                    <div style="position: relative;">
+                        <input type="password" id="web-password" name="WEB_PASSWORD" value="${genericSettings.WEB_PASSWORD || 'admin123'}">
+                        <button type="button" id="toggle-web-password-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">👁️</button>
+                    </div>
                     <p class="form-hint">用于登录Web管理界面</p>
                 </div>
                 
@@ -1786,6 +1866,21 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 saveBtn.textContent = originalText;
             }
         });
+        
+        // Add event listener for show password button
+        const toggleButton = document.getElementById('toggle-web-password-visibility');
+        const passwordInput = document.getElementById('web-password');
+        if (toggleButton && passwordInput) {
+            toggleButton.addEventListener('click', () => {
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    toggleButton.textContent = '🔒';
+                } else {
+                    passwordInput.type = 'password';
+                    toggleButton.textContent = '👁️';
+                }
+            });
+        }
     }
 
         // 3. Render AI Settings

@@ -78,17 +78,24 @@ class LoginStateUpdate(BaseModel):
 
 class NotificationSettings(BaseModel):
     NTFY_TOPIC_URL: Optional[str] = None
+    NTFY_ENABLED: Optional[bool] = False
     GOTIFY_URL: Optional[str] = None
     GOTIFY_TOKEN: Optional[str] = None
+    GOTIFY_ENABLED: Optional[bool] = False
     BARK_URL: Optional[str] = None
+    BARK_ENABLED: Optional[bool] = False
     WX_BOT_URL: Optional[str] = None
+    WX_BOT_ENABLED: Optional[bool] = False
     WX_CORP_ID: Optional[str] = None
     WX_AGENT_ID: Optional[str] = None
     WX_SECRET: Optional[str] = None
     WX_TO_USER: Optional[str] = None
+    WX_APP_ENABLED: Optional[bool] = False
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_CHAT_ID: Optional[str] = None
+    TELEGRAM_ENABLED: Optional[bool] = False
     WEBHOOK_URL: Optional[str] = None
+    WEBHOOK_ENABLED: Optional[bool] = False
     WEBHOOK_METHOD: Optional[str] = "POST"
     WEBHOOK_HEADERS: Optional[str] = None
     WEBHOOK_CONTENT_TYPE: Optional[str] = "JSON"
@@ -134,17 +141,24 @@ def load_notification_settings():
 
     return {
         "NTFY_TOPIC_URL": config.get("NTFY_TOPIC_URL", ""),
+        "NTFY_ENABLED": config.get("NTFY_ENABLED", "false").lower() == "true",
         "GOTIFY_URL": config.get("GOTIFY_URL", ""),
         "GOTIFY_TOKEN": config.get("GOTIFY_TOKEN", ""),
+        "GOTIFY_ENABLED": config.get("GOTIFY_ENABLED", "false").lower() == "true",
         "BARK_URL": config.get("BARK_URL", ""),
+        "BARK_ENABLED": config.get("BARK_ENABLED", "false").lower() == "true",
         "WX_BOT_URL": config.get("WX_BOT_URL", ""),
+        "WX_BOT_ENABLED": config.get("WX_BOT_ENABLED", "false").lower() == "true",
         "WX_CORP_ID": config.get("WX_CORP_ID", ""),
         "WX_AGENT_ID": config.get("WX_AGENT_ID", ""),
         "WX_SECRET": config.get("WX_SECRET", ""),
         "WX_TO_USER": config.get("WX_TO_USER", ""),
+        "WX_APP_ENABLED": config.get("WX_APP_ENABLED", "false").lower() == "true",
         "TELEGRAM_BOT_TOKEN": config.get("TELEGRAM_BOT_TOKEN", ""),
         "TELEGRAM_CHAT_ID": config.get("TELEGRAM_CHAT_ID", ""),
+        "TELEGRAM_ENABLED": config.get("TELEGRAM_ENABLED", "false").lower() == "true",
         "WEBHOOK_URL": config.get("WEBHOOK_URL", ""),
+        "WEBHOOK_ENABLED": config.get("WEBHOOK_ENABLED", "false").lower() == "true",
         "WEBHOOK_METHOD": config.get("WEBHOOK_METHOD", "POST"),
         "WEBHOOK_HEADERS": config.get("WEBHOOK_HEADERS", ""),
         "WEBHOOK_CONTENT_TYPE": config.get("WEBHOOK_CONTENT_TYPE", "JSON"),
@@ -166,11 +180,11 @@ def save_notification_settings(settings: dict):
 
     # 更新或添加通知设置
     setting_keys = [
-        "NTFY_TOPIC_URL", "GOTIFY_URL", "GOTIFY_TOKEN", "BARK_URL",
-        "WX_BOT_URL", "WX_CORP_ID", "WX_AGENT_ID", "WX_SECRET", "WX_TO_USER",
-        "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "WEBHOOK_URL", 
-        "WEBHOOK_METHOD", "WEBHOOK_HEADERS", "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", 
-        "WEBHOOK_BODY", "PCURL_TO_MOBILE"
+        "NTFY_TOPIC_URL", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
+        "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID", 
+        "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", 
+        "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS", 
+        "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY", "PCURL_TO_MOBILE"
     ]
 
     # 创建现有设置的字典
