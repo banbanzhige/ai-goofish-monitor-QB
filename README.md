@@ -44,9 +44,9 @@
 </div>
 
 
-| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 |
-|:---:|:---:|
-| ![微信应用通知渠道效果](Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](Example/0.9.0/微信群机器人通知渠道.jpg) |
+| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 | Telegram通知渠道效果 |
+|:---:|:---:|:---:|
+| ![微信应用通知渠道效果](Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](Example/0.9.2/微信群机器人通知渠道0101.jpg) | ![Telegram通知渠道效果](Example/0.9.2/Telegram通知渠道0101.jpg) |
 
 
 
@@ -54,6 +54,25 @@
 
 # 🆕 新特性
 **近期更新：**
+
+
+<details>
+<summary>v0.9.2更新日志-2026-01-02</summary>
+  <ul>
+    <li>优化了通知模板尽量满足图文通知需求</li>
+    <li>添加数据筛滤机制，解决部分情况下前端按钮卡死问题</li>
+    <li>对自动登录程序添加追踪与限制，避免重复触发占用资源</li>
+    <li>优化修改了部分文案</li>
+    <li>添加了渠道通知开关</li>
+  </ul>
+
+  <p></p> 
+
+  <img src="Example/0.9.2/Telegram通知渠道0101.jpg" alt="Telegram通知渠道">
+  <img src="Example/0.9.2/微信群机器人通知渠道0101.jpg" alt="微信群机器人通知渠道">
+  <img src="Example/0.9.2/删除与更新凭证.png" alt="删除与更新凭证">
+</details>
+
 
 <details>
 <summary>v0.9.0更新日志-2026-01-01</summary>
@@ -72,9 +91,9 @@
 
   <p></p> <!-- 加一个空行，让列表和图片之间有间隔 -->
 
-  <img src="Example/0.9.0/删除与更新凭证.png" alt="任务管理1">
-  <img src="Example/0.9.0/手动筛选.png" alt="任务管理2">
-  <img src="Example/0.9.0/删除与更新凭证.png" alt="任务管理3">
+  <img src="Example/0.9.0/删除与更新凭证.png" alt="删除与更新凭证">
+  <img src="Example/0.9.0/手动筛选.png" alt="手动筛选">
+  <img src="Example/0.9.0/删除与更新凭证.png" alt="删除与更新凭证">
 </details>
 
 **归档日志**
@@ -210,7 +229,8 @@ docker项目地址
 
 
 **使用docker compose开箱即用**:
-  - 建议提前在工作文件夹根目录下载好.env以持续化保存环境变量数据
+
+  - 提前下载.env.example并改名成.env放在工作文件夹根目录下
   - 有需要也可以挂载prompts，持续化保存自定义的ai标准模板
 ```yaml
 services:
@@ -248,6 +268,7 @@ services:
   cd banbanzhige/ai-goofish-monitor-QB
   ```
   - **需要自行准备 ：python 3.8+的环境**
+  - **需要修改文件名 ：.env.example改成.env来使用**  
   - 双击打开start_web_server.bat启动
   - start_web_server.bat会自行创建虚拟环境，安装依赖，检测端口，并且自行启动web_server.py
 
@@ -310,7 +331,7 @@ python web_server.py
 
 
 ### 3. 配置系统配置
-  默认配置存储在工作路径下的`.env`文件内，可以直接配置，前后端保存同步，docker用户需要挂载`.env`文件才能持久化保存。
+  默认配置存储在工作路径下的`.env`文件内，可以直接配置，前后端保存同步
   #### AI模型配置 
   - API Key *：你的AI模型服务商提供的API Key
   - API Base URL *：AI模型的API接口地址，必须兼容OpenAI格式
@@ -355,7 +376,7 @@ python web_server.py
 - 或等待定时任务自动执行
 
 
-### ⏰ Cron表达式设置
+### ⏰ Cron表达式
 
 Cron表达式用于配置任务的执行频率，格式：
 
