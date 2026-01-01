@@ -1,3 +1,14 @@
+
+#refresh-logs-btn {
+    background-color: #52c41a; /* 设置绿色背景 */
+    border-color: #52c41a; /* 设置绿色边框 */
+    color: white; /* 设置白色文字 */
+}
+
+#refresh-logs-btn:hover {
+    background-color: #389e0d; /* 设置悬停时的深绿色 */
+    border-color: #389e0d; /* 设置悬停时的深绿色边框 */
+}
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
@@ -277,8 +288,8 @@ h2 {
 }
 
 #refresh-results-btn:hover {
-    background-color: #73d13d; /* 设置悬停时的浅绿色 */
-    border-color: #73d13d; /* 设置悬停时的浅绿色边框 */
+    background-color: #389e0d; /* 设置悬停时的深绿色 */
+    border-color: #389e0d; /* 设置悬停时的深绿色边框 */
 }
 
 /* Ensure consistent styles for all tags */
@@ -318,19 +329,6 @@ h2 {
     color: #389e0d;
 }
 
-.action-btn {
-    background: none;
-    border: none;
-    color: #1890ff;
-    cursor: pointer;
-    padding: 4px 8px;
-    font-size: 14px;
-    text-decoration: none;
-}
-
-.action-btn:hover {
-    text-decoration: underline;
-}
 
 .action-btn.delete-btn {
     color: #ff4d4f;
@@ -341,24 +339,32 @@ h2 {
     align-items: center;
     justify-content: center;
     gap: 10px;
+    flex-direction: column; /* Stack vertically by default */
+    align-items: center; /* Center align items when stacking */
+    justify-content: center; /* Center justify items when stacking */
+    gap: 8px; /* Reduce gap when stacking */
 }
 
 .refresh-criteria {
-    padding: 4px 8px;
+    padding: 4px 12px; /* Same padding as action-btn */
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 14px; /* Same font size as action-btn */
+    margin: 0; /* Remove all margins */
+    height: 27px; /* Set fixed height to match action-btn */
 }
 
 .criteria-btn {
-    padding: 4px 8px;
+    padding: 4px 12px; /* Same padding as action-btn */
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 14px; /* Same font size as action-btn */
+    margin: 0; /* Remove all margins */
+    height: 27px; /* Set fixed height to match action-btn */
 }
 
 .refresh-criteria.danger-btn {
@@ -371,18 +377,22 @@ h2 {
 
 .refresh-criteria.success-btn {
     background-color: #52c41a;
+    color: white;
 }
 
 .refresh-criteria.success-btn:hover {
-    background-color: #43a047;
+    background-color: #389e0d;
+    color: white;
 }
 
 .criteria-btn.success-btn {
     background-color: #52c41a;
+    color: white;
 }
 
 .criteria-btn.success-btn:hover {
-    background-color: #43a047;
+    background-color: #389e0d;
+    color: white;
 }
 
 .criteria-btn.danger-btn {
@@ -430,11 +440,11 @@ h2 {
 }
 
 input:checked + .slider {
-    background-color: #52c41a;
+    background-color: #fff533;
 }
 
 input:focus + .slider {
-    box-shadow: 0 0 1px #52c41a;
+    box-shadow: 0 0 1px #fff533;
 }
 
 input:checked + .slider:before {
@@ -493,31 +503,34 @@ input:checked + .slider:before {
     text-decoration: none;
     font-size: 13px;
     transition: all 0.3s;
+    color: white;
+    margin: 0 4px; /* Add small space between buttons */
 }
 
+
 .tasks-table .save-btn {
-    color: #52c41a;
-    border-color: #52c41a;
-    background-color: #fff;
+    background-color: #fff533;
+    border-color: #fff533;
+    color: black;
 }
 
 .tasks-table .save-btn:hover {
-    color: #fff;
-    background-color: #52c41a;
-    border-color: #52c41a;
+    background-color: #e8de2b;
+    border-color: #e8de2b;
+    color: black;
     text-decoration: none;
 }
 
 .tasks-table .cancel-btn {
-    color: #faad14;
-    border-color: #faad14;
-    background-color: #fff;
+    background-color: #ccc;
+    border-color: #ccc;
+    color: black;
 }
 
 .tasks-table .cancel-btn:hover {
-    color: #fff;
-    background-color: #faad14;
-    border-color: #faad14;
+    background-color: #999;
+    border-color: #999;
+    color: black;
     text-decoration: none;
 }
 
@@ -732,6 +745,46 @@ input:checked + .slider:before {
     }
 }
 
+/* 呼吸效果小红点 */
+.red-dot-container {
+    position: relative;
+    display: inline-block;
+    /*margin-right: 6px; /* Add space between this button and the next one */
+}
+
+.red-dot {
+    position: absolute;
+    top: -4px;
+    right: 0px;
+    width: 10px;
+    height: 10px;
+    background-color: #ff4d4f;
+    border-radius: 50%;
+    animation: breath 2s ease-in-out infinite;
+}
+
+@keyframes breath {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.7);
+    }
+    50% {
+        opacity: 0.5;
+        box-shadow: 0 0 0 4px rgba(255, 77, 79, 0);
+    }
+}
+
+@-webkit-keyframes breath {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.7);
+    }
+    50% {
+        opacity: 0.5;
+        box-shadow: 0 0 0 4px rgba(255, 77, 79, 0);
+    }
+}
+
 /* 结果视图样式 */
 .results-filter-bar {
     display: flex; /* 使用flex布局 */
@@ -759,26 +812,33 @@ input:checked + .slider:before {
 .results-filter-bar .filter-group:nth-child(4), /* AI标准 */
 .results-filter-bar .filter-group:nth-child(5)  /* 排序字段 */ {
     width: 220px; /* 增大固定宽度 */
-    margin-right: 8px; /* 为主要筛选组增加额外的右外边距 */
+    margin-right: 8px; /* 统一右外边距 */
 }
 
 /* 为后面4个操作类筛选组设置更紧凑的宽度，更适合内容 */
 .results-filter-bar .filter-group:nth-child(6) { /* 排序方式 */
     width: 110px; /* 设置合适宽度 */
+    margin-right: 8px; /* 统一右外边距 */
 }
 
-.results-filter-bar .filter-group:nth-child(7) { /* 删除 */
+.results-filter-bar .filter-group:nth-child(7) { /* 手动筛选 */
+    width: 220px; /* 设置与"结果文件"一致的宽度 */
+    margin-right: 8px; /* 统一右外边距 */
+}
+
+.results-filter-bar .filter-group:nth-child(8) { /* 删除 */
     width: 120px; /* 设置合适宽度 */
-    margin-right: 12px; /* 调整删除按钮与刷新按钮之间的间距 */
+    margin-right: 8px; /* 统一右外边距 */
 }
 
-.results-filter-bar .filter-group:nth-child(8) { /* 刷新 */
+.results-filter-bar .filter-group:nth-child(9) { /* 刷新 */
     width: 110px; /* 设置合适宽度 */
-    margin-right: 8px; /* 调整刷新按钮与仅看AI推荐之间的间距 */
+    margin-right: 8px; /* 统一右外边距 */
 }
 
-.results-filter-bar .filter-group:nth-child(9) { /* 仅看AI推荐 */
-    width: 130px; /* 设置合适宽度 */
+.results-filter-bar .filter-group:nth-child(10) { /* 仅看AI推荐 */
+    width: 80px; /* 设置合适宽度 */
+    margin-right: 8px; /* 统一右外边距 */
 }
 
 /* 统一所有筛选组的样式 */
@@ -824,6 +884,35 @@ input:checked + .slider:before {
 /* 为排序方式筛选框设置合适宽度 */
 .results-filter-bar #sort-order-selector {
     width: 100%; /* 使用100%宽度以适应容器 */
+}
+
+/* 手动筛选组设置更合适的宽度 */
+.results-filter-bar .filter-group:nth-child(7) { /* 手动筛选 */
+    width: 220px; /* 设置与"结果文件"一致的宽度 */
+    margin-right: 8px; /* 与其他筛选组保持一致的间距 */
+    flex-shrink: 0; /* 防止被挤压 */
+    min-width: 220px; /* 设置与宽度一致的最小宽度 */
+}
+
+/* 直接为手动筛选输入框设置宽度，确保不被挤压 */
+#manual-keyword-filter {
+    width: 220px !important; /* 设置与筛选组宽度一致的输入框宽度 */
+    min-width: 220px !important; /* 设置最小宽度 */
+    flex-shrink: 0 !important; /* 防止被挤压 */
+    border: 1px solid #d9d9d9 !important; /* 确保边框颜色与结果文件选择器一致 */
+    border-radius: 4px !important; /* 确保圆角与结果文件选择器一致 */
+}
+
+/* 仅将手动筛选输入框的占位符居中并增大字体 */
+#manual-keyword-filter::placeholder {
+    text-align: center;
+    font-size: 16px; /* 增大字体大小 */
+}
+
+/* 仅看AI推荐的筛选组 */
+.results-filter-bar .filter-group:nth-child(10) { /* 第10个是仅看AI推荐 */
+    align-items: center; /* 确保元素居中对齐 */
+    height: 70px; /* 设置与其他筛选组相同的高度 */
 }
 
 /* 为其他筛选框设置统一的宽度 */
@@ -1061,13 +1150,14 @@ input:checked + .slider:before {
 
 .seller-info {
     display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
     font-weight: 500;
     color: #555;
     margin-bottom: 4px; /* 减小卖家信息与时间信息之间的间距 */
     font-size: 15px; /* 增大卖家名字 */
+    max-width: 100%; /* 确保内容不超出容器宽度 */
 }
 
 /* 时间信息样式调整 - 优化字体和行间距 */
@@ -1113,13 +1203,15 @@ input:checked + .slider:before {
 }
 
 .card-footer .action-btn.send-notification-btn {
-    background-color: #52c41a;
-    border-color: #52c41a;
+    background-color: #fff533;
+    border-color: #fff533;
+    color: black;
 }
 
 .card-footer .action-btn.send-notification-btn:hover {
-    background-color: #73d13d;
-    border-color: #73d13d;
+    background-color: #e8de2b;
+    border-color: #e8de2b;
+    color: black;
 }
 
 /* Buttons container */
@@ -1298,6 +1390,34 @@ input:checked + .slider:before {
     border-color: #40a9ff;
     outline: none;
     box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+.action-btn {
+    background: none;
+    border: none;
+    color: #1890ff;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.action-btn:hover {
+    text-decoration: underline;
+}
+
+.action-btn.edit-btn {
+    color: #fff533; /* 编辑按钮颜色改为黄色 */
+    background-color: transparent; /* 设置透明背景 */
+    border: none; /* 移除边框 */
+    padding: 2px 6px; /* 调整内边距 */
+    border-radius: 3px; /* 轻微圆角 */
+    transition: color 0.3s; /* 平滑颜色过渡 */
+    cursor: pointer; /* 指针样式 */
+}
+
+.action-btn.edit-btn:hover {
+    color: #000000; /* 悬停时黄色加深 */
+    text-decoration: underline; /* 悬停下划线 */
 }
 
 #save-prompt-btn {
