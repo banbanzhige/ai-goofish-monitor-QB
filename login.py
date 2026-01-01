@@ -10,7 +10,7 @@ RUNNING_IN_DOCKER = os.getenv("RUNNING_IN_DOCKER", "false").lower() == "true"
 
 async def main():
     async with async_playwright() as p:
-        print("正在启动浏览器...")
+        print("正在启动自动登录程序...")
         
         # 配置浏览器启动选项
         launch_options = {
@@ -42,7 +42,7 @@ async def main():
 
             # 等待登录完成 - 这里我们监听页面变化，当登录iframe消失时认为登录完成
             print("\n" + "=" * 50)
-            print("请在打开的浏览器窗口中登录您的咸鱼账号。")
+            print("自动登录程序已启动，请在打开的浏览器窗口中登录您的咸鱼账号。")
             print("推荐使用APP扫码登录。")
             print("登录成功后，登录窗口将自动消失，无需手动关闭。")
             print("=" * 50 + "\n")
