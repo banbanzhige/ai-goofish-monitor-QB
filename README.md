@@ -1,5 +1,3 @@
-
-
 <a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" title="ai-goofish-monitor-QB">
   <img src="/logo/banner.png" alt="ai-goofish-monitor-QB Banner" width="80%">
 </a>
@@ -7,9 +5,10 @@
 
 # 咸鱼智能监控机器人
 基于 Playwright 和 AI 的闲鱼多任务实时监控工具机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
-基于原仓库地址代码：https://github.com/Usagi-org/ai-goofish-monitor 大量修改优化代码与操作逻辑调整到更舒适的使用体验风格。
+基于原仓库地址代码：[Usagi-org/ai-goofish-monitor](ttps://github.com/Usagi-org/ai-goofish-monitor) 大量修改优化代码与操作逻辑调整到更舒适的使用体验风格。
+- 本项目仅供学习和技术研究使用，请勿用于非法用途。
+- 请遵守闲鱼的用户协议和robots.txt规则，不要进行过于频繁的请求，以免对服务器造成负担或导致账号被限制。
 
-新手和ai agent合作的练习作品，希望多多指教
 
 
 
@@ -79,6 +78,7 @@
 </details>
 
 **归档日志**
+
 我针对了原版goofish代码做出了一些优化，对我个人而言使用上更加顺畅，逻辑上更加清晰
 <details>
 <summary>📋任务管理界面：优化了整体ui排版，拆分了运行逻辑，增加了更多的任务状态指示与操作，减少了任务阻塞。现在可以复制任务，详细定制每条任务的ai筛选标准了</summary>
@@ -207,8 +207,11 @@ docker项目地址
   - https://hub.docker.com/r/banbanzhige/ai-goofish-monitor-qb
   
 
-**使用docker compose开箱即用**:
 
+
+**使用docker compose开箱即用**:
+  - 建议提前在工作文件夹根目录下载好.env以持续化保存环境变量数据
+  - 有需要也可以挂载prompts，持续化保存自定义的ai标准模板
 ```yaml
 services:
  app:
@@ -218,13 +221,15 @@ services:
    ports:
      - "8001:8000"
    volumes:
-  #  - ./.env:/app/.env (一般情况下不需要，如果你想单独管理可以挂载）
+     - ./.env:/app/.env
      - ./logs:/app/logs
      - ./jsonl:/app/jsonl
      - ./images:/app/images
      - ./criteria:/app/criteria
      - ./requirement:/app/requirement
+   # - ./prompts:/app/prompts 
    restart: unless-stopped
+
 
 ```
 
@@ -242,7 +247,7 @@ services:
   git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
   cd banbanzhige/ai-goofish-monitor-QB
   ```
-  - **需要自行准备** ：python 3.8+的环境
+  - **需要自行准备 ：python 3.8+的环境**
   - 双击打开start_web_server.bat启动
   - start_web_server.bat会自行创建虚拟环境，安装依赖，检测端口，并且自行启动web_server.py
 
@@ -271,14 +276,12 @@ python web_server.py
 ### 2. 登录咸鱼账号
 
 - 方式一：在WEB管理界面右上角使用自动登录（推荐）
-
+**注意：docker用户无法使用此功能，建议使用方法二获取**
   - 程序自动打开咸鱼首页
   - 在咸鱼首页扫码登录
   - 登录完成后会自动刷新获取cookie，请不要手动关闭网页
   - 获取登录信息完成后网页会自动关->登录成功
 ![自动登录按钮.png](Example/0.9.0/自动登录按钮.png)
-
-
 
 
 
@@ -307,7 +310,7 @@ python web_server.py
 
 
 ### 3. 配置系统配置
-  默认配置存储在工作路径下的`.env`文件内，可以直接配置，前后端保存同步
+  默认配置存储在工作路径下的`.env`文件内，可以直接配置，前后端保存同步，docker用户需要挂载`.env`文件才能持久化保存。
   #### AI模型配置 
   - API Key *：你的AI模型服务商提供的API Key
   - API Base URL *：AI模型的API接口地址，必须兼容OpenAI格式
@@ -344,7 +347,7 @@ python web_server.py
 
 ### 6.生成ai运行标准
 
-- AI标准-点击生成-等待生成完成（可多任务并发请求）
+- AI标准-点击生成-等待生成完成（可多任务多线程请求）
 
 ### 7. 运行监控任务
 
@@ -352,7 +355,7 @@ python web_server.py
 - 或等待定时任务自动执行
 
 
-### ⏰ Cron表达式
+### ⏰ Cron表达式设置
 
 Cron表达式用于配置任务的执行频率，格式：
 
@@ -383,8 +386,8 @@ Cron表达式用于配置任务的执行频率，格式：
 ## 📝 日志管理
 
 日志文件存储在logs/目录下：
-- scraper.log：爬虫日志
-- web_server.log：Web服务器日志
+- scraper.log：Web服务器日志
+- 日期_随机编号.log：产品信息发送ai请求文件
 
 可以在Web界面中查看和清空日志。
 
@@ -470,6 +473,7 @@ Cron表达式用于配置任务的执行频率，格式：
 │   │   ├── scraper.py            # 爬虫核心
 │   │   ├── task.py               # 任务管理
 │   │   ├── utils.py              # 工具函数
+│   │   ├── version.py            # 版本信息
 │   │   └── notifier/             # 通知模块
 │   ├── static/                   # 静态文件
 │   ├── templates/                # HTML模板
@@ -489,14 +493,22 @@ Cron表达式用于配置任务的执行频率，格式：
 <summary>点击展开项目依赖</summary>
 
 ```
-aiofiles==22.1.0
-apscheduler==3.10.4
-fastapi==0.100.0
-openai==0.27.8
-playwright==1.37.0
-pydantic==2.1.1
-python-dotenv==1.0.0
-uvicorn==0.23.2
+aiofiles==25.1.0
+apscheduler==3.11.2
+beautifulsoup4==4.14.3
+fastapi==0.128.0
+httpx==0.28.1
+jinja2==3.1.6
+lxml==6.0.2
+openai==2.14.0
+playwright==1.57.0
+pydantic==2.12.5
+python-dotenv==1.2.1
+python-telegram-bot==22.5
+requests==2.32.5
+selenium==4.39.0
+uvicorn==0.40.0
+webdriver-manager==4.0.2
 ```
 </details>
 
@@ -542,5 +554,3 @@ MIT License
 - 真正有价值的能力不是会用某个框架，而是理解底层原理，做出正确的技术判断
 
 </details>
-
-
