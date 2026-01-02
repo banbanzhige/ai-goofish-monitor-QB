@@ -483,7 +483,8 @@ async def reload_scheduler_jobs():
                     print(f"  -> [警告] 任务 '{task_name}' 的 Cron 表达式 '{cron_str}' 无效，已跳过: {e}")
 
     except FileNotFoundError:
-        print(f"[警告] 配置文件 {CONFIG_FILE} 未找到，无法加载定时任务。")
+        # 配置文件不存在是首次使用的正常现象，不显示警告
+        pass
     except Exception as e:
         print(f"[错误] 重新加载定时任务时发生错误: {e}")
 
