@@ -16,9 +16,9 @@ if exist ".env" (
 rem 获取版本号
 for /f "delims=" %%v in ('python -c "from src.version import VERSION; print(VERSION)"') do set "APP_VERSION=%%v"
 
-echo !YELLOW!======================================!RESET!
-echo  !YELLOW!咸鱼智能监控机器人启动脚本 %APP_VERSION%!RESET!
-echo !YELLOW!======================================!RESET!
+echo !YELLOW!=====================================!RESET!
+echo !YELLOW!= 咸鱼智能监控机器人启动脚本 %APP_VERSION% =!RESET! 
+echo !YELLOW!=====================================!RESET!
 echo.
 
 where python >nul 2>&1
@@ -53,6 +53,10 @@ if !PYTHON_MAJOR! equ 3 if !PYTHON_MINOR! lss 8 (
 )
    
 echo Python版本检查通过 (3.8+)
+echo.
+
+echo 正在启动.env完整性检查工具 
+python check_env.py
 echo.
 
 if not exist "venv" (  
@@ -129,8 +133,8 @@ echo 所有依赖安装完成
 echo.
 
 if not exist "xianyu_state.json" (  
-    echo !RED![错误] 缺少闲鱼状态配置文件:xianyu_state.json!RESET!  
-    echo 需要登录闲鱼之后才能获取数据，需要在管理界面获取cookie文件!
+    echo !RED![错误] 缺少咸鱼登录状态cookie配置文件:xianyu_state.json!RESET!  
+    echo 需要登录咸鱼后才能信息检索数据，可以在web管理界面获取和生成cookie文件!
     echo.
 )
 
@@ -143,7 +147,7 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v 
 echo 正在检查端口!SERVER_PORT!是否可用...
 netstat -an | findstr /i "LISTENING" | findstr /C:":!SERVER_PORT! " >nul 2>&1
 if !errorlevel! equ 0 (
-    echo !RED![错误] 端口!SERVER_PORT!已被占用，请检查是否有其他服务正在使用此端口!RESET!
+    echo !RED![错误] 端口!SERVER_PORT!已被占用，请检查是否有其他程序或服务正在使用该端口!RESET!
     echo 或修改.env文件中的SERVER_PORT配置
     pause
     exit /b 1

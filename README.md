@@ -268,7 +268,6 @@ services:
   cd banbanzhige/ai-goofish-monitor-QB
   ```
   - **需要自行准备 ：python 3.8+的环境**
-  - **需要修改文件名 ：.env.example改成.env来使用**  
   - 双击打开start_web_server.bat启动
   - start_web_server.bat会自行创建虚拟环境，安装依赖，检测端口，并且自行启动web_server.py
 
