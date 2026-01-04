@@ -8,7 +8,7 @@ from src.prompt_utils import generate_criteria, update_config_with_new_task
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="使用AI根据用户需求和参考范例，生成闲鱼监控机器人的分析标准文件，并自动更新config.json。",
+        description="使用AI根据用户需求和参考范例，生成闲鱼公开内容查看智能处理程序的分析标准文件，并自动更新config.json。",
         epilog="""
 使用示例:
   python prompt_generator.py \\
@@ -72,7 +72,7 @@ async def main():
         # 使用重构的函数更新 config.json
         success = await update_config_with_new_task(new_task, args.config_file)
         if success:
-            print("现在，你可以直接运行 `python spider_v2.py` 来启动包括新任务在内的所有监控。")
+            print("现在，你可以直接运行 `python collector.py` 来启动包括新任务在内的所有公开内容查看。")
 
 if __name__ == "__main__":
     asyncio.run(main())

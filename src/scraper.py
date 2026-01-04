@@ -44,7 +44,7 @@ from src.utils import (
 )
 
 
-async def scrape_user_profile(context, user_id: str) -> dict:
+async def fetch_user_profile(context, user_id: str) -> dict:
     """
     【新版】访问指定用户的个人主页，按顺序采集其摘要信息、完整的商品列表和完整的评价列表。
     """
@@ -140,10 +140,10 @@ async def scrape_user_profile(context, user_id: str) -> dict:
     return profile_data
 
 
-async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
+async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
     """
     【核心执行器】
-    根据单个任务配置，异步爬取闲鱼商品数据，并对每个新发现的商品进行实时的、独立的AI分析和通知。
+    根据单个任务配置，异步浏览闲鱼商品数据，并对每个新发现的商品进行实时的、独立的AI分析和通知。
     """
     keyword = task_config['keyword']
     task_name = task_config.get('task_name', keyword)
@@ -154,6 +154,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
     ai_prompt_text = task_config.get('ai_prompt_text', '')
 
     processed_item_count = 0
+    recommended_item_count = 0
     stop_scraping = False
 
     processed_links = set()
@@ -177,7 +178,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
         print(f"LOG: 输出文件 {output_filename} 不存在，将创建新文件。")
 
     async with async_playwright() as p:
-        # 反检测启动参数
+        # 访问策略适配启动参数
         launch_args = [
             '--disable-blink-features=AutomationControlled',
             '--disable-dev-shm-usage',
@@ -211,7 +212,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
             color_scheme='light'
         )
 
-        # 增强反检测脚本（模拟真实移动设备）
+        # 增强访问策略适配脚本（模拟真实移动设备）
         await context.add_init_script("""
             // 移除webdriver标识
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
@@ -237,10 +238,10 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
         page = await context.new_page()
 
         try:
-            # 步骤 0 - 模拟真实用户：先访问首页（重要的反检测措施）
+            # 步骤 0 - 模拟真实用户：先访问首页（重要的访问策略适配措施）
             log_time("步骤 0 - 模拟真实用户访问首页...", task_name=task_name)
             await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=30000)
-            log_time("[反爬] 在首页停留，模拟浏览...", task_name=task_name)
+            log_time("[请求间隔优化] 在首页停留，模拟浏览...", task_name=task_name)
             await random_sleep(3, 6)
 
             # 模拟随机滚动（移动设备的触摸滚动）
@@ -251,7 +252,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
             # 使用 'q' 参数构建正确的搜索URL，并进行URL编码
             params = {'q': keyword}
             search_url = f"https://www.goofish.com/search?{urlencode(params)}"
-            log_time(f"目标URL: {search_url}", task_name=task_name)
+            log_time(f"学习用公开平台URL: {search_url}", task_name=task_name)
 
             # 使用 expect_response 在导航的同时捕获初始搜索的API数据
             async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=30000) as response_info:
@@ -263,7 +264,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
             await page.wait_for_selector('text=新发布', timeout=15000)
 
             # 模拟真实用户行为：页面加载后的初始停留和浏览
-            log_time("[反爬] 模拟用户查看页面...", task_name=task_name)
+            log_time("[请求间隔优化] 模拟用户查看页面...", task_name=task_name)
             await random_sleep(5, 10)
 
             # --- 新增：检查是否存在验证弹窗 ---
@@ -273,11 +274,11 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                 # 等待弹窗在2秒内出现。如果出现，则执行块内代码。
                 await baxia_dialog.wait_for(state='visible', timeout=2000)
                 print("\n==================== CRITICAL BLOCK DETECTED ====================")
-                print("检测到闲鱼反爬虫验证弹窗 (baxia-dialog)，无法继续操作。")
-                print("这通常是因为操作过于频繁或被识别为机器人。")
+                print("检测到页面验证弹窗 (baxia-dialog)，无法继续操作。")
+                print("这通常是因为操作过于频繁或网络环境问题。")
                 print("建议：")
                 print("1. 停止脚本一段时间再试。")
-                print("2. (推荐) 在 .env 文件中设置 RUN_HEADLESS=false，以非无头模式运行，这有助于绕过检测。")
+                print("2. (推荐) 在 .env 文件中设置 RUN_HEADLESS=false，以非无头模式运行，这有助于验证。")
                 print(f"任务 '{keyword}' 将在此处中止。")
                 print("===================================================================")
                 await browser.close()
@@ -290,12 +291,12 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
             try:
                 await middleware_widget.wait_for(state='visible', timeout=2000)
                 print("\n==================== CRITICAL BLOCK DETECTED ====================")
-                print("检测到闲鱼反爬虫验证弹窗 (J_MIDDLEWARE_FRAME_WIDGET)，无法继续操作。")
-                print("这通常是因为操作过于频繁或被识别为机器人。")
+                print("检测到页面验证弹窗 (J_MIDDLEWARE_FRAME_WIDGET)，无法继续操作。")
+                print("这通常是因为操作过于频繁或网络环境问题。")
                 print("建议：")
                 print("1. 停止脚本一段时间再试。")
                 print("2. (推荐) 更新登录状态文件，确保登录状态有效。")
-                print("3. 降低任务执行频率，避免被识别为机器人。")
+                print("3. 降低任务执行频率，避免过于频繁的访问。")
                 print(f"任务 '{keyword}' 将在此处中止。")
                 print("===================================================================")
                 await browser.close()
@@ -406,7 +407,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             ret_string = str(await safe_get(detail_json, 'ret', default=[]))
                             if "FAIL_SYS_USER_VALIDATE" in ret_string:
                                 print("\n==================== CRITICAL BLOCK DETECTED ====================")
-                                print("检测到闲鱼反爬虫验证 (FAIL_SYS_USER_VALIDATE)")
+                                print("检测到系统验证请求 (FAIL_SYS_USER_VALIDATE)")
                                 print("请在60秒内手动完成验证...")
                                 print("注意：请不要关闭浏览器窗口，等待您手动完成验证。")
                                 
@@ -495,7 +496,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             user_id = await safe_get(seller_do, 'sellerId')
                             if user_id:
                                 # 新的、高效的调用方式:
-                                user_profile_data = await scrape_user_profile(context, str(user_id))
+                                user_profile_data = await fetch_user_profile(context, str(user_id))
                             else:
                                 print("   [警告] 未能从详情API中获取到卖家ID。")
                             user_profile_data['卖家芝麻信用'] = zhima_credit_text
@@ -503,7 +504,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
                             # 构建基础记录，包含任务元数据
                             final_record = {
-                                "爬取时间": datetime.now().isoformat(),
+                                "公开信息浏览时间": datetime.now().isoformat(),
                                 "搜索关键字": keyword,
                                 "任务名称": task_config.get('task_name', 'Untitled Task'),
                                 "AI标准": task_config.get('ai_prompt_criteria_file', 'N/A'),
@@ -587,10 +588,14 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
                             processed_links.add(unique_key)
                             processed_item_count += 1
-                            log_time(f"商品处理流程完毕。累计处理 {processed_item_count} 个新商品。", task_name=task_name)
+                            # 如果商品被推荐，增加推荐计数
+                            from src.config import SKIP_AI_ANALYSIS
+                            if SKIP_AI_ANALYSIS() or (ai_analysis_result and ai_analysis_result.get('is_recommended')):
+                                recommended_item_count += 1
+                            log_time(f"商品处理流程完毕。累计处理 {processed_item_count} 个新商品，其中 {recommended_item_count} 个被推荐。", task_name=task_name)
 
                             # --- 修改: 增加单个商品处理后的主要延迟 ---
-                            log_time("[反爬] 执行一次主要的随机延迟以模拟用户浏览间隔...", task_name=task_name)
+                            log_time("[请求间隔优化] 执行一次主要的随机延迟以模拟用户浏览间隔...", task_name=task_name)
                             await random_sleep(15, 30) # 原来是 (8, 15)，这是最重要的修改之一
                         else:
                             print(f"   错误: 获取商品详情API响应失败，状态码: {detail_response.status}")
@@ -619,7 +624,7 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
         except PlaywrightTimeoutError as e:
             print(f"\n操作超时错误: 页面元素或网络响应未在规定时间内出现。\n{e}")
         except Exception as e:
-            print(f"\n爬取过程中发生未知错误: {e}")
+            print(f"\n公开信息浏览过程中发生未知错误: {e}")
         finally:
             log_time("任务执行完毕，浏览器将在5秒后自动关闭...", task_name=task_name)
             await asyncio.sleep(5)
@@ -630,4 +635,4 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
     # 清理任务图片目录
     cleanup_task_images(task_config.get('task_name', 'default'))
 
-    return processed_item_count
+    return processed_item_count, recommended_item_count
