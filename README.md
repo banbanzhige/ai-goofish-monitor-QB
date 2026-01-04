@@ -199,7 +199,7 @@ graph TD
     I --> B
     J --> B
 ```
-**多维度**：ai会根据spider_v2.py获取回来的数据进行分类分析，再加上定制化需求判断后得出推荐/不推荐结论，最后所有数据存储入jsonl里，并且条件满足就会触发通知渠道。
+**多维度**：ai会根据collector.py获取回来的数据进行分类分析，再加上定制化需求判断后得出推荐/不推荐结论，最后所有数据存储入jsonl里，并且条件满足就会触发通知渠道。
 
 ```mermaid
 mindmap
@@ -472,7 +472,7 @@ Cron表达式用于配置任务的执行频率，格式：
 <summary>点击展开核心组件</summary>
 
 1. **登录模块 (login.py)**：处理咸鱼账号登录，生成登录状态文件（可选，大部分情况下浏览器插件即可满足）
-2. **爬虫模块 (spider_v2.py)**：执行商品监控任务，采集商品数据
+2. **数据收集模块 (collector.py)**：执行商品监控任务，采集商品数据
 3. **Web服务器 (web_server.py)**：提供Web管理界面和API
 4. **AI分析模块 (src/ai_handler.py)**：利用AI分析商品信息
 5. **通知模块 (src/notifier/)**：处理各种通知渠道
@@ -497,7 +497,7 @@ Cron表达式用于配置任务的执行频率，格式：
 │   ├── login.py                  # 登录模块（可选）
 │   ├── prompt_generator.py       # AI Prompt生成工具
 │   ├── requirements.txt          # 项目依赖
-│   ├── spider_v2.py              # 爬虫模块
+│   ├── collector.py              # 数据收集模块
 │   ├── web_server.py             # Web服务器
 │   ├── chrome-extension/         # Chrome扩展（可选）
 │   ├── logo/                     # 项目Logo
@@ -510,7 +510,7 @@ Cron表达式用于配置任务的执行频率，格式：
 │   │   ├── file_operator.py      # 文件操作模块
 │   │   ├── parsers.py            # 解析器模块
 │   │   ├── prompt_utils.py       # Prompt工具
-│   │   ├── scraper.py            # 爬虫核心
+│   │   ├── scraper.py            # 数据收集核心
 │   │   ├── task.py               # 任务管理
 │   │   ├── utils.py              # 工具函数
 │   │   ├── version.py            # 版本信息
