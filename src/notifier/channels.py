@@ -18,7 +18,7 @@ class NtfyNotifier(BaseNotifier):
             return False
             
         try:
-            test_title = "测试通知 - 闲鱼智能监控机器人"
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证ntfy配置是否正确。\n\n如果您收到这条消息，说明ntfy配置已经生效！"
             
             await asyncio.get_running_loop().run_in_executor(
@@ -82,6 +82,33 @@ class NtfyNotifier(BaseNotifier):
         except Exception as e:
             print(f"   -> 发送 ntfy 通知失败: {e}")
             return False
+    
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
+            return False
+            
+        try:
+            # 构建任务完成通知的标题和消息内容
+            notification_title = "✅ 任务完成"
+            message = f"任务 '{task_name}' 已完成！\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    config["NTFY_TOPIC_URL"],
+                    data=message.encode('utf-8'),
+                    headers={
+                        "Title": notification_title.encode('utf-8'),
+                        "Priority": "normal",
+                        "Tags": "check-circle,white_check_mark"
+                    },
+                    timeout=10
+                )
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送 ntfy 任务完成通知失败: {e}")
+            return False
 
 
 class GotifyNotifier(BaseNotifier):
@@ -95,7 +122,7 @@ class GotifyNotifier(BaseNotifier):
             return False
             
         try:
-            test_title = "测试通知 - 闲鱼智能监控机器人"
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Gotify配置是否正确。\n\n如果您收到这条消息，说明Gotify配置已经生效！"
             
             payload = {
@@ -155,6 +182,36 @@ class GotifyNotifier(BaseNotifier):
         except Exception as e:
             print(f"   -> 发送 Gotify 通知失败: {e}")
             return False
+    
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["GOTIFY_URL"] or not config["GOTIFY_TOKEN"] or not config["GOTIFY_ENABLED"]:
+            return False
+            
+        try:
+            # 构建任务完成通知的标题和消息内容
+            notification_title = "✅ 任务完成"
+            message = f"任务 '{task_name}' 已完成！\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            payload = {
+                'title': (None, notification_title),
+                'message': (None, message),
+                'priority': (None, '3')  # 正常优先级
+            }
+            
+            gotify_url_with_token = f"{config['GOTIFY_URL']}/message?token={config['GOTIFY_TOKEN']}"
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    gotify_url_with_token,
+                    files=payload,
+                    timeout=10
+                )
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送 Gotify 任务完成通知失败: {e}")
+            return False
 
 
 class BarkNotifier(BaseNotifier):
@@ -168,14 +225,14 @@ class BarkNotifier(BaseNotifier):
             return False
             
         try:
-            test_title = "测试通知 - 闲鱼智能监控机器人"
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Bark配置是否正确。\n\n如果您收到这条消息，说明Bark配置已经生效！"
             
             bark_payload = {
                 "title": test_title,
                 "body": test_message,
                 "level": "timeSensitive",
-                "group": "闲鱼监控"
+                "group": "闲鱼公开内容查看"
             }
             
             headers = { "Content-Type": "application/json; charset=utf-8" }
@@ -216,7 +273,7 @@ class BarkNotifier(BaseNotifier):
                 "title": notification_title,
                 "body": message,
                 "level": "timeSensitive",
-                "group": "闲鱼监控"
+            "group": "闲鱼公开内容查看"
             }
             
             bark_payload["url"] = product_link
@@ -240,6 +297,37 @@ class BarkNotifier(BaseNotifier):
         except Exception as e:
             print(f"   -> 发送 Bark 通知失败: {e}")
             return False
+    
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["BARK_URL"] or not config["BARK_ENABLED"]:
+            return False
+        try:
+            # 构建任务完成通知的标题和消息内容
+            notification_title = "✅ 任务完成"
+            message = f"任务 '{task_name}' 已完成！\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            bark_payload = {
+                "title": notification_title,
+                "body": message,
+                "level": "active",
+                "group": "闲鱼公开内容查看"
+            }
+            
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    config["BARK_URL"],
+                    json=bark_payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送 Bark 任务完成通知失败: {e}")
+            return False
 
 
 class WeChatBotNotifier(BaseNotifier):
@@ -253,7 +341,7 @@ class WeChatBotNotifier(BaseNotifier):
             return False
             
         try:
-            test_title = "测试通知 - 闲鱼智能监控机器人"
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证企业微信机器人配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
             
             full_message = f"{test_title}\n\n{test_message}"
@@ -314,9 +402,10 @@ class WeChatBotNotifier(BaseNotifier):
             if main_image:
                 try:
                     # 从商品信息中提取需要的字段
-                    product_title = product.get('商品信息', {}).get('商品标题', '未知商品')
-                    price = product.get('商品信息', {}).get('当前售价', '未知价格')
-                    publish_time = product.get('商品信息', {}).get('发布时间', '未知时间')
+                    actual_product = product_info['actual_product']
+                    product_title = actual_product.get('商品标题', '未知商品')
+                    price = actual_product.get('当前售价', '未知价格')
+                    publish_time = actual_product.get('发布时间', '未知时间')
                     
                     # 构建图文消息
                     news_payload = {
@@ -349,6 +438,37 @@ class WeChatBotNotifier(BaseNotifier):
             return True
         except Exception as e:
             print(f"   -> 发送企业微信机器人通知失败: {e}")
+            return False
+    
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
+            return False
+        try:
+            # 构建任务完成通知的标题和消息内容
+            notification_title = "✅ 任务完成"
+            message = f"任务 '{task_name}' 已完成！\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            payload = {
+                "msgtype": "text",
+                "text": {
+                    "content": f"{notification_title}\n\n{message}"
+                }
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    config["WX_BOT_URL"],
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送企业微信机器人任务完成通知失败: {e}")
             return False
 
 
@@ -465,6 +585,39 @@ AI推荐商品，查看详情了解更多...
             print(f"   -> 发送企业微信应用通知失败: {e}")
             return False
     
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["WX_CORP_ID"] or not config["WX_AGENT_ID"] or not config["WX_SECRET"] or not config["WX_APP_ENABLED"]:
+            return False
+        try:
+            # 获取访问令牌
+            access_token = self._get_wecom_access_token()
+            if not access_token:
+                return False
+            
+            # 构建任务完成通知的标题和消息内容
+            notification_title = "✅ 任务完成"
+            message = f"任务 '{task_name}' 已完成！\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            # 构建文本消息内容，企业微信应用支持的消息类型比机器人更多，但我们这里用文本消息就足够了
+            message_data = {
+                "touser": config["WX_TO_USER"],
+                "msgtype": "text",
+                "agentid": config["WX_AGENT_ID"],
+                "text": {
+                    "content": message
+                },
+                "duplicate_check_interval": 60
+            }
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: self._send_wechat_request(access_token, message_data)
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送企业微信应用任务完成通知失败: {e}")
+            return False
+    
     def _get_wecom_access_token(self) -> Optional[str]:
         """
         获取企业微信API访问令牌
@@ -530,7 +683,7 @@ class TelegramNotifier(BaseNotifier):
             return False
             
         try:
-            test_title = "测试通知 - 闲鱼智能监控机器人"
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Telegram配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
             
             telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage"
@@ -651,6 +804,38 @@ class TelegramNotifier(BaseNotifier):
         except Exception as e:
             print(f"   -> 发送 Telegram 通知失败: {e}")
             return False
+    
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"] or not config["TELEGRAM_ENABLED"]:
+            return False
+        try:
+            # 构建任务完成通知的标题和消息内容
+            telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage"
+            notification_title = "✅ 任务完成"
+            message = f"<b>任务 '{task_name}' 已完成！</b>\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            telegram_payload = {
+                "chat_id": config["TELEGRAM_CHAT_ID"],
+                "text": message,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
+            }
+            
+            headers = {"Content-Type": "application/json"}
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    telegram_api_url,
+                    json=telegram_payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送 Telegram 任务完成通知失败: {e}")
+            return False
 
 
 class WebhookNotifier(BaseNotifier):
@@ -664,7 +849,7 @@ class WebhookNotifier(BaseNotifier):
             return False
             
         try:
-            test_title = "测试通知 - 闲鱼智能监控机器人"
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Webhook配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
             
             await asyncio.get_running_loop().run_in_executor(
@@ -691,6 +876,23 @@ class WebhookNotifier(BaseNotifier):
             return True
         except Exception as e:
             print(f"   -> 发送 Webhook 通知失败: {e}")
+            return False
+    
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> bool:
+        if not config["WEBHOOK_URL"] or not config["WEBHOOK_ENABLED"]:
+            return False
+        try:
+            # 构建任务完成通知的标题和消息内容
+            notification_title = "✅ 任务完成"
+            message = f"任务 '{task_name}' 已完成！\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: self._send_webhook_request(notification_title, message)
+            )
+            return True
+        except Exception as e:
+            print(f"   -> 发送 Webhook 任务完成通知失败: {e}")
             return False
     
     def _send_webhook_request(self, title: str, content: str) -> None:
