@@ -73,6 +73,34 @@ async def send_test_notification(channel: str):
     return await notifier.send_test_notification(channel)
 
 
+async def send_test_task_completion_notification(channel: str):
+    """
+    向指定渠道发送任务完成通知的测试。
+    
+    Args:
+        channel (str): 要发送通知的渠道 (ntfy, gotify, bark, wx_bot, wx_app, telegram, webhook)
+        
+    Returns:
+        bool: 如果通知发送成功返回True，否则返回False
+    """
+    from src.notifier import notifier
+    return await notifier.send_test_task_completion_notification(channel)
+
+
+async def send_test_product_notification(channel: str):
+    """
+    向指定渠道发送商品卡测试通知。
+    
+    Args:
+        channel (str): 要发送通知的渠道 (ntfy, gotify, bark, wx_bot, wx_app, telegram, webhook)
+        
+    Returns:
+        bool: 如果通知发送成功返回True，否则返回False
+    """
+    from src.notifier import notifier
+    return await notifier.send_test_product_notification(channel)
+
+
 
 
 def safe_print(text):
