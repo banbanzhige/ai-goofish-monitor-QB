@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="filter-group">
                         <div class="filter-label">排序字段</div>
                         <select id="sort-by-selector">
-                            <option value="crawl_time">按爬取时间</option>
+                            <option value="crawl_time">按浏览时间</option>
                             <option value="publish_time">按发布时间</option>
                             <option value="price">按价格</option>
                         </select>
@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return await response.json();
         } catch (error) {
             console.error(`无法更新任务 ${taskId}:`, error);
-            // TODO: Use a more elegant notification system
+            // TODO: 使用更优雅的通知系统
             alert(`错误: ${error.message}`);
             return null;
         }
@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const params = new URLSearchParams({
                 page: 1,
-                limit: 100, // Fetch a decent number of items
+                limit: 100, // 获取足够数量的条目
                 recommended_only: recommendedOnly,
                 task_name: taskName,
                 keyword: keyword,
@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const loginState = status.login_state_file;
         let content = '';
         
-        // Create manual login button HTML with dropdown for "已获取cookie" state
+        // 创建手动登录按钮HTML，包含"已获取cookie"状态的下拉菜单
         let manualLoginBtnHtml = '';
         if (loginState && loginState.exists) {
                 manualLoginBtnHtml = `
@@ -562,32 +562,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         container.innerHTML = content;
         
-        // Add click event for manual login button (need to add it after setting innerHTML)
+        // 为手动登录按钮添加点击事件（需要在设置innerHTML之后添加）
         const manualLoginBtn = document.getElementById('manual-login-btn-header');
         if (manualLoginBtn) {
             manualLoginBtn.addEventListener('click', async () => {
-                // Show custom modal instead of browser confirm dialog
+                // 显示自定义模态框而不是浏览器确认对话框
                 const confirmModal = document.getElementById('manual-login-confirm-modal');
                 if (!confirmModal) return;
                 
-                // Display the modal
+                // 显示模态框
                 confirmModal.style.display = 'flex';
                 setTimeout(() => confirmModal.classList.add('visible'), 10);
                 
-                // Get modal elements
+                // 获取模态框元素
                 const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
                 const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
                 const closeBtn = document.getElementById('close-manual-login-confirm-modal');
                 
-                // Function to close the modal
+                // 关闭模态框的函数
                 const closeModal = () => {
                     confirmModal.classList.remove('visible');
                     setTimeout(() => {
                         confirmModal.style.display = 'none';
-                    }, 300); // Match the modal transition duration
+                    }, 300); // 与模态框过渡持续时间匹配
                 };
                 
-                    // Function to handle the confirmation action
+                    // 处理确认操作的函数
                     const handleConfirmation = async () => {
                         try {
                             const response = await fetch('/api/manual-login', {
@@ -629,7 +629,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     }
                                 }, pollInterval);
                             }
-                            // No alert for success - directly close the modal
+                            // 成功时不显示提示 - 直接关闭模态框
                         } catch (error) {
                             alert('启动失败: ' + error.message);
                         } finally {
@@ -637,12 +637,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     };
                 
-                // Add event listeners with once: true to avoid memory leaks
+                // 添加事件监听器，使用once: true来避免内存泄漏
                 confirmBtn.addEventListener('click', handleConfirmation, { once: true });
                 cancelBtn.addEventListener('click', closeModal, { once: true });
                 closeBtn.addEventListener('click', closeModal, { once: true });
                 
-                    // Add click outside to close functionality
+                    // 添加点击外部关闭的功能
                     confirmModal.addEventListener('click', (e) => {
                         if (e.target === confirmModal) closeModal();
                     }, { once: true });
@@ -669,6 +669,18 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="notify-after-task-complete" name="NOTIFY_AFTER_TASK_COMPLETE" ${settings.NOTIFY_AFTER_TASK_COMPLETE ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">任务完成后发送通知</div>
+                                <p class="form-hint" style="margin: 2px 0;">当监控任务完成时发送通知提醒</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="notification-channel-card">
@@ -690,7 +702,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="form-hint">用于发送通知到 ntfy.sh 服务</p>
                     </div>
                     <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="ntfy" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试通知</button>
+                        <button type="button" class="test-notification-btn" data-channel="ntfy" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="ntfy" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -719,7 +732,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="form-hint">Gotify 应用的 Token</p>
                     </div>
                     <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="gotify" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试通知</button>
+                        <button type="button" class="test-notification-btn" data-channel="gotify" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="gotify" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -742,7 +756,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="form-hint">Bark 推送地址</p>
                     </div>
                     <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="bark" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试通知</button>
+                        <button type="button" class="test-notification-btn" data-channel="bark" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="bark" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -765,7 +780,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="form-hint">企业微信机器人的 Webhook 地址</p>
                     </div>
                     <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="wx_bot" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试通知</button>
+                        <button type="button" class="test-notification-btn" data-channel="wx_bot" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="wx_bot" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -806,7 +822,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="form-hint">接收通知的用户ID列表，用|分隔，或@all通知所有用户</p>
                     </div>
                     <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="wx_app" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试通知</button>
+                        <button type="button" class="test-notification-btn" data-channel="wx_app" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="wx_app" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -835,7 +852,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p class="form-hint">Telegram Chat ID，从 @userinfobot 获取</p>
                     </div>
                     <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="telegram" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试通知</button>
+                        <button type="button" class="test-notification-btn" data-channel="telegram" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="telegram" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -857,7 +875,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <input type="text" id="webhook-url" name="WEBHOOK_URL" value="${settings.WEBHOOK_URL || ''}" placeholder="例如: https://your-webhook-url.com/endpoint">
                         <p class="form-hint">通用 Webhook 的 URL 地址</p>
                     </div>
-                    
                     <div class="form-group">
                         <label for="webhook-method">请求方法</label>
                         <select id="webhook-method" name="WEBHOOK_METHOD">
@@ -946,24 +963,24 @@ document.addEventListener('DOMContentLoaded', function() {
         if (status) {
             renderLoginStatusWidget(status);
             
-        // Add click event for login status widget to toggle dropdowns for both "已获取cookie" and "已登录" buttons
+        // 为登录状态小部件添加点击事件，用于切换"已获取cookie"和"已登录"按钮的下拉菜单
         const loginStatusWidget = document.querySelector('.login-status-widget');
         if (loginStatusWidget) {
-            // Select only the first two control buttons which have dropdowns
+            // 只选择前两个带有下拉菜单的控制按钮
             const buttons = loginStatusWidget.querySelectorAll('.control-button');
-            // Process only the first two buttons which should have dropdowns
+            // 只处理前两个应该有下拉菜单的按钮
             for (let i = 0; i < Math.min(buttons.length, 2); i++) {
                 const btn = buttons[i];
                 let dropdownMenu = btn.nextElementSibling;
                 
-                // Check if we found a dropdown menu
+                // 检查是否找到了下拉菜单
                 if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
                     btn.addEventListener('click', (e) => {
                         e.preventDefault();
-                        // Toggle this dropdown
+                        // 切换此下拉菜单
                         dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
                         
-                        // Close other dropdowns in the widget
+                        // 关闭小部件中的其他下拉菜单
                         loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
                             if (menu !== dropdownMenu) {
                                 menu.style.display = 'none';
@@ -971,12 +988,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
                     });
                     
-                    // Prevent event bubbling to avoid unexpected behavior
+                    // 防止事件冒泡以避免意外行为
                     btn.addEventListener('click', (e) => e.stopPropagation());
                 }
             }
             
-            // Click outside to close all dropdowns
+            // 点击外部关闭所有下拉菜单
             document.addEventListener('click', (e) => {
                 if (!loginStatusWidget.contains(e.target)) {
                     loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
@@ -997,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const env = status.env_file || {};
 
-        // Check if at least one notification channel is configured
+        // 检查是否配置了至少一个通知渠道
         const hasAnyNotificationChannel = env.ntfy_topic_url_set || 
                                          (env.gotify_url_set && env.gotify_token_set) || 
                                          env.bark_url_set || 
@@ -1049,10 +1066,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // 尽量使用商品图片列表的第二张图片，没有的话使用第一张
             const imageUrl = (info.商品图片列表 && info.商品图片列表.length > 1) ? info.商品图片列表[1] : (info.商品图片列表 && info.商品图片列表[0]) ? info.商品图片列表[0] : '/logo/logo 2048x2048.png';
-            const crawlTime = item.爬取时间 ? new Date(item.爬取时间).toLocaleString('sv-SE').slice(0, 16) : '未知';
+            const crawlTime = item.公开信息浏览时间 ? new Date(item.公开信息浏览时间).toLocaleString('sv-SE').slice(0, 16) : '未知';
             const publishTime = info.发布时间 || '未知';
 
-            // Escape HTML to prevent XSS
+            // 转义HTML以防止XSS攻击
             const escapeHtml = (unsafe) => {
                 if (typeof unsafe !== 'string') return unsafe;
                 const div = document.createElement('div');
@@ -1060,7 +1077,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 return div.innerHTML;
             };
 
-            // Highlight keywords in text
+            // 从商品链接中提取商品ID
+            const extractItemId = (url) => {
+                if (!url) return '';
+                try {
+                    // 匹配URL中的id参数
+                    const match = url.match(/id=(\d+)/);
+                    return match ? match[1] : '';
+                } catch (error) {
+                    console.error('无法从URL中提取商品ID:', error);
+                    return '';
+                }
+            };
+
+            // 在文本中高亮显示关键词
             const highlightKeyword = (text, keyword) => {
                 if (!keyword || !text) return text;
                 const regex = new RegExp(`(${escapeHtml(keyword)})`, 'gi');
@@ -1082,14 +1112,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     reason: ai.reason,
                     risk_tags: ai.risk_tags
                 },
-                爬取时间: item.爬取时间,
+                爬取时间: item.公开信息浏览时间,
                 搜索关键字: item.搜索关键字,
                 任务名称: item.任务名称,
                 AI标准: item.AI标准
             };
             
+            // 从商品链接中提取商品ID
+            const itemId = extractItemId(info.商品链接);
             return `
-            <div class="result-card" data-notification='${escapeHtml(JSON.stringify(notificationData))}'>
+            <div class="result-card" data-notification='${escapeHtml(JSON.stringify(notificationData))}' data-item-id='${escapeHtml(itemId)}'>
             <button class="delete-card-btn" title="删除此商品"></button>
                 <div class="card-image">
                     <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(info.商品标题) || '商品图片'}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJhzwvdGV4dD48L3N2Zz4=';"></a>
@@ -1106,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="seller-info" title="${escapeHtml(info.卖家昵称) || escapeHtml(seller.卖家昵称) || '未知'}">卖家: ${escapeHtml(info.卖家昵称) || escapeHtml(seller.卖家昵称) || '未知'}</span>
                             <div class="time-info">
                                 <p>发布于: ${escapeHtml(publishTime)}</p>
-                                <p>抓取于: ${escapeHtml(crawlTime)}</p>
+                    <p>浏览于: ${escapeHtml(crawlTime)}</p>
                             </div>
                         </div>
                         <div class="card-buttons">
@@ -1152,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (isRunning) {
             statusBadge = `<span class="status-badge status-running" style="background-color: #28a745;">运行中</span>`;
         } else {
-            // Check if criteria file exists
+            // 检查条件文件是否存在
             const criteriaFile = task.ai_prompt_criteria_file || 'N/A';
             const criteriaBtnText = criteriaFile
                 .replace(/^criteria\/(.*?)_criteria\.txt$/i, '$1') // 替换完整路径
@@ -1168,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-            // Format criteria filename to show only the middle text without prefix/suffix
+            // 格式化条件文件名，只显示中间文本，不带前缀/后缀
             const criteriaFile = task.ai_prompt_criteria_file || 'N/A';
             let criteriaBtnText = 'N/A';
             if (criteriaFile !== 'N/A') {
@@ -1185,7 +1217,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ? `<button class="action-btn stop-task-btn" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>停止</button>`
                 : `<button class="action-btn run-task-btn" data-task-id="${task.id}" ${!task.enabled || (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) || isGeneratingAI ? 'disabled ' : ''} ${!task.enabled ? 'title="任务已禁用"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'title="请先点击生成"' : (isGeneratingAI ? 'title="正在生成AI标准"' : '')} ${isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'style="background-color: #ccc; color: white;"' : ''}>运行</button>`;
             
-            // Determine if buttons should be disabled
+            // 确定按钮是否应该禁用
             const buttonDisabledAttr = isGeneratingAI ? 'disabled' : '';
             const buttonDisabledTitle = isGeneratingAI ? 'title="等待AI标准生成"' : '';
             const buttonDisabledStyle = isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : '';
@@ -1249,15 +1281,15 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         }
         const sectionId = hash.substring(1) || 'tasks';
 
-        // Update nav links active state
+        // 更新导航链接的激活状态
         navLinks.forEach(link => {
             link.classList.toggle('active', link.getAttribute('href') === `#${sectionId}`);
         });
 
-        // Update main content
+        // 更新主要内容
         if (templates[sectionId]) {
             mainContent.innerHTML = templates[sectionId]();
-            // Make the new content visible
+            // 使新内容可见
             const newSection = mainContent.querySelector('.content-section');
             if (newSection) {
                 requestAnimationFrame(() => {
@@ -1270,7 +1302,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 const container = document.getElementById('tasks-table-container');
                 const refreshTasks = async () => {
                     const tasks = await fetchTasks();
-                    // Avoid re-rendering if in edit mode to not lose user input
+                    // 如果处于编辑模式，避免重新渲染以避免丢失用户输入
                     if (container && !container.querySelector('tr.editing')) {
                         container.innerHTML = renderTasksTable(tasks);
                     }
@@ -1301,7 +1333,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         let currentLogSize = 0;
 
         const updateLogs = async (isFullRefresh = false) => {
-            // For incremental updates, check if user is at the bottom BEFORE adding new content.
+            // 对于增量更新，在添加新内容之前检查用户是否在底部。
             const shouldAutoScroll = isFullRefresh || (logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 5);
             const selectedTaskName = taskFilter ? taskFilter.value : '';
 
@@ -1313,11 +1345,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             const logData = await fetchLogs(currentLogSize, selectedTaskName);
 
             if (isFullRefresh) {
-                // If the log is empty, show a message instead of a blank screen.
+                // 如果日志为空，显示消息而不是空白屏幕。
                 logContainer.textContent = logData.new_content || '日志为空，等待内容...';
             } else if (logData.new_content) {
-                // If it was showing the empty message, replace it.
-                if (logContainer.textContent === '日志为空，等待内容...') {
+                // 如果它正在显示空消息，替换它。
+                if (logContainer.textContent === '正在加载...' || logContainer.textContent === '日志为空，等待内容...') {
                     logContainer.textContent = logData.new_content;
                 } else {
                     logContainer.textContent += logData.new_content;
@@ -1325,7 +1357,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }
             currentLogSize = logData.new_pos;
 
-            // Scroll to bottom if it was a full refresh or if the user was already at the bottom.
+            // 如果是完全刷新或用户已经在底部，则滚动到底部。
             if (shouldAutoScroll) {
                 logContainer.scrollTop = logContainer.scrollHeight;
             }
@@ -1343,30 +1375,30 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }
         });
 
-            // Function to populate the task filter with unique task names
+            // 用唯一任务名称填充任务筛选器的函数
             async function populateTaskFilter() {
                 if (!taskFilter) return;
                 
-                // Fetch all tasks from the server
+                // 从服务器获取所有任务
                 const tasks = await fetchTasks();
                 
                 if (tasks && tasks.length > 0) {
-                    // Get unique task names
+                    // 获取唯一任务名称
                     const uniqueTaskNames = [...new Set(tasks.map(task => task.task_name))].sort();
                     
-                    // Save the current selected value
+                    // 保存当前选中的值
                     const currentValue = taskFilter.value;
                     
-                    // Clear existing options except the first one ("所有任务")
+                    // 清除除第一个选项外的所有现有选项 ("所有任务")
                     taskFilter.innerHTML = '<option value="">所有任务</option>';
                     
-                    // Add new options
+                    // 添加新选项
                     uniqueTaskNames.forEach(taskName => {
                         const option = document.createElement('option');
                         option.value = taskName;
                         option.textContent = taskName;
                         
-                        // Restore the current selection
+                        // 恢复当前选择
                         if (option.value === currentValue) {
                             option.selected = true;
                         }
@@ -1376,15 +1408,15 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 }
             }
             
-            // Add task filter change event listener
+            // 添加任务筛选器变化事件监听器
             if (taskFilter) {
                 taskFilter.addEventListener('change', () => updateLogs(true));
             }
             
-            // Populate the task filter when initializing the logs view
+            // 初始化日志视图时填充任务筛选器
             await populateTaskFilter();
             
-            // Also populate the task filter when clicking the refresh button
+            // 点击刷新按钮时也填充任务筛选器
             refreshBtn.addEventListener('click', async () => {
                 await populateTaskFilter();
                 updateLogs(true);
@@ -1404,7 +1436,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
         autoRefreshCheckbox.addEventListener('change', autoRefreshHandler);
 
-        // Enable auto-refresh by default
+        // 默认启用自动刷新
         autoRefreshCheckbox.checked = true;
         autoRefreshHandler();
         await updateLogs(true);
@@ -1461,8 +1493,16 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             // 恢复当前选择
             keywordFilter.value = keyword;
             
-            // 更新AI标准筛选
-            aiCriteriaFilter.innerHTML = '<option value="all">所有AI标准</option>' + aiCriterias.map(criteria => `<option value="${criteria}">${criteria}</option>`).join('');
+            // 更新AI标准筛选，优化显示内容，仅保留核心信息
+            aiCriteriaFilter.innerHTML = '<option value="all">所有AI标准</option>' + aiCriterias.map(criteria => {
+                // 移除前缀和后缀，仅保留核心信息
+                const displayText = criteria
+                    .replace(/^criteria\//i, '') // 移除前缀
+                    .replace(/_criteria\.txt$/i, '') // 移除后缀
+                    .replace(/^prompts\/(.*?)_criteria\.txt$/i, '$1'); // 处理旧路径
+                
+                return `<option value="${criteria}">${displayText}</option>`;
+            }).join('');
             // 恢复当前选择
             aiCriteriaFilter.value = aiCriteria;
         }
@@ -1482,31 +1522,37 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         if (fileData && fileData.files && fileData.files.length > 0) {
             const lastSelectedFile = localStorage.getItem('lastSelectedResultFile');
             
-            // Determine the file to select. Default to "所有结果" if nothing is stored.
+            // 确定要选择的文件。如果没有存储任何内容，则默认选择 "所有结果"。
             let fileToSelect = 'all';
-            // If there's a last selected file and it's not "all", use it
+            // 如果有上次选择的文件且不是 "all"，则使用它
             if (lastSelectedFile && lastSelectedFile !== 'all' && fileData.files.includes(lastSelectedFile)) {
                 fileToSelect = lastSelectedFile;
             }
 
-            // Add "所有结果" option
-            const options = ['<option value="all" ' + (fileToSelect === 'all' ? 'selected' : '') + '>所有结果</option>'].concat(
-                fileData.files.map(f =>
-                    `<option value="${f}" ${f === fileToSelect ? 'selected' : ''}>${f}</option>`
-                )
-            );
+                // Add "所有结果" option
+                const options = ['<option value="all" ' + (fileToSelect === 'all' ? 'selected' : '') + '>所有结果</option>'].concat(
+                    fileData.files.map(f => {
+                        // 优化显示内容，仅保留核心文件名
+                        const displayText = f
+                            .replace(/_full_data\.jsonl$/i, '') // 移除_full_data.jsonl后缀
+                            .replace(/_full_data\.json$/i, '') // 移除_full_data.json后缀
+                            .replace(/\.jsonl$/i, '') // 移除.jsonl后缀
+                            .replace(/\.json$/i, ''); // 移除.json后缀
+                        return `<option value="${f}" ${f === fileToSelect ? 'selected' : ''}>${displayText}</option>`;
+                    })
+                );
             selector.innerHTML = options.join('');
 
-            // The selector's value is now correctly set by the 'selected' attribute.
-            // We can proceed with adding listeners and the initial fetch.
+            // 选择器的值现在已通过'selected'属性正确设置。
+            // 我们可以继续添加监听器并执行初始请求。
 
-            // Add event listeners for all filters
+            // 为所有筛选器添加事件监听器
             selector.addEventListener('change', fetchAndRenderResults);
             
             // Initialize the "仅看AI推荐" button state
             checkbox.setAttribute('data-checked', 'false');
             
-            // Handle checkbox change event directly since it's now an input type="checkbox"
+            // 直接处理复选框更改事件，因为它现在是input type="checkbox"类型
             checkbox.addEventListener('change', () => {
                 fetchAndRenderResults();
             });
@@ -1520,12 +1566,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             if (aiCriteriaFilter) aiCriteriaFilter.addEventListener('change', fetchAndRenderResults);
             if (manualKeywordFilter) manualKeywordFilter.addEventListener('input', fetchAndRenderResults);
             
-            // Add existing event listeners
+            // 添加现有的事件监听器
             sortBySelector.addEventListener('change', fetchAndRenderResults);
             sortOrderSelector.addEventListener('change', fetchAndRenderResults);
             refreshBtn.addEventListener('click', fetchAndRenderResults);
 
-            // Enable delete button when a file is selected
+            // 当选择文件时启用删除按钮
             const updateDeleteButtonState = () => {
                 deleteBtn.disabled = !selector.value;
             };
@@ -1533,7 +1579,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             // 初始化时也更新一次删除按钮状态
             updateDeleteButtonState();
 
-            // Delete button functionality
+            // 删除按钮功能
             deleteBtn.addEventListener('click', async () => {
                 const selectedFile = selector.value;
                 if (!selectedFile) {
@@ -1569,13 +1615,43 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             notificationContainer.innerHTML = '<p>加载通知配置失败。请检查服务器是否正常运行。</p>';
         }
 
+        // Function to save notification settings
+        async function saveNotificationSettingsNow() {
+            const notificationForm = document.getElementById('notification-settings-form');
+            if (!notificationForm) return;
+
+            // Collect form data
+            const formData = new FormData(notificationForm);
+            const settings = {};
+
+            // Handle regular inputs
+            for (let [key, value] of formData.entries()) {
+                if (key.startsWith('PCURL_TO_MOBILE') || key.startsWith('NOTIFY_AFTER_TASK_COMPLETE') || 
+                    key.endsWith('_ENABLED')) {
+                    settings[key] = value === 'on';
+                } else {
+                    settings[key] = value || '';
+                }
+            }
+
+            // Handle notify after task complete checkbox if it's not in FormData
+            const notifyAfterTaskCompleteCheckbox = document.getElementById('notify-after-task-complete');
+            if (notifyAfterTaskCompleteCheckbox) {
+                settings.NOTIFY_AFTER_TASK_COMPLETE = notifyAfterTaskCompleteCheckbox.checked;
+            }
+
+            // Save settings without showing alert
+            await updateNotificationSettings(settings);
+        }
+
         // Add event listener for notification settings form
         const notificationForm = document.getElementById('notification-settings-form');
         if (notificationForm) {
+                // Save on form submit
             notificationForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-
-                // Collect form data
+                
+                // Collect form data for manual save button
                 const formData = new FormData(notificationForm);
                 const settings = {};
 
@@ -1593,8 +1669,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 if (pcurlCheckbox && !pcurlCheckbox.checked) {
                     settings.PCURL_TO_MOBILE = false;
                 }
-
-                // Save settings
+                
+                // Handle notify after task complete checkbox
+                const notifyAfterTaskCompleteCheckbox = document.getElementById('notify-after-task-complete');
+                settings.NOTIFY_AFTER_TASK_COMPLETE = notifyAfterTaskCompleteCheckbox.checked;
+                
+                // Save with user feedback
                 const saveBtn = notificationForm.querySelector('button[type="submit"]');
                 const originalText = saveBtn.textContent;
                 saveBtn.disabled = true;
@@ -1607,6 +1687,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
                 saveBtn.disabled = false;
                 saveBtn.textContent = originalText;
+            });
+
+            // Save whenever any toggle switch changes
+            notificationForm.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', saveNotificationSettingsNow);
             });
 
             // Add event listener for test notification buttons
@@ -1661,6 +1746,65 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         }
                     } catch (error) {
                         alert('测试通知发送失败: ' + error.message);
+                    } finally {
+                        button.disabled = false;
+                        button.textContent = originalText;
+                    }
+                });
+            });
+            
+            // Add event listener for test task completion notification buttons
+            const testTaskCompletionButtons = notificationForm.querySelectorAll('.test-task-completion-btn');
+            testTaskCompletionButtons.forEach(button => {
+                button.addEventListener('click', async () => {
+                    // Collect current form data first
+                    const formData = new FormData(notificationForm);
+                    const settings = {};
+
+                    // Handle regular inputs
+                    for (let [key, value] of formData.entries()) {
+                        if (key === 'PCURL_TO_MOBILE') {
+                            settings[key] = value === 'on';
+                        } else {
+                            settings[key] = value || '';
+                        }
+                    }
+
+                    // Handle unchecked checkboxes
+                    const pcurlCheckbox = document.getElementById('pcurl-to-mobile');
+                    if (pcurlCheckbox && !pcurlCheckbox.checked) {
+                        settings.PCURL_TO_MOBILE = false;
+                    }
+
+                    // Save the settings first
+                    const saveResult = await updateNotificationSettings(settings);
+                    if (!saveResult) {
+                        alert('保存设置失败，请先检查设置是否正确。');
+                        return;
+                    }
+
+                    // Send test task completion notification
+                    const channel = button.dataset.channel;
+                    const originalText = button.textContent;
+                    button.disabled = true;
+                    button.textContent = '测试中...';
+
+                    try {
+                        const response = await fetch('/api/notifications/test-task-completion', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({channel: channel}),
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            alert(result.message || '测试任务完成通知发送成功！');
+                        } else {
+                            const errorData = await response.json();
+                            alert('测试任务完成通知发送失败: ' + (errorData.detail || '未知错误'));
+                        }
+                    } catch (error) {
+                        alert('测试任务完成通知发送失败: ' + error.message);
                     } finally {
                         button.disabled = false;
                         button.textContent = originalText;
@@ -1817,12 +1961,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         genericSettingsContainer.innerHTML = '<p>加载通用配置失败。请检查服务器是否正常运行。</p>';
     }
     
-    // Add event listener for generic settings form
-    const genericForm = document.getElementById('generic-settings-form');
-    if (genericForm) {
-        genericForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
+        // Function to save generic settings
+        async function saveGenericSettingsNow() {
+            const genericForm = document.getElementById('generic-settings-form');
+            if (!genericForm) return;
+
             // Collect form data
             const formData = new FormData(genericForm);
             const settings = {};
@@ -1835,38 +1978,79 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             settings.ENABLE_RESPONSE_FORMAT = formData.get('ENABLE_RESPONSE_FORMAT') === 'on';
             settings.SEND_URL_FORMAT_IMAGE = formData.get('SEND_URL_FORMAT_IMAGE') === 'on';
             
-            // Handle other inputs
+            // Handle other inputs that are relevant
             settings.SERVER_PORT = parseInt(formData.get('SERVER_PORT'));
             settings.WEB_USERNAME = formData.get('WEB_USERNAME');
             settings.WEB_PASSWORD = formData.get('WEB_PASSWORD');
-            
+
             // Save settings
-            const saveBtn = genericForm.querySelector('button[type="submit"]');
-            const originalText = saveBtn.textContent;
-            saveBtn.disabled = true;
-            saveBtn.textContent = '保存中...';
-            
             try {
-                const response = await fetch('/api/settings/generic', {
+                await fetch('/api/settings/generic', {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(settings),
                 });
-                
-                if (response.ok) {
-                    alert('通用配置已保存！');
-                } else {
-                    const errorData = await response.json();
-                    alert('保存失败: ' + (errorData.detail || '未知错误'));
-                }
             } catch (error) {
-                alert('保存失败: ' + error.message);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = originalText;
+                console.error('自动保存失败:', error);
             }
-        });
-        
+        }
+
+        // Add event listener for generic settings form
+        const genericForm = document.getElementById('generic-settings-form');
+        if (genericForm) {
+            // Save on form submit
+            genericForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // Collect form data for manual save button
+                const formData = new FormData(genericForm);
+                const settings = {};
+                
+                // Handle checkboxes
+                settings.LOGIN_IS_EDGE = formData.get('LOGIN_IS_EDGE') === 'on';
+                settings.RUN_HEADLESS = formData.get('RUN_HEADLESS') === 'on';
+                settings.AI_DEBUG_MODE = formData.get('AI_DEBUG_MODE') === 'on';
+                settings.ENABLE_THINKING = formData.get('ENABLE_THINKING') === 'on';
+                settings.ENABLE_RESPONSE_FORMAT = formData.get('ENABLE_RESPONSE_FORMAT') === 'on';
+                settings.SEND_URL_FORMAT_IMAGE = formData.get('SEND_URL_FORMAT_IMAGE') === 'on';
+                
+                // Handle other inputs
+                settings.SERVER_PORT = parseInt(formData.get('SERVER_PORT'));
+                settings.WEB_USERNAME = formData.get('WEB_USERNAME');
+                settings.WEB_PASSWORD = formData.get('WEB_PASSWORD');
+                
+                // Save with user feedback
+                const saveBtn = genericForm.querySelector('button[type="submit"]');
+                const originalText = saveBtn.textContent;
+                saveBtn.disabled = true;
+                saveBtn.textContent = '保存中...';
+                
+                try {
+                    const response = await fetch('/api/settings/generic', {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(settings),
+                    });
+                    
+                    if (response.ok) {
+                        alert('通用配置已保存！');
+                    } else {
+                        const errorData = await response.json();
+                        alert('保存失败: ' + (errorData.detail || '未知错误'));
+                    }
+                } catch (error) {
+                    alert('保存失败: ' + error.message);
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalText;
+                }
+            });
+
+            // Save whenever any toggle switch changes
+            genericForm.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', saveGenericSettingsNow);
+            });
+
         // Add event listener for show password button
         const toggleButton = document.getElementById('toggle-web-password-visibility');
         const passwordInput = document.getElementById('web-password');
@@ -2288,12 +2472,51 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const button = target.closest('button'); // Find the closest button element
         if (!button) return;
 
-        if (button.matches('.delete-card-btn')) {
+if (button.matches('.delete-card-btn')) {
             const card = button.closest('.result-card');
-            // Note: We removed the JSON.parse from card.dataset.item to avoid the error
+            // 获取商品ID唯一标识
+            const itemId = card.dataset.itemId;
+            
             if (confirm('你确定要删除此商品吗？')) {
-                // Here you would implement the API call to delete the item if needed
-                card.remove();
+                // 实现API调用删除商品
+                const selector = document.getElementById('result-file-selector');
+                const selectedFile = selector.value;
+                
+                if (selectedFile) {
+                    // 创建包含唯一标识的商品数据
+                    const itemData = {
+                        商品信息: {
+                            商品链接: `id=${itemId}` // 使用商品ID构造一个简约的查找条件
+                        }
+                    };
+                    
+                    // 调用API删除商品，传递唯一标识符
+                    fetch(`/api/results/delete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            filename: selectedFile,
+                            item: itemData
+                        })
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            // 删除成功，从DOM中移除卡片
+                            card.remove();
+                        } else {
+                            throw new Error('删除失败');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('删除商品时出错:', error);
+                        alert('删除失败，请重试');
+                    });
+                } else {
+                    // 没有找到文件或索引，直接从DOM删除但不通知API
+                    card.remove();
+                }
             }
             return;
         }
