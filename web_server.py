@@ -102,6 +102,7 @@ class NotificationSettings(BaseModel):
     WEBHOOK_QUERY_PARAMETERS: Optional[str] = None
     WEBHOOK_BODY: Optional[str] = None
     PCURL_TO_MOBILE: Optional[bool] = True
+    NOTIFY_AFTER_TASK_COMPLETE: Optional[bool] = True
 
 
 @asynccontextmanager
@@ -124,12 +125,12 @@ async def lifespan(app: FastAPI):
         print("正在关闭调度器...")
         scheduler.shutdown()
 
-    global scraper_processes
-    if scraper_processes:
-        print("Web服务器正在关闭，正在终止所有爬虫进程...")
-        stop_tasks = [stop_task_process(task_id) for task_id in list(scraper_processes.keys())]
+    global fetcher_processes
+    if fetcher_processes:
+        print("Web服务器正在关闭，正在终止所有数据收集脚本进程...")
+        stop_tasks = [stop_task_process(task_id) for task_id in list(fetcher_processes.keys())]
         await asyncio.gather(*stop_tasks)
-        print("所有爬虫进程已终止。")
+        print("所有数据收集脚本进程已终止。")
 
     await _set_all_tasks_stopped_in_config()
 
@@ -164,7 +165,8 @@ def load_notification_settings():
         "WEBHOOK_CONTENT_TYPE": config.get("WEBHOOK_CONTENT_TYPE", "JSON"),
         "WEBHOOK_QUERY_PARAMETERS": config.get("WEBHOOK_QUERY_PARAMETERS", ""),
         "WEBHOOK_BODY": config.get("WEBHOOK_BODY", ""),
-        "PCURL_TO_MOBILE": config.get("PCURL_TO_MOBILE", "true").lower() == "true"
+        "PCURL_TO_MOBILE": config.get("PCURL_TO_MOBILE", "true").lower() == "true",
+        "NOTIFY_AFTER_TASK_COMPLETE": config.get("NOTIFY_AFTER_TASK_COMPLETE", "true").lower() == "true"
     }
 
 
@@ -184,7 +186,7 @@ def save_notification_settings(settings: dict):
         "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID", 
         "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", 
         "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS", 
-        "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY", "PCURL_TO_MOBILE"
+        "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"
     ]
 
     # 创建现有设置的字典
@@ -262,7 +264,7 @@ def save_ai_settings(settings: dict):
                 f.write(f"{key}={value}\n")
 
 
-app = FastAPI(title="咸鱼智能监控机器人", lifespan=lifespan)
+app = FastAPI(title="咸鱼公开内容查看智能处理程序", lifespan=lifespan)
 
 # --- 认证配置 ---
 security = HTTPBasic()
@@ -296,7 +298,7 @@ def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
         )
 
 #  ---用于进程和调度器管理的全局变量---
-scraper_processes = {}  # 将单个进程变量改为字典，以管理多个任务进程 {task_id: process}
+fetcher_processes = {}  # 将单个进程变量改为字典，以管理多个任务进程 {task_id: process}
 login_process = None     # 跟踪当前运行的登录进程
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 
@@ -370,9 +372,9 @@ templates = Jinja2Templates(directory="templates")
 # --- 调度器功能 ---
 async def run_single_task(task_id: int, task_name: str):
     """
-    由调度器调用的函数，用于启动单个爬虫任务。
+    由调度器调用的函数，用于启动单个公开内容查看任务。
     """
-    print(f"定时任务触发: 正在为任务 '{task_name}' 启动爬虫...")
+    print(f"定时任务触发: 正在为任务 '{task_name}' 启动公开内容查看脚本...")
     log_file_handle = None
     try:
         # 更新任务状态为“运行中”
@@ -380,7 +382,7 @@ async def run_single_task(task_id: int, task_name: str):
 
         # 确保日志目录存在，并以追加模式打开日志文件
         os.makedirs("logs", exist_ok=True)
-        log_file_path = os.path.join("logs", "scraper.log")
+        log_file_path = os.path.join("logs", "fetcher.log")
         log_file_handle = open(log_file_path, 'a', encoding='utf-8')
 
         # 使用与Web服务器相同的Python解释器来运行爬虫脚本
@@ -393,7 +395,7 @@ async def run_single_task(task_id: int, task_name: str):
         child_env["PYTHONUTF8"] = "1"
 
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-u", "spider_v2.py", "--task-name", task_name,
+            sys.executable, "-u", "collector.py", "--task-name", task_name,
             stdout=log_file_handle,
             stderr=log_file_handle,
             preexec_fn=preexec_fn,
@@ -849,7 +851,7 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
         raise HTTPException(status_code=404, detail="任务未找到。")
 
     # 更新数据
-    update_data = task_update.dict(exclude_unset=True)
+    update_data = task_update.model_dump(exclude_unset=True)
 
     if not update_data:
         return JSONResponse(content={"message": "数据无变化，未执行更新。"}, status_code=200)
@@ -862,7 +864,13 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
         # 创建一个异步任务来生成AI标准
         async def generate_ai_criteria_background(task_id: int, task: dict, user_description: str, reference_file: str = "prompts/base_prompt.txt"):
             import re
-            safe_task_name = re.sub(r'[^\w\s_-]', '', task['task_name'].replace(' ', '_'))
+            # 检查task是否是Pydantic模型实例
+            if hasattr(task, '__dict__'):
+                # 如果是模型实例，使用属性访问
+                safe_task_name = re.sub(r'[^\w\s_-]', '', task.task_name.replace(' ', '_'))
+            else:
+                # 如果是字典，使用索引访问
+                safe_task_name = re.sub(r'[^\w\s_-]', '', task['task_name'].replace(' ', '_'))
             criteria_filename = f"criteria/{safe_task_name}_criteria.txt"
             
             try:
@@ -891,10 +899,11 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
                 await update_task(task_id, task)
         
         # 添加后台任务
+        # 将task转换为字典后传递，避免Pydantic模型在后台任务中使用字典索引访问出错
         background_tasks.add_task(
             generate_ai_criteria_background, 
             task_id, 
-            task, 
+            task.model_dump(),  # 传递字典而不是模型实例
             update_data['description']
         )
 
@@ -903,7 +912,7 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
         # 更新is_running为false立即返回给前端
         update_data['is_running'] = False
         
-        if scraper_processes.get(task_id):
+        if fetcher_processes.get(task_id):
             print(f"任务 '{task['task_name']}' 已被禁用，正在停止其进程...")
             # 后台停止进程，不等待
             asyncio.create_task(stop_task_process(task_id))
@@ -912,7 +921,9 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
             task['is_running'] = False
 
     # Apply updates
-    task.update(update_data)
+    task_dict = task.model_dump()  # 将Pydantic模型转换为字典
+    task_dict.update(update_data)  # 使用字典的update()方法更新数据
+    task = Task(**task_dict)  # 将字典转换回Pydantic模型
 
     success = await update_task(task_id, task)
 
@@ -923,14 +934,14 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
 
 async def start_task_process(task_id: int, task_name: str):
     """内部函数：启动一个指定的任务进程。"""
-    global scraper_processes
-    if scraper_processes.get(task_id) and scraper_processes[task_id].returncode is None:
+    global fetcher_processes
+    if fetcher_processes.get(task_id) and fetcher_processes[task_id].returncode is None:
         print(f"任务 '{task_name}' (ID: {task_id}) 已在运行中。")
         return
 
     try:
         os.makedirs("logs", exist_ok=True)
-        log_file_path = os.path.join("logs", "scraper.log")
+        log_file_path = os.path.join("logs", "fetcher.log")
         log_file_handle = open(log_file_path, 'a', encoding='utf-8')
 
         preexec_fn = os.setsid if sys.platform != "win32" else None
@@ -940,31 +951,46 @@ async def start_task_process(task_id: int, task_name: str):
         child_env["PYTHONUTF8"] = "1"
 
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-u", "spider_v2.py", "--task-name", task_name,
+            sys.executable, "-u", "collector.py", "--task-name", task_name,
             stdout=log_file_handle,
             stderr=log_file_handle,
             preexec_fn=preexec_fn,
             env=child_env
         )
-        scraper_processes[task_id] = process
+        fetcher_processes[task_id] = process
         print(f"启动任务 '{task_name}' (PID: {process.pid})，日志输出到 {log_file_path}")
 
         # 更新配置文件中的状态
         await update_task_running_status(task_id, True)
+        
+        # 创建一个后台任务来等待进程完成并更新状态
+        async def monitor_process():
+            try:
+                await process.wait()
+                print(f"任务 '{task_name}' (ID: {task_id}) 进程已结束，返回码: {process.returncode}")
+            finally:
+                # 无论进程如何结束，都更新状态
+                await update_task_running_status(task_id, False)
+                # 清理进程字典
+                if task_id in fetcher_processes:
+                    del fetcher_processes[task_id]
+        
+        # 启动监控后台任务
+        asyncio.create_task(monitor_process())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"启动任务 '{task_name}' 进程时出错: {e}")
 
 
 async def stop_task_process(task_id: int):
     """内部函数：停止一个指定的任务进程。"""
-    global scraper_processes
-    process = scraper_processes.get(task_id)
+    global fetcher_processes
+    process = fetcher_processes.get(task_id)
     if not process or process.returncode is not None:
         print(f"任务ID {task_id} 没有正在运行的进程。")
         # 确保配置文件状态正确
         await update_task_running_status(task_id, False)
-        if task_id in scraper_processes:
-            del scraper_processes[task_id]
+        if task_id in fetcher_processes:
+            del fetcher_processes[task_id]
         return
 
     try:
@@ -980,8 +1006,6 @@ async def stop_task_process(task_id: int):
     except Exception as e:
         print(f"停止任务进程 (ID: {task_id}) 时出错: {e}")
     finally:
-        if task_id in scraper_processes:
-            del scraper_processes[task_id]
         await update_task_running_status(task_id, False)
 
 
@@ -1032,7 +1056,7 @@ async def get_logs(from_pos: int = 0, task_name: str = None, username: str = Dep
     """
     获取爬虫日志文件的内容。支持从指定位置增量读取和任务名称筛选。
     """
-    log_file_path = os.path.join("logs", "scraper.log")
+    log_file_path = os.path.join("logs", "fetcher.log")
     if not os.path.exists(log_file_path):
         return JSONResponse(content={"new_content": "日志文件不存在或尚未创建。", "new_pos": 0})
 
@@ -1075,7 +1099,7 @@ async def clear_logs(username: str = Depends(verify_credentials)):
     """
     清空日志文件内容。
     """
-    log_file_path = os.path.join("logs", "scraper.log")
+    log_file_path = os.path.join("logs", "fetcher.log")
     if not os.path.exists(log_file_path):
         return {"message": "日志文件不存在，无需清空。"}
 
@@ -1103,7 +1127,7 @@ async def delete_task(task_id: int, username: str = Depends(verify_credentials))
         raise HTTPException(status_code=404, detail="任务未找到。")
 
     # 如果任务正在运行，先停止它
-    if scraper_processes.get(task_id):
+    if fetcher_processes.get(task_id):
         await stop_task_process(task_id)
 
     deleted_task = tasks.pop(task_id)
@@ -1205,6 +1229,133 @@ async def delete_result_file(filename: str, username: str = Depends(verify_crede
         return {"message": f"结果文件 '{filename}' 已成功删除。"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除结果文件时出错: {e}")
+
+
+# 定义用于删除商品的请求模型
+class DeleteResultItemRequest(BaseModel):
+    filename: str
+    item: dict
+
+@app.post("/api/results/delete", response_model=dict)
+async def delete_result_item(request: DeleteResultItemRequest, username: str = Depends(verify_credentials)):
+    """
+    从指定结果文件中删除指定的商品记录。
+    """
+    try:
+        filename = request.filename
+        item_to_delete = request.item
+        
+        # 处理"所有结果"的情况
+        if filename == "all":
+            jsonl_dir = "jsonl"
+            if not os.path.isdir(jsonl_dir):
+                raise HTTPException(status_code=404, detail="结果文件目录未找到。")
+            
+            # 获取所有.jsonl文件
+            files = [f for f in os.listdir(jsonl_dir) if f.endswith(".jsonl")]
+            if not files:
+                raise HTTPException(status_code=404, detail="没有结果文件需要删除。")
+            
+            deleted_from_file = None
+            found_record = False
+            
+            # 遍历所有文件查找要删除的记录
+            for file in files:
+                filepath = os.path.join(jsonl_dir, file)
+                
+                # 读取当前文件的所有记录
+                records = []
+                async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
+                    async for line in f:
+                        try:
+                            record = json.loads(line)
+                            records.append(record)
+                        except json.JSONDecodeError:
+                            continue
+                
+                # 查找匹配的记录
+                import re
+                # 从要删除的商品信息中提取商品ID
+                item_link = item_to_delete.get('商品信息', {}).get('商品链接', '')
+                match = re.search(r'id=(\d+)', item_link)
+                item_id_to_delete = match.group(1) if match else ''
+                
+                for i, record in enumerate(records):
+                    # 从当前记录的商品链接中提取商品ID
+                    record_link = record.get('商品信息', {}).get('商品链接', '')
+                    match = re.search(r'id=(\d+)', record_link)
+                    record_item_id = match.group(1) if match else ''
+                    
+                    # 比较商品ID来匹配记录
+                    if record_item_id == item_id_to_delete:
+                        # 删除记录
+                        deleted_record = records.pop(i)
+                        
+                        # 写回更新后的记录
+                        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+                            for record in records:
+                                await f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                        
+                        found_record = True
+                        deleted_from_file = file
+                        break
+                
+                if found_record:
+                    break
+            
+            if found_record:
+                return {"message": f"商品记录已成功删除。", "file": deleted_from_file}
+            else:
+                raise HTTPException(status_code=404, detail="商品记录未找到。")
+        
+        # 处理单个文件的情况
+        if not filename.endswith(".jsonl") or "/" in filename or ".." in filename:
+            raise HTTPException(status_code=400, detail="无效的文件名。")
+        
+        filepath = os.path.join("jsonl", filename)
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="结果文件未找到。")
+        
+        # 读取所有记录
+        records = []
+        async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
+            async for line in f:
+                try:
+                    record = json.loads(line)
+                    records.append(record)
+                except json.JSONDecodeError:
+                    continue
+        
+        # 查找匹配的记录
+        found = False
+        import re
+        # 从要删除的商品信息中提取商品ID
+        item_link = item_to_delete.get('商品信息', {}).get('商品链接', '')
+        match = re.search(r'id=(\d+)', item_link)
+        item_id_to_delete = match.group(1) if match else ''
+        
+        for i, record in enumerate(records):
+            # 从当前记录的商品链接中提取商品ID
+            record_link = record.get('商品信息', {}).get('商品链接', '')
+            match = re.search(r'id=(\d+)', record_link)
+            record_item_id = match.group(1) if match else ''
+            
+            # 比较商品ID来匹配记录
+            if record_item_id == item_id_to_delete:
+                # 删除记录
+                deleted_record = records.pop(i)
+                
+                # 写回更新后的记录
+                async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+                    for record in records:
+                        await f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                return {"message": f"商品记录已成功删除。"}
+        
+        # 如果没有找到记录
+        raise HTTPException(status_code=404, detail="商品记录未找到。")
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除商品记录时出错: {e}")
 
 
 @app.get("/api/results/{filename}")
@@ -1317,8 +1468,8 @@ async def get_result_file_content(filename: str, page: int = 1, limit: int = 20,
                 return float(price_str)
             except (ValueError, TypeError):
                 return 0.0 # 无法解析价格时的默认值
-        else: # 默认为抓取时间
-            return item.get("爬取时间", "")
+        else: # 默认为公开信息浏览时间
+            return item.get("公开信息浏览时间", "")
 
     is_reverse = (sort_order == "desc")
     filtered_results.sort(key=get_sort_key, reverse=is_reverse)
@@ -1341,21 +1492,20 @@ async def get_system_status(username: str = Depends(verify_credentials)):
     """
     检查系统关键文件和配置的状态。
     """
-    global scraper_processes
+    global fetcher_processes
     env_config = dotenv_values(".env")
 
     # 检查是否有任何任务进程仍在运行
     running_pids = []
-    for task_id, process in list(scraper_processes.items()):
+    for task_id, process in list(fetcher_processes.items()):
         if process.returncode is None:
             running_pids.append(process.pid)
         else:
             # 进程已结束，从字典中清理
             print(f"检测到任务进程 {process.pid} (ID: {task_id}) 已结束，返回码: {process.returncode}。")
-            del scraper_processes[task_id]
+            del fetcher_processes[task_id]
             # 异步更新配置文件状态
             asyncio.create_task(update_task_running_status(task_id, False))
-
     status = {
         "scraper_running": len(running_pids) > 0,
         "login_state_file": {
@@ -1846,7 +1996,7 @@ async def test_ai_settings(settings: dict, username: str = Depends(verify_creden
 
 
 # Import the notification functions from ai_handler.py
-from src.ai_handler import send_all_notifications, send_test_notification
+from src.ai_handler import send_all_notifications, send_test_notification, send_test_task_completion_notification, send_test_product_notification
 
 # Define a new Pydantic model for the notification request
 class NotificationRequest(BaseModel):
@@ -1918,6 +2068,70 @@ async def send_test_notification_api(request: TestNotificationRequest, username:
             return {"message": f"测试通知发送失败到 {channel_display_name} 渠道。", "success": False}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"发送测试通知时出错: {e}")
+
+
+# 为测试任务完成通知请求定义一个新的Pydantic模型
+class TestTaskCompletionNotificationRequest(BaseModel):
+    channel: str  # 指定要测试的渠道
+
+@app.post("/api/notifications/test-task-completion", response_model=dict)
+async def send_test_task_completion_notification_api(request: TestTaskCompletionNotificationRequest, username: str = Depends(verify_credentials)):
+    """
+    向指定渠道发送任务完成通知的测试。
+    """
+    try:
+        # 渠道名称映射，用于统一显示
+        channel_name_map = {
+            "ntfy": "Ntfy",
+            "gotify": "Gotify", 
+            "bark": "Bark",
+            "wx_bot": "企业微信机器人",
+            "wx_app": "企业微信应用",
+            "telegram": "Telegram",
+            "webhook": "Webhook"
+        }
+        channel_display_name = channel_name_map.get(request.channel, request.channel)
+        
+        # 使用指定的渠道调用send_test_task_completion_notification函数
+        result = await send_test_task_completion_notification(request.channel)
+        if result:
+            return {"message": f"任务完成测试通知已成功发送到 {channel_display_name} 渠道。", "success": True}
+        else:
+            return {"message": f"任务完成测试通知发送失败到 {channel_display_name} 渠道。", "success": False}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"发送任务完成测试通知时出错: {e}")
+
+
+# 为测试商品卡通知请求定义一个新的Pydantic模型
+class TestProductNotificationRequest(BaseModel):
+    channel: str  # 指定要测试的渠道
+
+@app.post("/api/notifications/test-product", response_model=dict)
+async def send_test_product_notification_api(request: TestProductNotificationRequest, username: str = Depends(verify_credentials)):
+    """
+    向指定渠道发送商品卡测试通知。
+    """
+    try:
+        # 渠道名称映射，用于统一显示
+        channel_name_map = {
+            "ntfy": "Ntfy",
+            "gotify": "Gotify", 
+            "bark": "Bark",
+            "wx_bot": "企业微信机器人",
+            "wx_app": "企业微信应用",
+            "telegram": "Telegram",
+            "webhook": "Webhook"
+        }
+        channel_display_name = channel_name_map.get(request.channel, request.channel)
+        
+        # 使用指定的渠道调用send_test_product_notification函数
+        result = await send_test_product_notification(request.channel)
+        if result:
+            return {"message": f"商品卡测试通知已成功发送到 {channel_display_name} 渠道。", "success": True}
+        else:
+            return {"message": f"商品卡测试通知发送失败到 {channel_display_name} 渠道。", "success": False}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"发送商品卡测试通知时出错: {e}")
 
 @app.post("/api/settings/ai/test/backend", response_model=dict)
 async def test_ai_settings_backend(username: str = Depends(verify_credentials)):
