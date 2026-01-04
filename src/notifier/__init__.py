@@ -49,6 +49,10 @@ class Notifier:
         Returns:
             bool: 成功返回True，失败返回False
         """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
         if channel not in self.channels:
             print(f"未知的通知渠道: {channel}")
             return False
@@ -62,6 +66,10 @@ class Notifier:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
         tasks = []
         
         # 创建所有渠道的测试任务
@@ -95,6 +103,10 @@ class Notifier:
         Returns:
             Dict[str, bool]: 各渠道发送结果
         """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
         tasks = []
         
         # 创建所有渠道的通知任务
@@ -121,6 +133,49 @@ class Notifier:
             print(f"   -> 发送 {channel_name} 通知失败: {e}")
             return (channel_name, False)
     
+    async def send_task_completion_notification(self, task_name: str, processed_count: int, recommended_count: int) -> Dict[str, bool]:
+        """
+        发送任务完成通知到所有配置的渠道
+        
+        Returns:
+            Dict[str, bool]: 各渠道发送结果
+        """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
+        # 检查是否启用任务完成后通知
+        if not notifier_config.get("NOTIFY_AFTER_TASK_COMPLETE", True):
+            # 如果未启用，直接返回空结果
+            print(f"任务完成通知已被禁用，跳过发送任务 '{task_name}' 的完成通知")
+            return {}
+        
+        tasks = []
+        
+        # 创建所有渠道的通知任务
+        for channel_name, notifier in self.channels.items():
+            tasks.append(self._run_task_completion_notification(channel_name, notifier, task_name, processed_count, recommended_count))
+        
+        # 并发执行所有通知任务
+        results = await asyncio.gather(*tasks)
+        
+        # 整理结果
+        result_dict = {}
+        for channel_name, success in results:
+            display_name = self.channel_name_map.get(channel_name, channel_name)
+            result_dict[display_name] = success
+        
+        return result_dict
+    
+    async def _run_task_completion_notification(self, channel_name: str, notifier, task_name: str, processed_count: int, recommended_count: int) -> tuple:
+        """运行单个渠道的任务完成通知"""
+        try:
+            success = await notifier.send_task_completion_notification(task_name, processed_count, recommended_count)
+            return (channel_name, success)
+        except Exception as e:
+            print(f"   -> 发送 {channel_name} 任务完成通知失败: {e}")
+            return (channel_name, False)
+    
     async def send_to_channel(self, channel: str, product: Dict[str, Any], reason: str) -> bool:
         """
         发送产品通知到特定渠道
@@ -133,11 +188,123 @@ class Notifier:
         Returns:
             bool: 成功返回True，失败返回False
         """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
         if channel not in self.channels:
             print(f"未知的通知渠道: {channel}")
             return False
+        elif hasattr(self.channels[channel], 'send_product_notification'):
+            return await self.channels[channel].send_product_notification(product, reason)
+        elif hasattr(self.channels[channel], 'send_product_notification'):
+            # 向后兼容，考虑到可能有不同的方法名称
+            return await self.channels[channel].send_product_notification(product, reason)
+        else:
+            print(f"渠道 '{channel}' 不支持产品通知")
+            return False
+    
+    async def send_test_product_notification(self, channel: str) -> bool:
+        """
+        发送商品卡测试通知
+        
+        Args:
+            channel (str): 渠道名称
             
-        return await self.channels[channel].send_product_notification(product, reason)
+        Returns:
+            bool: 成功返回True，失败返回False
+        """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
+        if channel not in self.channels:
+            print(f"未知的通知渠道: {channel}")
+            return False
+        elif hasattr(self.channels[channel], 'send_product_notification'):
+            # 创建测试用的商品数据
+            test_product = {
+                "商品信息": {
+                    "商品标题": "测试商品",
+                    "当前售价": "100.00元", 
+                    "发布时间": "2023-01-01 10:00:00",
+                    "商品图片列表": ["https://via.placeholder.com/100"],
+                    "商品链接": "https://2.taobao.com/item.htm?id=test12345"
+                },
+                "ai_analysis": {
+                    "reason": "这是一个测试商品，用于验证商品卡通知配置是否正确"
+                }
+            }
+            return await self.channels[channel].send_product_notification(test_product, "测试商品推荐")
+        else:
+            print(f"渠道 '{channel}' 不支持商品通知")
+            return False
+    
+    async def send_test_task_completion_notification(self, channel: str) -> bool:
+        """
+        发送任务完成通知的测试
+        
+        Args:
+            channel (str): 渠道名称
+            
+        Returns:
+            bool: 成功返回True，失败返回False
+        """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
+        if channel not in self.channels:
+            print(f"未知的通知渠道: {channel}")
+            return False
+        elif hasattr(self.channels[channel], 'send_task_completion_notification'):
+            # 发送测试用的任务完成通知
+            return await self.channels[channel].send_task_completion_notification(
+                "测试任务", 10, 3  # 测试任务名称、处理商品数、推荐商品数
+            )
+        else:
+            print(f"渠道 '{channel}' 不支持任务完成通知")
+            return False
+    
+    async def send_test_task_completion_notifications(self) -> Dict[str, bool]:
+        """
+        发送任务完成通知测试到所有配置的渠道
+        
+        Returns:
+            Dict[str, bool]: 各渠道发送结果
+        """
+        # 重新加载配置，确保使用最新的通知开关设置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
+        tasks = []
+        
+        # 创建所有渠道的测试任务
+        for channel_name, notifier in self.channels.items():
+            if hasattr(notifier, 'send_task_completion_notification'):
+                tasks.append(self._run_test_task_completion_notification(channel_name, notifier))
+        
+        # 并发执行所有测试任务
+        results = await asyncio.gather(*tasks)
+        
+        # 整理结果
+        result_dict = {}
+        for channel_name, success in results:
+            display_name = self.channel_name_map.get(channel_name, channel_name)
+            result_dict[display_name] = success
+        
+        return result_dict
+    
+    async def _run_test_task_completion_notification(self, channel_name: str, notifier) -> tuple:
+        """运行单个渠道的任务完成通知测试"""
+        try:
+            success = await notifier.send_task_completion_notification(
+                "测试任务", 10, 3  # 测试任务名称、处理商品数、推荐商品数
+            )
+            return (channel_name, success)
+        except Exception as e:
+            print(f"   -> 发送 {channel_name} 任务完成通知测试失败: {e}")
+            return (channel_name, False)
     
     def list_configured_channels(self) -> List[str]:
         """
@@ -161,6 +328,10 @@ class Notifier:
         Returns:
             Dict[str, Dict[str, Any]]: 各渠道的配置状态
         """
+        # 重新加载配置，确保使用最新的通知配置
+        from src.notifier.config import config as notifier_config
+        notifier_config.reload()
+        
         return {
             "ntfy": {
                 "configured": bool(config["NTFY_TOPIC_URL"]),
