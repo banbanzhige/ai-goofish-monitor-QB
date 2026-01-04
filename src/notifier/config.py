@@ -52,6 +52,7 @@ class NotificationConfig:
             
             # 其他配置
             "PCURL_TO_MOBILE": env_config.get("PCURL_TO_MOBILE", "true").lower() == "true",
+            "NOTIFY_AFTER_TASK_COMPLETE": env_config.get("NOTIFY_AFTER_TASK_COMPLETE", "true").lower() == "true",
         }
     
     def reload(self):
