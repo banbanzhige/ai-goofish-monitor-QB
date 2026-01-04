@@ -88,7 +88,7 @@ async def add_task(task: Task) -> bool:
     return await config_file_op.write(json.dumps(config_data, ensure_ascii=False, indent=2))
 
 
-async def update_task(task_id: int, task: Task) -> bool:
+async def update_task(task_id: int, task: Task | dict) -> bool:
     """
     更新配置文件中指定ID的任务。
     """
@@ -104,7 +104,13 @@ async def update_task(task_id: int, task: Task) -> bool:
     if len(config_data) <= task_id:
         return False
 
-    config_data[task_id] = task
+    # Check if task is a Task object or dict
+    if hasattr(task, 'model_dump'):
+        # Task object
+        config_data[task_id] = task.model_dump()
+    else:
+        # Dict
+        config_data[task_id] = task
 
     return await config_file_op.write(json.dumps(config_data, ensure_ascii=False, indent=2))
 
@@ -123,7 +129,8 @@ async def get_task(task_id: int) -> Task | None:
     if len(config_data) <= task_id:
         return None
 
-    return config_data[task_id]
+    # Convert dictionary to Task object before returning
+    return Task(**config_data[task_id])
 
 
 async def remove_task(task_id: int) -> bool:
