@@ -287,8 +287,11 @@ services:
   git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
   cd banbanzhige/ai-goofish-monitor-QB
   ```
+  - 或者直接点击code-[download ZIP](https://github.com/banbanzhige/ai-goofish-monitor-QB/archive/refs/heads/master.zip)
+  
+
   - **需要自行准备 ：python 3.8+的环境**
-  - 双击打开start_web_server.bat启动
+  - 解压后双击打开start_web_server.bat启动
   - start_web_server.bat会自行创建虚拟环境，安装依赖，检测端口，并且自行启动web_server.py
 
 ### 2. 配置环境变量
