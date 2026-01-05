@@ -6,7 +6,7 @@ set "RED=[91m"
 set "GREEN=[92m"
 set "YELLOW=[93m"
 set "RESET=[0m"
- 
+  
 set "SERVER_PORT=8000"
 if exist ".env" (
     for /f "usebackq tokens=2 delims==" %%a in (`findstr /i "SERVER_PORT" ".env"`) do set "SERVER_PORT=%%a"
