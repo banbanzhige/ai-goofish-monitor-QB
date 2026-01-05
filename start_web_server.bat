@@ -13,17 +13,17 @@ if exist ".env" (
     for /f "tokens=*" %%a in ("!SERVER_PORT!") do set "SERVER_PORT=%%a"
 )
 
-rem 获取版本�?
+rem 获取版本号
 for /f "delims=" %%v in ('python -c "from src.version import VERSION; print(VERSION)"') do set "APP_VERSION=%%v"
 
 echo !YELLOW!=====================================!RESET!
-echo !YELLOW!= 咸鱼智能监控机器人启动脚�?%APP_VERSION% =!RESET! 
+echo !YELLOW!= 咸鱼智能监控机器人启动脚本 %APP_VERSION% =!RESET! 
 echo !YELLOW!=====================================!RESET!
 echo.
 
 where python >nul 2>&1
 if %errorlevel% neq 0 (
-    echo !RED![错误] 未安装Python，请先安装Python 3.8或更高版�?RESET!
+    echo !RED![错误] 未安装Python，请先安装Python 3.8或更高版本!RESET!
     pause
     exit /b 1
 )
@@ -42,12 +42,12 @@ for /f "tokens=1,2 delims=." %%a in ("!PYTHON_VERSION!") do (
 )
 
 if !PYTHON_MAJOR! lss 3 (  
-    echo !RED![错误] Python版本需�?.8或更�?RESET!
+    echo !RED![错误] Python版本需要3.8或更高!RESET!
     pause
     exit /b 1
 )
 if !PYTHON_MAJOR! equ 3 if !PYTHON_MINOR! lss 8 (  
-    echo !RED![错误] Python版本需�?.8或更�?RESET!
+    echo !RED![错误] Python版本需要3.8或更高!RESET!
     pause
     exit /b 1
 )
@@ -55,7 +55,7 @@ if !PYTHON_MAJOR! equ 3 if !PYTHON_MINOR! lss 8 (
 echo Python版本检查通过 (3.8+)
 echo.
 
-echo 正在启动.env完整性检查工�?
+echo 正在启动.env完整性检查工具 
 python check_env.py
 echo.
 
@@ -70,29 +70,29 @@ if not exist "venv" (
     echo 虚拟环境创建成功
 )
 
-echo 正在激活虚拟环�?..
+echo 正在激活虚拟环境...
 call "venv\Scripts\activate.bat"
 if %errorlevel% neq 0 (  
-    echo !RED![错误] 激活虚拟环境失�?RESET!
+    echo !RED![错误] 激活虚拟环境失败!RESET!
     pause
     exit /b 1
 )  
-echo 虚拟环境已激�?
+echo 虚拟环境已激活
 echo.
  
 echo 正在检查pip版本...
 python -m pip install --upgrade pip >nul 2>&1  
-echo pip已更新到最新版�?
+echo pip已更新到最新版本
 echo.
 
-echo 正在安装依赖�?..
+echo 正在安装依赖库...
 set "RETRY_COUNT=3"
 set "CURRENT_RETRY=0"
 set "INSTALL_SUCCESS=0"
 
 :install_retry
 if !CURRENT_RETRY! gtr 0 ( 
-    echo �?!CURRENT_RETRY! 次重�?..
+    echo 第 !CURRENT_RETRY! 次重试...
 )
 
 pip install -r requirements.txt >nul 2>&1
@@ -103,12 +103,12 @@ if !errorlevel! equ 0 (
 
 set /a CURRENT_RETRY+=1
 if !CURRENT_RETRY! leq !RETRY_COUNT! ( 
-    echo 安装失败，正在重�?..
+    echo 安装失败，正在重试...
     timeout /t 3 /nobreak >nul
     goto install_retry
 )
 
-echo 尝试国内镜像�?.. 
+echo 尝试国内镜像源... 
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/ >nul 2>&1
 if !errorlevel! equ 0 (
     set "INSTALL_SUCCESS=1"
@@ -122,14 +122,14 @@ if !errorlevel! equ 0 (
     goto install_success
 )
 
-echo !RED![错误] 所有镜像源安装依赖均失�?RESET! 
-echo 请检查网络环境，或手动安装依�? 
+echo !RED![错误] 所有镜像源安装依赖均失败!RESET! 
+echo 请检查网络环境，或手动安装依赖: 
 echo pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
 pause
 exit /b 1
 
 :install_success
-echo 所有依赖安装完�?
+echo 所有依赖安装完成 
 echo.
 
 if not exist "xianyu_state.json" (  
@@ -144,11 +144,11 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v 
 )
 :found_ip
 
-echo 正在检查端�?SERVER_PORT!是否可用...
+echo 正在检查端口!SERVER_PORT!是否可用...
 netstat -an | findstr /i "LISTENING" | findstr /C:":!SERVER_PORT! " >nul 2>&1
 if !errorlevel! equ 0 (
     echo !RED![错误] 端口!SERVER_PORT!已被占用，请检查是否有其他程序或服务正在使用该端口!RESET!
-    echo 或修�?env文件中的SERVER_PORT配置
+    echo 或修改.env文件中的SERVER_PORT配置
     pause
     exit /b 1
 ) 
