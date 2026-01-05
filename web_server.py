@@ -40,6 +40,7 @@ class Task(BaseModel):
     ai_prompt_base_file: str
     ai_prompt_criteria_file: str
     is_running: Optional[bool] = False
+    generating_ai_criteria: Optional[bool] = False  # Add this field for AI criteria generation status
 
 
 class TaskUpdate(BaseModel):
@@ -55,6 +56,7 @@ class TaskUpdate(BaseModel):
     ai_prompt_base_file: Optional[str] = None
     ai_prompt_criteria_file: Optional[str] = None
     is_running: Optional[bool] = None
+    generating_ai_criteria: Optional[bool] = None  # Add this field to match Task model
 
 
 class TaskGenerateRequest(BaseModel):
