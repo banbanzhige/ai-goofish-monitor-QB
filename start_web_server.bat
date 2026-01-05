@@ -1,85 +1,80 @@
 @echo off
-chcp 65001 >nul  
+chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-:: 1. 默认端口号
 set "SERVER_PORT=8000"
-
-:: 2. 读取.env中的端口配置
 if exist ".env" (
     for /f "usebackq tokens=2 delims==" %%a in (`findstr /i "SERVER_PORT" ".env"`) do set "SERVER_PORT=%%a"
     for /f "tokens=*" %%a in ("!SERVER_PORT!") do set "SERVER_PORT=%%a"
 )
 
-:: 3. 获取版本号
+rem 获取版本号
 for /f "delims=" %%v in ('python -c "from src.version import VERSION; print(VERSION)"') do set "APP_VERSION=%%v"
+
 echo =====================================
-echo = 咸鱼智能监控机器人启动脚本 %APP_VERSION% =  
+echo = 咸鱼智能监控机器人启动脚本 %APP_VERSION% =
 echo =====================================
 echo.
 
-:: 4. 检查Python是否安装
 where python >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [错误] 未安装Python，请先安装Python 3.8或更高版本  
+    echo [错误] 未安装Python，请先安装Python 3.8或更高版本
     pause
     exit /b 1
 )
 
-:: 5. 检查Python版本
 for /f "tokens=2" %%i in ('python --version 2^>nul') do set "PYTHON_VERSION=%%i"
 if not defined PYTHON_VERSION (  
-    echo [错误] 无法获取Python版本信息  
+    echo [错误] 无法获取Python版本信息
     pause
     exit /b 1
 ) 
 echo 当前Python版本: !PYTHON_VERSION!
 
-:: 6. 验证Python版本是否≥3.8
 for /f "tokens=1,2 delims=." %%a in ("!PYTHON_VERSION!") do (
     set "PYTHON_MAJOR=%%a"
     set "PYTHON_MINOR=%%b"
 )
+
 if !PYTHON_MAJOR! lss 3 (  
-    echo [错误] Python版本需要3.8或更高  # 移除!RED!和!RESET!
+    echo [错误] Python版本需要3.8或更高
     pause
     exit /b 1
 )
 if !PYTHON_MAJOR! equ 3 if !PYTHON_MINOR! lss 8 (  
-    echo [错误] Python版本需要3.8或更高  # 移除!RED!和!RESET!
+    echo [错误] Python版本需要3.8或更高
     pause
     exit /b 1
 )
+   
 echo Python版本检查通过 (3.8+)
 echo.
 
-:: 7. 检查.env完整性 
 echo 正在启动.env完整性检查工具 
 python check_env.py
 echo.
 
-:: 8. 创建/激活虚拟环境
 if not exist "venv" (  
     echo 正在创建虚拟环境...
     python -m venv venv
     if %errorlevel% neq 0 (  
-        echo [错误] 创建虚拟环境失败  
+        echo [错误] 创建虚拟环境失败
         pause
         exit /b 1
     )  
     echo 虚拟环境创建成功
 )
+
 echo 正在激活虚拟环境...
 call "venv\Scripts\activate.bat"
 if %errorlevel% neq 0 (  
-    echo [错误] 激活虚拟环境失败 
+    echo [错误] 激活虚拟环境失败
     pause
     exit /b 1
 )  
 echo 虚拟环境已激活
 echo.
-
-:: 9. 更新pip+安装依赖
+ 
 echo 正在检查pip版本...
 python -m pip install --upgrade pip >nul 2>&1  
 echo pip已更新到最新版本
@@ -89,15 +84,18 @@ echo 正在安装依赖库...
 set "RETRY_COUNT=3"
 set "CURRENT_RETRY=0"
 set "INSTALL_SUCCESS=0"
+
 :install_retry
 if !CURRENT_RETRY! gtr 0 ( 
     echo 第 !CURRENT_RETRY! 次重试...
 )
+
 pip install -r requirements.txt >nul 2>&1
 if !errorlevel! equ 0 (
     set "INSTALL_SUCCESS=1"
     goto install_success
 )
+
 set /a CURRENT_RETRY+=1
 if !CURRENT_RETRY! leq !RETRY_COUNT! ( 
     echo 安装失败，正在重试...
@@ -111,6 +109,7 @@ if !errorlevel! equ 0 (
     set "INSTALL_SUCCESS=1"
     goto install_success
 )
+
 echo 清华大学镜像源安装失败，尝试阿里云镜像源... 
 pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ >nul 2>&1
 if !errorlevel! equ 0 (
@@ -128,14 +127,12 @@ exit /b 1
 echo 所有依赖安装完成 
 echo.
 
-:: 10. 检查cookie文件
 if not exist "xianyu_state.json" (  
-    echo [错误] 缺少咸鱼登录状态cookie配置文件:xianyu_state.json 
+    echo [错误] 缺少咸鱼登录状态cookie配置文件:xianyu_state.json  
     echo 需要登录咸鱼后才能信息检索数据，可以在web管理界面获取和生成cookie文件!
     echo.
 )
 
-:: 11. 获取本地IP+检查端口
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0.1"') do (
     for /f "tokens=*" %%b in ("%%a") do set "LOCAL_IP=%%b"
     goto :found_ip
@@ -145,7 +142,7 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v 
 echo 正在检查端口!SERVER_PORT!是否可用...
 netstat -an | findstr /i "LISTENING" | findstr /C:":!SERVER_PORT! " >nul 2>&1
 if !errorlevel! equ 0 (
-    echo [错误] 端口!SERVER_PORT!已被占用，请检查是否有其他程序或服务正在使用该端口  
+    echo [错误] 端口!SERVER_PORT!已被占用，请检查是否有其他程序或服务正在使用该端口
     echo 或修改.env文件中的SERVER_PORT配置
     pause
     exit /b 1
@@ -153,16 +150,15 @@ if !errorlevel! equ 0 (
 echo 端口!SERVER_PORT!可用
 echo.
 
-:: 12. 启动Web服务
 echo 正在启动Web管理界面...  
 echo 请在浏览器访问web管理界面:
-echo - 本地访问地址: http://127.0.0.1:!SERVER_PORT!  
+echo - 本地访问地址: http://127.0.0.1:!SERVER_PORT!
 if defined LOCAL_IP (
-    echo - 局域网访问地址: http://!LOCAL_IP!:!SERVER_PORT!  
+    echo - 局域网访问地址:http://!LOCAL_IP!:!SERVER_PORT!
 )
 echo 按下 Ctrl+C 停止服务 
 echo.
 
 python -u web_server.py
+
 pause
-endlocal
