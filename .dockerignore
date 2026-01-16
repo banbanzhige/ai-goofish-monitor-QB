@@ -1,0 +1,52 @@
+# Python虚拟环境
+venv/
+env/
+
+# Python缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 项目依赖（在Dockerfile中会重新安装）
+#requirements.txt
+
+# Git版本控制文件
+.git/
+.gitignore
+
+# 日志文件
+*.log
+
+# Docker自身文件
+Dockerfile
+.dockerignore
+
+
+# 其他本地配置文件
+.vscode/
+.idea/
+old/
+start_web_server.bat
+.env
+config.json
+
+#.md
+docker-build-guide.md
+
+#.使用产生的文件
+images/
+chrome-extension/
+requirement/
+logs/
+criteria/
+archive/
+jsonl/
+xianyu_state.json
+Example/
+task_stats/
+.pytest_cache/
+*.spec
+dist/
+build/
+升级.txt
+upgrade.txt
