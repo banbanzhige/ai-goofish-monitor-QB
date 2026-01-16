@@ -6,10 +6,8 @@ import re
 import sys
 import shutil
 from datetime import datetime
-from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 
 import requests
-from dotenv import dotenv_values
 
 # 设置标准输出编码为UTF-8，解决Windows控制台编码问题
 if sys.platform.startswith('win'):
@@ -28,32 +26,51 @@ from src.config import (
     SEND_URL_FORMAT_IMAGE,
     client,
 )
-from typing import Optional, Dict, Any
-from src.utils import convert_goofish_link, retry_on_failure
+from src.utils import retry_on_failure
 
 # 动态加载通知配置的函数
 def get_dynamic_config():
     """动态加载配置，支持实时更新"""
-    config = dotenv_values(".env")
+    from src.config import (
+        NTFY_TOPIC_URL,
+        GOTIFY_URL,
+        GOTIFY_TOKEN,
+        BARK_URL,
+        PCURL_TO_MOBILE,
+        WX_BOT_URL,
+        WX_CORP_ID,
+        WX_AGENT_ID,
+        WX_SECRET,
+        WX_TO_USER,
+        TELEGRAM_BOT_TOKEN,
+        TELEGRAM_CHAT_ID,
+        WEBHOOK_URL,
+        WEBHOOK_METHOD,
+        WEBHOOK_HEADERS,
+        WEBHOOK_CONTENT_TYPE,
+        WEBHOOK_QUERY_PARAMETERS,
+        WEBHOOK_BODY,
+    )
+
     return {
-        "NTFY_TOPIC_URL": config.get("NTFY_TOPIC_URL", ""),
-        "GOTIFY_URL": config.get("GOTIFY_URL", ""),
-        "GOTIFY_TOKEN": config.get("GOTIFY_TOKEN", ""),
-        "BARK_URL": config.get("BARK_URL", ""),
-        "PCURL_TO_MOBILE": config.get("PCURL_TO_MOBILE", "true").lower() == "true",
-        "WX_BOT_URL": config.get("WX_BOT_URL", ""),
-        "WX_CORP_ID": config.get("WX_CORP_ID", ""),
-        "WX_AGENT_ID": config.get("WX_AGENT_ID", ""),
-        "WX_SECRET": config.get("WX_SECRET", ""),
-        "WX_TO_USER": config.get("WX_TO_USER", "@all"),
-        "TELEGRAM_BOT_TOKEN": config.get("TELEGRAM_BOT_TOKEN", ""),
-        "TELEGRAM_CHAT_ID": config.get("TELEGRAM_CHAT_ID", ""),
-        "WEBHOOK_URL": config.get("WEBHOOK_URL", ""),
-        "WEBHOOK_METHOD": config.get("WEBHOOK_METHOD", "POST").upper(),
-        "WEBHOOK_HEADERS": config.get("WEBHOOK_HEADERS", ""),
-        "WEBHOOK_CONTENT_TYPE": config.get("WEBHOOK_CONTENT_TYPE", "JSON").upper(),
-        "WEBHOOK_QUERY_PARAMETERS": config.get("WEBHOOK_QUERY_PARAMETERS", ""),
-        "WEBHOOK_BODY": config.get("WEBHOOK_BODY", ""),
+        "NTFY_TOPIC_URL": NTFY_TOPIC_URL(),
+        "GOTIFY_URL": GOTIFY_URL(),
+        "GOTIFY_TOKEN": GOTIFY_TOKEN(),
+        "BARK_URL": BARK_URL(),
+        "PCURL_TO_MOBILE": PCURL_TO_MOBILE(),
+        "WX_BOT_URL": WX_BOT_URL(),
+        "WX_CORP_ID": WX_CORP_ID(),
+        "WX_AGENT_ID": WX_AGENT_ID(),
+        "WX_SECRET": WX_SECRET(),
+        "WX_TO_USER": WX_TO_USER(),
+        "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN(),
+        "TELEGRAM_CHAT_ID": TELEGRAM_CHAT_ID(),
+        "WEBHOOK_URL": WEBHOOK_URL(),
+        "WEBHOOK_METHOD": WEBHOOK_METHOD(),
+        "WEBHOOK_HEADERS": WEBHOOK_HEADERS(),
+        "WEBHOOK_CONTENT_TYPE": WEBHOOK_CONTENT_TYPE(),
+        "WEBHOOK_QUERY_PARAMETERS": WEBHOOK_QUERY_PARAMETERS(),
+        "WEBHOOK_BODY": WEBHOOK_BODY(),
     }
 
 
