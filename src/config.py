@@ -141,6 +141,9 @@ def ENABLE_RESPONSE_FORMAT():
 def SEND_URL_FORMAT_IMAGE():
     return get_bool_env_value("SEND_URL_FORMAT_IMAGE", True)
 
+def SERVER_PORT():
+    return int(get_env_value("SERVER_PORT", 8000))
+
 # --- Client Initialization ---
 def initialize_ai_client():
     """
@@ -176,11 +179,44 @@ def initialize_ai_client():
         client = None
         return False
 
+def save_env_settings(settings: dict, setting_keys: list):
+    """保存配置到.env文件"""
+    env_file = ".env"
+    env_lines = []
+
+    if os.path.exists(env_file):
+        with open(env_file, 'r', encoding='utf-8') as f:
+            env_lines = f.readlines()
+
+    existing_settings = {}
+    for line in env_lines:
+        if '=' in line and not line.strip().startswith('#'):
+            key, value = line.split('=', 1)
+            existing_settings[key.strip()] = value.strip()
+
+    existing_settings.update(settings)
+
+    with open(env_file, 'w', encoding='utf-8') as f:
+        for key in setting_keys:
+            value = existing_settings.get(key, "")
+            if key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"]:
+                f.write(f"{key}={str(value).lower()}\n")
+            else:
+                f.write(f"{key}={value}\n")
+
+        for key, value in existing_settings.items():
+            if key not in setting_keys:
+                f.write(f"{key}={value}\n")
+    
+    # 更新 os.environ 中的值
+    for key, value in settings.items():
+        os.environ[key] = str(value).lower() if key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"] else str(value)
+
 def reload_config():
     """Reload all configuration and restart AI client if needed"""
     # Clear the existing environment variables to ensure fresh values
     for key in list(os.environ.keys()):
-        if key.startswith('OPENAI_') or key == 'PROXY_URL':
+        if key.startswith('OPENAI_') or key == 'PROXY_URL' or key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"]:
             del os.environ[key]
     
     load_dotenv(override=True)  # Reload .env with override=True
