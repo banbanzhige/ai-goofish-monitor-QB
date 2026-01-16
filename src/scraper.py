@@ -4,6 +4,7 @@ import os
 import random
 from datetime import datetime
 from urllib.parse import urlencode
+from typing import Optional, Dict, Any
 
 from playwright.async_api import (
     Response,
@@ -42,6 +43,142 @@ from src.utils import (
     save_to_jsonl,
     log_time,
 )
+
+def _default_context_options() -> dict:
+    return {
+        "user_agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+        "viewport": {"width": 412, "height": 915},
+        "device_scale_factor": 2.625,
+        "is_mobile": True,
+        "has_touch": True,
+        "locale": "zh-CN",
+        "timezone_id": "Asia/Shanghai",
+        "permissions": ["geolocation"],
+        "geolocation": {"longitude": 121.4737, "latitude": 31.2304},
+        "color_scheme": "light",
+    }
+
+
+def _clean_kwargs(options: dict) -> dict:
+    return {k: v for k, v in options.items() if v is not None}
+
+
+def _looks_like_mobile(ua: str) -> Optional[bool]:
+    if not ua:
+        return None
+    ua_lower = ua.lower()
+    if "mobile" in ua_lower or "android" in ua_lower or "iphone" in ua_lower:
+        return True
+    if "windows" in ua_lower or "macintosh" in ua_lower:
+        return False
+    return None
+
+
+def _build_context_overrides(snapshot: dict) -> dict:
+    env = snapshot.get("env") or {}
+    headers = snapshot.get("headers") or {}
+    navigator = env.get("navigator") or {}
+    screen = env.get("screen") or {}
+    intl = env.get("intl") or {}
+
+    overrides = {}
+
+    ua = headers.get("User-Agent") or headers.get("user-agent") or navigator.get("userAgent")
+    if ua:
+        overrides["user_agent"] = ua
+
+    accept_language = headers.get("Accept-Language") or headers.get("accept-language")
+    locale = None
+    if accept_language:
+        locale = accept_language.split(",")[0].strip()
+    elif navigator.get("language"):
+        locale = navigator["language"]
+    if locale:
+        overrides["locale"] = locale
+
+    tz = intl.get("timeZone")
+    if tz:
+        overrides["timezone_id"] = tz
+
+    width = screen.get("width")
+    height = screen.get("height")
+    if isinstance(width, (int, float)) and isinstance(height, (int, float)):
+        overrides["viewport"] = {"width": int(width), "height": int(height)}
+
+    dpr = screen.get("devicePixelRatio")
+    if isinstance(dpr, (int, float)):
+        overrides["device_scale_factor"] = float(dpr)
+
+    touch_points = navigator.get("maxTouchPoints")
+    if isinstance(touch_points, (int, float)):
+        overrides["has_touch"] = touch_points > 0
+
+    mobile_flag = _looks_like_mobile(ua or "")
+    if mobile_flag is not None:
+        overrides["is_mobile"] = mobile_flag
+
+    return _clean_kwargs(overrides)
+
+
+def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
+    if not raw_headers:
+        return {}
+    excluded = {"cookie", "content-length"}
+    headers = {}
+    for key, value in raw_headers.items():
+        if not key or key.lower() in excluded or value is None:
+            continue
+        headers[key] = value
+    return headers
+
+
+# 统计数据存储目录
+STATS_DIR = "task_stats"
+os.makedirs(STATS_DIR, exist_ok=True)
+
+def get_task_stats_file(task_name):
+    """获取任务统计数据文件名"""
+    safe_task_name = "".join(c for c in task_name if c.isalnum() or c in "_-")
+    return os.path.join(STATS_DIR, f"{safe_task_name}_stats.json")
+
+def save_task_stats(task_name, processed_count, recommended_count):
+    """保存任务统计数据到文件"""
+    stats_file = get_task_stats_file(task_name)
+    try:
+        stats_data = {
+            "processed_count": processed_count,
+            "recommended_count": recommended_count,
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(stats_file, 'w', encoding='utf-8') as f:
+            json.dump(stats_data, f, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"保存任务统计数据失败: {e}")
+        return False
+
+def get_task_stats(task_name):
+    """从文件中获取任务统计数据"""
+    stats_file = get_task_stats_file(task_name)
+    try:
+        if os.path.exists(stats_file):
+            with open(stats_file, 'r', encoding='utf-8') as f:
+                stats_data = json.load(f)
+            return stats_data["processed_count"], stats_data["recommended_count"]
+    except Exception as e:
+        print(f"读取任务统计数据失败: {e}")
+    return 0, 0
+
+def delete_task_stats_file(task_name):
+    """删除任务统计数据文件"""
+    stats_file = get_task_stats_file(task_name)
+    try:
+        if os.path.exists(stats_file):
+            os.remove(stats_file)
+        return True
+    except Exception as e:
+        print(f"删除任务统计数据文件失败: {e}")
+        return False
 
 
 async def fetch_user_profile(context, user_id: str) -> dict:
@@ -156,6 +293,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
     processed_item_count = 0
     recommended_item_count = 0
     stop_scraping = False
+    end_reason = "完成了全部设置商品分析"
 
     processed_links = set()
     output_filename = os.path.join("jsonl", f"{keyword.replace(' ', '_')}_full_data.jsonl")
@@ -196,21 +334,34 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
             else:
                 browser = await p.chromium.launch(headless=RUN_HEADLESS(), channel="chrome", args=launch_args)
 
-        # 使用移动设备模拟（与真实Chrome移动模式一致）
-        # 基于HAR分析：真实浏览器使用Android移动设备模拟
-        context = await browser.new_context(
-            storage_state=STATE_FILE,
-            user_agent="Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-            viewport={'width': 412, 'height': 915},  # Pixel 5尺寸
-            device_scale_factor=2.625,
-            is_mobile=True,
-            has_touch=True,
-            locale='zh-CN',
-            timezone_id='Asia/Shanghai',
-            permissions=['geolocation'],
-            geolocation={'longitude': 121.4737, 'latitude': 31.2304},
-            color_scheme='light'
-        )
+        # 加载登录状态文件
+        snapshot_data = None
+        try:
+            if os.path.exists(STATE_FILE):
+                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                    snapshot_data = json.load(f)
+            else:
+                print(f"警告：登录状态文件不存在: {STATE_FILE}")
+        except Exception as e:
+            print(f"警告：读取登录状态文件失败，将使用默认配置: {e}")
+
+        context_kwargs = _default_context_options()
+        storage_state_arg = STATE_FILE
+
+        if isinstance(snapshot_data, dict):
+            # 新版扩展导出的增强快照，包含环境和Header
+            if any(key in snapshot_data for key in ("env", "headers", "page", "storage")):
+                print(f"检测到增强浏览器快照，应用环境参数: {STATE_FILE}")
+                storage_state_arg = {"cookies": snapshot_data.get("cookies", [])}
+                context_kwargs.update(_build_context_overrides(snapshot_data))
+                extra_headers = _build_extra_headers(snapshot_data.get("headers"))
+                if extra_headers:
+                    context_kwargs["extra_http_headers"] = extra_headers
+            else:
+                storage_state_arg = snapshot_data
+
+        context_kwargs = _clean_kwargs(context_kwargs)
+        context = await browser.new_context(storage_state=storage_state_arg, **context_kwargs)
 
         # 增强访问策略适配脚本（模拟真实移动设备）
         await context.add_init_script("""
@@ -281,8 +432,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                 print("2. (推荐) 在 .env 文件中设置 RUN_HEADLESS=false，以非无头模式运行，这有助于验证。")
                 print(f"任务 '{keyword}' 将在此处中止。")
                 print("===================================================================")
+                end_reason = "操作终止-结束原因：检测到页面验证弹窗，无法继续操作"
                 await browser.close()
-                return processed_item_count
+                return processed_item_count, recommended_item_count, end_reason
             except PlaywrightTimeoutError:
                 # 2秒内弹窗未出现，这是正常情况，继续执行
                 pass
@@ -299,8 +451,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                 print("3. 降低任务执行频率，避免过于频繁的访问。")
                 print(f"任务 '{keyword}' 将在此处中止。")
                 print("===================================================================")
+                end_reason = "操作终止-结束原因：检测到页面验证弹窗，无法继续操作"
                 await browser.close()
-                return processed_item_count
+                return processed_item_count, recommended_item_count, end_reason
             except PlaywrightTimeoutError:
                 # 2秒内弹窗未出现，这是正常情况，继续执行
                 pass
@@ -370,6 +523,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                         current_response = await response_info.value
                     except PlaywrightTimeoutError:
                         log_time(f"翻页到第 {page_num} 页超时，停止翻页。", task_name=task_name)
+                        end_reason = "操作终止-结束原因：翻页超时，停止翻页"
                         break
 
                 if not (current_response and current_response.ok):
@@ -384,6 +538,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                     if debug_limit > 0 and processed_item_count >= debug_limit:
                         log_time(f"已达到调试上限 ({debug_limit})，停止获取新商品。", task_name=task_name)
                         stop_scraping = True
+                        end_reason = f"操作终止-结束原因：已达到调试上限 ({debug_limit})"
                         break
 
                     unique_key = get_link_unique_key(item_data["商品链接"])
@@ -461,6 +616,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                                     print("长时间休眠结束，现在将安全退出。")
                                     print("===================================================================")
                                     stop_scraping = True
+                                    end_reason = "操作终止-结束原因：系统验证超时，未在60秒内完成验证"
                                     break
 
                             # 解析商品详情数据并更新 item_data
@@ -593,6 +749,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                             if SKIP_AI_ANALYSIS() or (ai_analysis_result and ai_analysis_result.get('is_recommended')):
                                 recommended_item_count += 1
                             log_time(f"商品处理流程完毕。累计处理 {processed_item_count} 个新商品，其中 {recommended_item_count} 个被推荐。", task_name=task_name)
+                            
+                            # 保存任务统计数据
+                            save_task_stats(task_name, processed_item_count, recommended_item_count)
 
                             # --- 修改: 增加单个商品处理后的主要延迟 ---
                             log_time("[请求间隔优化] 执行一次主要的随机延迟以模拟用户浏览间隔...", task_name=task_name)
@@ -623,8 +782,10 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
 
         except PlaywrightTimeoutError as e:
             print(f"\n操作超时错误: 页面元素或网络响应未在规定时间内出现。\n{e}")
+            end_reason = f"操作终止-结束原因：操作超时错误: {e}"
         except Exception as e:
             print(f"\n公开信息浏览过程中发生未知错误: {e}")
+            end_reason = f"操作终止-结束原因：公开信息浏览过程中发生未知错误: {e}"
         finally:
             log_time("任务执行完毕，浏览器将在5秒后自动关闭...", task_name=task_name)
             await asyncio.sleep(5)
@@ -632,7 +793,10 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
                 input("按回车键关闭浏览器...")
             await browser.close()
 
+    # 保存最终的任务统计数据（无论是否处理了商品）
+    save_task_stats(task_name, processed_item_count, recommended_item_count)
+    
     # 清理任务图片目录
     cleanup_task_images(task_config.get('task_name', 'default'))
 
-    return processed_item_count, recommended_item_count
+    return processed_item_count, recommended_item_count, end_reason
