@@ -1,11 +1,11 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const mainContent = document.getElementById('main-content');
     const navLinks = document.querySelectorAll('.nav-link');
     let logRefreshInterval = null;
     let taskRefreshInterval = null;
 
-        // --- 各部分的模板 ---
-        const templates = {
+    // --- 各部分的模板 ---
+    const templates = {
         tasks: () => `
             <section id="tasks-section" class="content-section">
                 <div class="section-header">
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p>正在加载任务列表...</p>
                 </div>
             </section>`,
-            results: () => `
+        results: () => `
             <section id="results-section" class="content-section">
                 <div class="section-header">
                     <h2>结果查看</h2>
@@ -145,11 +145,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 </div>
+            </section>`,
+        scheduled: () => `
+            <section id="scheduled-section" class="content-section">
+                <div class="section-header">
+                    <h2>定时任务</h2>
+                    <button id="refresh-scheduled-btn" class="control-button" style="background-color: #52c41a; border-color: #52c41a; color: white;">🔄 刷新</button>
+                </div>
+                <div id="scheduled-table-container">
+                    <p>正在加载定时任务...</p>
+                </div>
             </section>`
     };
 
-        // --- API 函数 ---
-        async function fetchNotificationSettings() {
+    // --- API 函数 ---
+    async function fetchNotificationSettings() {
         try {
             const response = await fetch('/api/settings/notifications');
             if (!response.ok) throw new Error('无法获取通知设置');
@@ -175,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/settings/ai', {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
             });
             if (!response.ok) {
@@ -194,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/settings/ai/test', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
             });
             if (!response.ok) {
@@ -213,7 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/api/settings/notifications', {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
             });
             if (!response.ok) {
@@ -254,8 +264,8 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch(`/api/prompts/${filename}`, {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({content: content}),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content }),
             });
             if (!response.ok) {
                 const errorData = await response.json();
@@ -444,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function clearLogs() {
         try {
-            const response = await fetch('/api/logs', {method: 'DELETE'});
+            const response = await fetch('/api/logs', { method: 'DELETE' });
             if (!response.ok) {
                 const err = await response.json();
                 throw new Error(err.detail || '清空日志失败');
@@ -459,7 +469,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function deleteLoginState() {
         try {
-            const response = await fetch('/api/login-state', {method: 'DELETE'});
+            const response = await fetch('/api/login-state', { method: 'DELETE' });
             if (!response.ok) {
                 const err = await response.json();
                 throw new Error(err.detail || '删除登录凭证失败');
@@ -481,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify(itemData),
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.detail || '发送通知失败');
@@ -509,22 +519,98 @@ document.addEventListener('DOMContentLoaded', function() {
             return await response.json();
         } catch (error) {
             console.error("无法获取日志:", error);
-            return {new_content: `\n加载日志失败: ${error.message}`, new_pos: fromPos};
+            return { new_content: `\n加载日志失败: ${error.message}`, new_pos: fromPos };
         }
     }
 
-        // --- 渲染函数 ---
-        function renderLoginStatusWidget(status) {
+    // --- 定时任务 API ---
+    async function fetchScheduledJobs() {
+        try {
+            const response = await fetch('/api/scheduled-jobs');
+            if (!response.ok) throw new Error('无法获取定时任务列表');
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            return null;
+        }
+    }
+
+    async function skipScheduledJob(jobId) {
+        try {
+            const response = await fetch(`/api/scheduled-jobs/${jobId}/skip`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '跳过任务失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function runScheduledJobNow(jobId) {
+        try {
+            const response = await fetch(`/api/scheduled-jobs/${jobId}/run-now`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '立即执行失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function updateScheduledJobCron(taskId, cron) {
+        try {
+            const response = await fetch(`/api/scheduled-jobs/${taskId}/cron`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cron: cron })
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '更新Cron失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function cancelScheduledTask(taskId) {
+        try {
+            const response = await fetch(`/api/scheduled-jobs/${taskId}/cancel`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '取消任务失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    // --- 渲染函数 ---
+    function renderLoginStatusWidget(status) {
         const container = document.getElementById('login-status-widget-container');
         if (!container) return;
 
         const loginState = status.login_state_file;
         let content = '';
-        
+
         // 创建手动登录按钮HTML，包含"已获取cookie"状态的下拉菜单
         let manualLoginBtnHtml = '';
         if (loginState && loginState.exists) {
-                manualLoginBtnHtml = `
+            manualLoginBtnHtml = `
                 <div class="login-status-widget">
                 <div style="position: relative; display: inline-block; vertical-align: middle; margin-right: 15px;">
                         <button class="control-button primary-btn" style="background-color: #fff533; color: black; padding: 8px 12px; border: 1px solid #fff533;">
@@ -545,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             content = manualLoginBtnHtml;
-            } else {
+        } else {
             const loginBtnColor = '#dc3545';
             const loginBtnText = '点击自动获取cookie登录';
             manualLoginBtnHtml = `
@@ -561,7 +647,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
         container.innerHTML = content;
-        
+
         // 为手动登录按钮添加点击事件（需要在设置innerHTML之后添加）
         const manualLoginBtn = document.getElementById('manual-login-btn-header');
         if (manualLoginBtn) {
@@ -569,16 +655,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 显示自定义模态框而不是浏览器确认对话框
                 const confirmModal = document.getElementById('manual-login-confirm-modal');
                 if (!confirmModal) return;
-                
+
                 // 显示模态框
                 confirmModal.style.display = 'flex';
                 setTimeout(() => confirmModal.classList.add('visible'), 10);
-                
+
                 // 获取模态框元素
                 const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
                 const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
                 const closeBtn = document.getElementById('close-manual-login-confirm-modal');
-                
+
                 // 关闭模态框的函数
                 const closeModal = () => {
                     confirmModal.classList.remove('visible');
@@ -586,66 +672,66 @@ document.addEventListener('DOMContentLoaded', function() {
                         confirmModal.style.display = 'none';
                     }, 300); // 与模态框过渡持续时间匹配
                 };
-                
-                    // 处理确认操作的函数
-                    const handleConfirmation = async () => {
-                        try {
-                            const response = await fetch('/api/manual-login', {
-                                method: 'POST'
-                            });
-                            
-                            if (!response.ok) {
-                                const errorData = await response.json();
-                                alert('启动失败: ' + (errorData.detail || '未知错误'));
-                            } else {
-                                // 开始轮询检查登录状态
-                                const pollInterval = 2000; // 每 2 秒检查一次
-                                const pollTimeout = 300000; // 300 秒后超时
-                                let pollAttempts = 0;
-                                const maxAttempts = pollTimeout / pollInterval;
-                                
-                                // 开始轮询检查登录状态
-                                const intervalId = setInterval(async () => {
-                                    pollAttempts++;
-                                    
-                                    try {
-                                        const status = await fetchSystemStatus();
-                                        if (status && status.login_state_file && status.login_state_file.exists) {
-                                            // 登录状态已更新，刷新登录状态 widget
-                                            await refreshLoginStatusWidget();
-                                            // 停止轮询
-                                            clearInterval(intervalId);
-                                            return;
-                                        }
-                                    } catch (error) {
-                                        console.error('轮询检查登录状态时出错:', error);
-                                    }
-                                    
-                                    // 检查是否超时
-                                    if (pollAttempts >= maxAttempts) {
-                                        console.log('轮询检查登录状态超时');
+
+                // 处理确认操作的函数
+                const handleConfirmation = async () => {
+                    try {
+                        const response = await fetch('/api/manual-login', {
+                            method: 'POST'
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            alert('启动失败: ' + (errorData.detail || '未知错误'));
+                        } else {
+                            // 开始轮询检查登录状态
+                            const pollInterval = 2000; // 每 2 秒检查一次
+                            const pollTimeout = 300000; // 300 秒后超时
+                            let pollAttempts = 0;
+                            const maxAttempts = pollTimeout / pollInterval;
+
+                            // 开始轮询检查登录状态
+                            const intervalId = setInterval(async () => {
+                                pollAttempts++;
+
+                                try {
+                                    const status = await fetchSystemStatus();
+                                    if (status && status.login_state_file && status.login_state_file.exists) {
+                                        // 登录状态已更新，刷新登录状态 widget
+                                        await refreshLoginStatusWidget();
+                                        // 停止轮询
                                         clearInterval(intervalId);
                                         return;
                                     }
-                                }, pollInterval);
-                            }
-                            // 成功时不显示提示 - 直接关闭模态框
-                        } catch (error) {
-                            alert('启动失败: ' + error.message);
-                        } finally {
-                            closeModal();
+                                } catch (error) {
+                                    console.error('轮询检查登录状态时出错:', error);
+                                }
+
+                                // 检查是否超时
+                                if (pollAttempts >= maxAttempts) {
+                                    console.log('轮询检查登录状态超时');
+                                    clearInterval(intervalId);
+                                    return;
+                                }
+                            }, pollInterval);
                         }
-                    };
-                
+                        // 成功时不显示提示 - 直接关闭模态框
+                    } catch (error) {
+                        alert('启动失败: ' + error.message);
+                    } finally {
+                        closeModal();
+                    }
+                };
+
                 // 添加事件监听器，使用once: true来避免内存泄漏
                 confirmBtn.addEventListener('click', handleConfirmation, { once: true });
                 cancelBtn.addEventListener('click', closeModal, { once: true });
                 closeBtn.addEventListener('click', closeModal, { once: true });
-                
-                    // 添加点击外部关闭的功能
-                    confirmModal.addEventListener('click', (e) => {
-                        if (e.target === confirmModal) closeModal();
-                    }, { once: true });
+
+                // 添加点击外部关闭的功能
+                confirmModal.addEventListener('click', (e) => {
+                    if (e.target === confirmModal) closeModal();
+                }, { once: true });
             });
         }
     }
@@ -962,46 +1048,46 @@ document.addEventListener('DOMContentLoaded', function() {
         const status = await fetchSystemStatus();
         if (status) {
             renderLoginStatusWidget(status);
-            
-        // 为登录状态小部件添加点击事件，用于切换"已获取cookie"和"已登录"按钮的下拉菜单
-        const loginStatusWidget = document.querySelector('.login-status-widget');
-        if (loginStatusWidget) {
-            // 只选择前两个带有下拉菜单的控制按钮
-            const buttons = loginStatusWidget.querySelectorAll('.control-button');
-            // 只处理前两个应该有下拉菜单的按钮
-            for (let i = 0; i < Math.min(buttons.length, 2); i++) {
-                const btn = buttons[i];
-                let dropdownMenu = btn.nextElementSibling;
-                
-                // 检查是否找到了下拉菜单
-                if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        // 切换此下拉菜单
-                        dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
-                        
-                        // 关闭小部件中的其他下拉菜单
-                        loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
-                            if (menu !== dropdownMenu) {
-                                menu.style.display = 'none';
-                            }
+
+            // 为登录状态小部件添加点击事件，用于切换"已获取cookie"和"已登录"按钮的下拉菜单
+            const loginStatusWidget = document.querySelector('.login-status-widget');
+            if (loginStatusWidget) {
+                // 只选择前两个带有下拉菜单的控制按钮
+                const buttons = loginStatusWidget.querySelectorAll('.control-button');
+                // 只处理前两个应该有下拉菜单的按钮
+                for (let i = 0; i < Math.min(buttons.length, 2); i++) {
+                    const btn = buttons[i];
+                    let dropdownMenu = btn.nextElementSibling;
+
+                    // 检查是否找到了下拉菜单
+                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            // 切换此下拉菜单
+                            dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+
+                            // 关闭小部件中的其他下拉菜单
+                            loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
+                                if (menu !== dropdownMenu) {
+                                    menu.style.display = 'none';
+                                }
+                            });
                         });
-                    });
-                    
-                    // 防止事件冒泡以避免意外行为
-                    btn.addEventListener('click', (e) => e.stopPropagation());
+
+                        // 防止事件冒泡以避免意外行为
+                        btn.addEventListener('click', (e) => e.stopPropagation());
+                    }
                 }
+
+                // 点击外部关闭所有下拉菜单
+                document.addEventListener('click', (e) => {
+                    if (!loginStatusWidget.contains(e.target)) {
+                        loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
+                            menu.style.display = 'none';
+                        });
+                    }
+                });
             }
-            
-            // 点击外部关闭所有下拉菜单
-            document.addEventListener('click', (e) => {
-                if (!loginStatusWidget.contains(e.target)) {
-                    loginStatusWidget.querySelectorAll('.dropdown-menu').forEach((menu) => {
-                        menu.style.display = 'none';
-                    });
-                }
-            });
-        }
         }
     }
 
@@ -1015,13 +1101,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const env = status.env_file || {};
 
         // 检查是否配置了至少一个通知渠道
-        const hasAnyNotificationChannel = env.ntfy_topic_url_set || 
-                                         (env.gotify_url_set && env.gotify_token_set) || 
-                                         env.bark_url_set || 
-                                         env.wx_bot_url_set || 
-                                         (env.wx_corp_id_set && env.wx_agent_id_set && env.wx_secret_set) || 
-                                         (env.telegram_bot_token_set && env.telegram_chat_id_set) || 
-                                         env.webhook_url_set;
+        const hasAnyNotificationChannel = env.ntfy_topic_url_set ||
+            (env.gotify_url_set && env.gotify_token_set) ||
+            env.bark_url_set ||
+            env.wx_bot_url_set ||
+            (env.wx_corp_id_set && env.wx_agent_id_set && env.wx_secret_set) ||
+            (env.telegram_bot_token_set && env.telegram_chat_id_set) ||
+            env.webhook_url_set;
 
         return `
             <ul class="status-list">
@@ -1054,8 +1140,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return '<p>没有找到符合条件的商品记录。</p>';
         }
 
-            const manualKeyword = document.getElementById('manual-keyword-filter')?.value || '';
-            const cards = data.items.map(item => {
+        const manualKeyword = document.getElementById('manual-keyword-filter')?.value || '';
+        const cards = data.items.map(item => {
             const info = item.商品信息 || {};
             const seller = item.卖家信息 || {};
             const ai = item.ai_analysis || {};
@@ -1117,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 任务名称: item.任务名称,
                 AI标准: item.AI标准
             };
-            
+
             // 从商品链接中提取商品ID
             const itemId = extractItemId(info.商品链接);
             return `
@@ -1176,29 +1262,35 @@ document.addEventListener('DOMContentLoaded', function() {
             </thead>`;
 
         const tableBody = tasks.map(task => {
-        const isRunning = task.is_running === true;
-        const isGeneratingAI = task.generating_ai_criteria === true;
-        let statusBadge;
-        if (isGeneratingAI) {
-            statusBadge = `<span class="status-badge status-generating" style="background-color: orange;">生成中</span>`;
-        } else if (isRunning) {
-            statusBadge = `<span class="status-badge status-running" style="background-color: #28a745;">运行中</span>`;
-        } else {
-            // 检查条件文件是否存在
-            const criteriaFile = task.ai_prompt_criteria_file || 'N/A';
-            const criteriaBtnText = criteriaFile
-                .replace(/^criteria\/(.*?)_criteria\.txt$/i, '$1') // 替换完整路径
-                .replace(/^criteria\//i, '') // 替换前缀
-                .replace(/_criteria\.txt$/i, '') // 替换后缀
-                .replace(/^prompts\/(.*?)_criteria\.txt$/i, '$1') // 处理旧路径
-                .replace(/_criteria$/i, '') // 处理不带.txt的情况
-                .replace(/^requirement\/(.*?)_requirement\.txt$/i, '$1_requirement'); // 处理"requirement/名称_requirement.txt"路径，只显示"名称_requirement"
-            if (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) {
-                statusBadge = `<span class="status-badge status-waiting" style="background-color: #007bff;">待生成标准</span>`;
+            const isRunning = task.is_running === true;
+            const isGeneratingAI = task.generating_ai_criteria === true;
+            let statusBadge;
+            if (isGeneratingAI) {
+                statusBadge = `<span class="status-badge status-generating" style="background-color: orange;">生成中</span>`;
+            } else if (isRunning) {
+                statusBadge = `<span class="status-badge status-running" style="background-color: #28a745;">运行中</span>`;
             } else {
-                statusBadge = `<span class="status-badge status-stopped">已停止</span>`;
+                // 检查条件文件是否存在
+                const criteriaFile = task.ai_prompt_criteria_file || 'N/A';
+                const criteriaBtnText = criteriaFile
+                    .replace(/^criteria\/(.*?)_criteria\.txt$/i, '$1') // 替换完整路径
+                    .replace(/^criteria\//i, '') // 替换前缀
+                    .replace(/_criteria\.txt$/i, '') // 替换后缀
+                    .replace(/^prompts\/(.*?)_criteria\.txt$/i, '$1') // 处理旧路径
+                    .replace(/_criteria$/i, '') // 处理不带.txt的情况
+                    .replace(/^requirement\/(.*?)_requirement\.txt$/i, '$1_requirement'); // 处理"requirement/名称_requirement.txt"路径，只显示"名称_requirement"
+                const hasAIStandard = !(criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement'));
+                const hasCron = task.cron && task.cron.trim() !== '';
+                const isEnabled = task.enabled === true;
+
+                if (hasAIStandard && hasCron && isEnabled) {
+                    statusBadge = `<span class="status-badge status-scheduled" style="background-color: #ffc107; color: #000;">定时中</span>`;
+                } else if (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) {
+                    statusBadge = `<span class="status-badge status-waiting" style="background-color: #007bff;">待生成标准</span>`;
+                } else {
+                    statusBadge = `<span class="status-badge status-stopped">已停止</span>`;
+                }
             }
-        }
 
             // 格式化条件文件名，只显示中间文本，不带前缀/后缀
             const criteriaFile = task.ai_prompt_criteria_file || 'N/A';
@@ -1212,11 +1304,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     .replace(/_criteria$/i, '') // 处理不带.txt的情况
                     .replace(/^requirement\/(.*?)_requirement\.txt$/i, '$1_requirement'); // 处理"requirement/名称_requirement.txt"路径，只显示"名称_requirement"
             }
-            
+
             const actionButton = isRunning
                 ? `<button class="action-btn stop-task-btn" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>停止</button>`
                 : `<button class="action-btn run-task-btn" data-task-id="${task.id}" ${!task.enabled || (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) || isGeneratingAI ? 'disabled ' : ''} ${!task.enabled ? 'title="任务已禁用"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'title="请先点击生成"' : (isGeneratingAI ? 'title="正在生成AI标准"' : '')} ${isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'style="background-color: #ccc; color: white;"' : ''}>运行</button>`;
-            
+
             // 确定按钮是否应该禁用
             const buttonDisabledAttr = isGeneratingAI ? 'disabled' : '';
             const buttonDisabledTitle = isGeneratingAI ? 'title="等待AI标准生成"' : '';
@@ -1269,6 +1361,50 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         return `<table class="tasks-table">${tableHeader}<tbody>${tableBody}</tbody></table>`;
     }
 
+    function renderScheduledJobsTable(data) {
+        if (!data || !data.jobs || data.jobs.length === 0) {
+            return '<p>当前没有调度中的定时任务。请在"任务管理"中启用带有 Cron 表达式的任务。</p>';
+        }
+
+        const tableHeader = `
+            <thead>
+                <tr>
+                    <th>执行顺序</th>
+                    <th>任务名称</th>
+                    <th>Cron 定时</th>
+                    <th>下一次执行时间</th>
+                    <th>操作</th>
+                </tr>
+            </thead>`;
+
+        const tableBody = data.jobs.map(job => {
+            const nextRunTime = job.next_run_time
+                ? new Date(job.next_run_time).toLocaleString('zh-CN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                })
+                : '未知';
+
+            return `
+            <tr data-job-id="${job.job_id}" data-task-id="${job.task_id}">
+                <td style="text-align: center; font-weight: bold; color: #1890ff;">${job.execution_order || '-'}</td>
+                <td style="text-align: center;">${job.task_name}</td>
+                <td style="text-align: center;">
+                    <input type="text" class="cron-input" value="${job.cron || ''}" 
+                           placeholder="分 时 日 月 周" style="width: 120px; text-align: center;">
+                </td>
+                <td style="text-align: center;">${nextRunTime}</td>
+                <td style="text-align: center;">
+                    <button class="action-btn skip-job-btn" data-job-id="${job.job_id}" style="background-color: #faad14; color: white; border: 1px solid #faad14; border-radius: 4px; padding: 4px 12px; margin-right: 5px;">跳过本次</button>
+                    <button class="action-btn run-now-btn" data-job-id="${job.job_id}" style="background-color: #52c41a; color: white; border: 1px solid #52c41a; border-radius: 4px; padding: 4px 12px; margin-right: 5px;">立刻执行</button>
+                    <button class="action-btn cancel-job-btn" data-task-id="${job.task_id}" style="background-color: #ff4d4f; color: white; border: 1px solid #ff4d4f; border-radius: 4px; padding: 4px 12px;">取消任务</button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `<table class="tasks-table">${tableHeader}<tbody>${tableBody}</tbody></table>`;
+    }
+
 
     async function navigateTo(hash) {
         if (logRefreshInterval) {
@@ -1308,7 +1444,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     }
                 };
                 await refreshTasks();
-                    taskRefreshInterval = setInterval(refreshTasks, 5000);
+                taskRefreshInterval = setInterval(refreshTasks, 5000);
             } else if (sectionId === 'results') {
                 await initializeResultsView();
             } else if (sectionId === 'logs') {
@@ -1317,11 +1453,91 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 await initializeNotificationsView();
             } else if (sectionId === 'settings') {
                 await initializeSettingsView();
+            } else if (sectionId === 'scheduled') {
+                await initializeScheduledView();
             }
 
         } else {
             mainContent.innerHTML = '<section class="content-section active"><h2>页面未找到</h2></section>';
         }
+    }
+
+    async function initializeScheduledView() {
+        const container = document.getElementById('scheduled-table-container');
+        const refreshBtn = document.getElementById('refresh-scheduled-btn');
+
+        const refreshScheduledJobs = async () => {
+            const data = await fetchScheduledJobs();
+            if (container) {
+                container.innerHTML = renderScheduledJobsTable(data);
+                attachScheduledEventListeners();
+            }
+        };
+
+        const attachScheduledEventListeners = () => {
+            // Cron 输入框失去焦点时保存
+            container.querySelectorAll('.cron-input').forEach(input => {
+                input.addEventListener('blur', async (e) => {
+                    const row = e.target.closest('tr');
+                    const taskId = row.dataset.taskId;
+                    const newCron = e.target.value.trim();
+
+                    const result = await updateScheduledJobCron(taskId, newCron);
+                    if (result) {
+                        await refreshScheduledJobs();
+                    }
+                });
+
+                // 按回车键也保存
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.target.blur();
+                    }
+                });
+            });
+
+            // 跳过本次按钮
+            container.querySelectorAll('.skip-job-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const jobId = btn.dataset.jobId;
+                    const result = await skipScheduledJob(jobId);
+                    if (result) {
+                        await refreshScheduledJobs();
+                    }
+                });
+            });
+
+            // 立刻执行按钮
+            container.querySelectorAll('.run-now-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const jobId = btn.dataset.jobId;
+                    const result = await runScheduledJobNow(jobId);
+                    if (result) {
+                        alert(result.message);
+                    }
+                });
+            });
+
+            // 取消任务按钮
+            container.querySelectorAll('.cancel-job-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const taskId = btn.dataset.taskId;
+                    if (confirm('任务将从定时调度中移除，确定要取消此任务吗？')) {
+                        const result = await cancelScheduledTask(taskId);
+                        if (result) {
+                            alert(result.message);
+                            await refreshScheduledJobs();
+                        }
+                    }
+                });
+            });
+        };
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', refreshScheduledJobs);
+        }
+
+        await refreshScheduledJobs();
     }
 
     async function initializeLogsView() {
@@ -1375,52 +1591,61 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }
         });
 
-            // 用唯一任务名称填充任务筛选器的函数
-            async function populateTaskFilter() {
-                if (!taskFilter) return;
-                
-                // 从服务器获取所有任务
-                const tasks = await fetchTasks();
-                
-                if (tasks && tasks.length > 0) {
-                    // 获取唯一任务名称
-                    const uniqueTaskNames = [...new Set(tasks.map(task => task.task_name))].sort();
-                    
-                    // 保存当前选中的值
-                    const currentValue = taskFilter.value;
-                    
-                    // 清除除第一个选项外的所有现有选项 ("所有任务")
-                    taskFilter.innerHTML = '<option value="">所有任务</option>';
-                    
-                    // 添加新选项
-                    uniqueTaskNames.forEach(taskName => {
-                        const option = document.createElement('option');
-                        option.value = taskName;
-                        option.textContent = taskName;
-                        
-                        // 恢复当前选择
-                        if (option.value === currentValue) {
-                            option.selected = true;
-                        }
-                        
-                        taskFilter.appendChild(option);
-                    });
+        // 用唯一任务名称填充任务筛选器的函数
+        async function populateTaskFilter() {
+            if (!taskFilter) return;
+
+            // 从服务器获取所有任务
+            const tasks = await fetchTasks();
+
+            if (tasks && tasks.length > 0) {
+                // 获取唯一任务名称
+                const uniqueTaskNames = [...new Set(tasks.map(task => task.task_name))].sort();
+
+                // 保存当前选中的值
+                const currentValue = taskFilter.value;
+
+                // 清除除第一个选项外的所有现有选项 ("所有任务")
+                taskFilter.innerHTML = '<option value="">所有任务</option>';
+
+                // 添加系统选项
+                const systemOption = document.createElement('option');
+                systemOption.value = '系统';
+                systemOption.textContent = '系统通知';
+                if (systemOption.value === currentValue) {
+                    systemOption.selected = true;
                 }
+                taskFilter.appendChild(systemOption);
+
+                // 添加新选项
+                uniqueTaskNames.forEach(taskName => {
+                    const option = document.createElement('option');
+                    option.value = taskName;
+                    option.textContent = taskName;
+
+                    // 恢复当前选择
+                    if (option.value === currentValue) {
+                        option.selected = true;
+                    }
+
+                    taskFilter.appendChild(option);
+                });
             }
-            
-            // 添加任务筛选器变化事件监听器
-            if (taskFilter) {
-                taskFilter.addEventListener('change', () => updateLogs(true));
-            }
-            
-            // 初始化日志视图时填充任务筛选器
+        }
+
+        // 添加任务筛选器变化事件监听器
+        if (taskFilter) {
+            taskFilter.addEventListener('change', () => updateLogs(true));
+        }
+
+        // 初始化日志视图时填充任务筛选器
+        await populateTaskFilter();
+
+        // 点击刷新按钮时也填充任务筛选器
+        refreshBtn.addEventListener('click', async () => {
             await populateTaskFilter();
-            
-            // 点击刷新按钮时也填充任务筛选器
-            refreshBtn.addEventListener('click', async () => {
-                await populateTaskFilter();
-                updateLogs(true);
-            });
+            updateLogs(true);
+        });
 
         const autoRefreshHandler = () => {
             if (autoRefreshCheckbox.checked) {
@@ -1475,24 +1700,24 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         // 使用所有筛选条件获取结果，但如果是查看所有结果或切换结果文件，则获取所有结果以更新筛选选项
         const dataForFilters = await fetchResultContent(selectedFile, false, 'all', 'all', 'all', 'crawl_time', 'desc');
         const dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword);
-        
+
         // 总是更新筛选控件的选项，无论当前筛选条件是什么
         if (dataForFilters && dataForFilters.items) {
             // 获取所有唯一的任务名称、关键词和AI标准
             const taskNames = [...new Set(dataForFilters.items.map(item => item['任务名称'] || 'unknown'))].sort();
             const keywords = [...new Set(dataForFilters.items.map(item => item['搜索关键字'] || 'unknown'))].sort();
             const aiCriterias = [...new Set(dataForFilters.items.map(item => item['AI标准'] || 'N/A'))].sort();
-            
+
             // 更新任务名称筛选
             taskNameFilter.innerHTML = '<option value="all">所有任务</option>' + taskNames.map(name => `<option value="${name}">${name}</option>`).join('');
             // 恢复当前选择
             taskNameFilter.value = taskName;
-            
+
             // 更新关键词筛选
             keywordFilter.innerHTML = '<option value="all">所有关键词</option>' + keywords.map(keyword => `<option value="${keyword}">${keyword}</option>`).join('');
             // 恢复当前选择
             keywordFilter.value = keyword;
-            
+
             // 更新AI标准筛选，优化显示内容，仅保留核心信息
             aiCriteriaFilter.innerHTML = '<option value="all">所有AI标准</option>' + aiCriterias.map(criteria => {
                 // 移除前缀和后缀，仅保留核心信息
@@ -1500,13 +1725,13 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     .replace(/^criteria\//i, '') // 移除前缀
                     .replace(/_criteria\.txt$/i, '') // 移除后缀
                     .replace(/^prompts\/(.*?)_criteria\.txt$/i, '$1'); // 处理旧路径
-                
+
                 return `<option value="${criteria}">${displayText}</option>`;
             }).join('');
             // 恢复当前选择
             aiCriteriaFilter.value = aiCriteria;
         }
-        
+
         container.innerHTML = renderResultsGrid(dataForDisplay);
     }
 
@@ -1521,7 +1746,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const fileData = await fetchResultFiles();
         if (fileData && fileData.files && fileData.files.length > 0) {
             const lastSelectedFile = localStorage.getItem('lastSelectedResultFile');
-            
+
             // 确定要选择的文件。如果没有存储任何内容，则默认选择 "所有结果"。
             let fileToSelect = 'all';
             // 如果有上次选择的文件且不是 "all"，则使用它
@@ -1529,18 +1754,18 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 fileToSelect = lastSelectedFile;
             }
 
-                // Add "所有结果" option
-                const options = ['<option value="all" ' + (fileToSelect === 'all' ? 'selected' : '') + '>所有结果</option>'].concat(
-                    fileData.files.map(f => {
-                        // 优化显示内容，仅保留核心文件名
-                        const displayText = f
-                            .replace(/_full_data\.jsonl$/i, '') // 移除_full_data.jsonl后缀
-                            .replace(/_full_data\.json$/i, '') // 移除_full_data.json后缀
-                            .replace(/\.jsonl$/i, '') // 移除.jsonl后缀
-                            .replace(/\.json$/i, ''); // 移除.json后缀
-                        return `<option value="${f}" ${f === fileToSelect ? 'selected' : ''}>${displayText}</option>`;
-                    })
-                );
+            // Add "所有结果" option
+            const options = ['<option value="all" ' + (fileToSelect === 'all' ? 'selected' : '') + '>所有结果</option>'].concat(
+                fileData.files.map(f => {
+                    // 优化显示内容，仅保留核心文件名
+                    const displayText = f
+                        .replace(/_full_data\.jsonl$/i, '') // 移除_full_data.jsonl后缀
+                        .replace(/_full_data\.json$/i, '') // 移除_full_data.json后缀
+                        .replace(/\.jsonl$/i, '') // 移除.jsonl后缀
+                        .replace(/\.json$/i, ''); // 移除.json后缀
+                    return `<option value="${f}" ${f === fileToSelect ? 'selected' : ''}>${displayText}</option>`;
+                })
+            );
             selector.innerHTML = options.join('');
 
             // 选择器的值现在已通过'selected'属性正确设置。
@@ -1548,15 +1773,15 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
             // 为所有筛选器添加事件监听器
             selector.addEventListener('change', fetchAndRenderResults);
-            
+
             // Initialize the "仅看AI推荐" button state
             checkbox.setAttribute('data-checked', 'false');
-            
+
             // 直接处理复选框更改事件，因为它现在是input type="checkbox"类型
             checkbox.addEventListener('change', () => {
                 fetchAndRenderResults();
             });
-            
+
             const taskNameFilter = document.getElementById('task-name-filter');
             const keywordFilter = document.getElementById('keyword-filter');
             const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
@@ -1565,7 +1790,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             if (keywordFilter) keywordFilter.addEventListener('change', fetchAndRenderResults);
             if (aiCriteriaFilter) aiCriteriaFilter.addEventListener('change', fetchAndRenderResults);
             if (manualKeywordFilter) manualKeywordFilter.addEventListener('input', fetchAndRenderResults);
-            
+
             // 添加现有的事件监听器
             sortBySelector.addEventListener('change', fetchAndRenderResults);
             sortOrderSelector.addEventListener('change', fetchAndRenderResults);
@@ -1626,7 +1851,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
             // Handle regular inputs
             for (let [key, value] of formData.entries()) {
-                if (key.startsWith('PCURL_TO_MOBILE') || key.startsWith('NOTIFY_AFTER_TASK_COMPLETE') || 
+                if (key.startsWith('PCURL_TO_MOBILE') || key.startsWith('NOTIFY_AFTER_TASK_COMPLETE') ||
                     key.endsWith('_ENABLED')) {
                     settings[key] = value === 'on';
                 } else {
@@ -1647,10 +1872,10 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         // Add event listener for notification settings form
         const notificationForm = document.getElementById('notification-settings-form');
         if (notificationForm) {
-                // Save on form submit
+            // Save on form submit
             notificationForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 // Collect form data for manual save button
                 const formData = new FormData(notificationForm);
                 const settings = {};
@@ -1669,11 +1894,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 if (pcurlCheckbox && !pcurlCheckbox.checked) {
                     settings.PCURL_TO_MOBILE = false;
                 }
-                
+
                 // Handle notify after task complete checkbox
                 const notifyAfterTaskCompleteCheckbox = document.getElementById('notify-after-task-complete');
                 settings.NOTIFY_AFTER_TASK_COMPLETE = notifyAfterTaskCompleteCheckbox.checked;
-                
+
                 // Save with user feedback
                 const saveBtn = notificationForm.querySelector('button[type="submit"]');
                 const originalText = saveBtn.textContent;
@@ -1733,8 +1958,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     try {
                         const response = await fetch('/api/notifications/test', {
                             method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({channel: channel}),
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ channel: channel }),
                         });
 
                         if (response.ok) {
@@ -1752,7 +1977,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     }
                 });
             });
-            
+
             // Add event listener for test task completion notification buttons
             const testTaskCompletionButtons = notificationForm.querySelectorAll('.test-task-completion-btn');
             testTaskCompletionButtons.forEach(button => {
@@ -1792,8 +2017,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     try {
                         const response = await fetch('/api/notifications/test-task-completion', {
                             method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({channel: channel}),
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ channel: channel }),
                         });
 
                         if (response.ok) {
@@ -1815,43 +2040,43 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
     }
 
     async function initializeSettingsView() {
-    // Render all sections as separate cards with the same level
-    const settingsSection = document.querySelector('#settings-section');
-    
+        // Render all sections as separate cards with the same level
+        const settingsSection = document.querySelector('#settings-section');
+
         // 1. Render System Status first to avoid the stuck issue
-    const statusContainer = document.getElementById('system-status-container');
-    const status = await fetchSystemStatus();
-    statusContainer.innerHTML = renderSystemStatus(status);
-    
-    // 2. Create Generic Settings Card
-    const genericContainer = document.createElement('div');
-    genericContainer.className = 'settings-card';
-    genericContainer.innerHTML = `
+        const statusContainer = document.getElementById('system-status-container');
+        const status = await fetchSystemStatus();
+        statusContainer.innerHTML = renderSystemStatus(status);
+
+        // 2. Create Generic Settings Card
+        const genericContainer = document.createElement('div');
+        genericContainer.className = 'settings-card';
+        genericContainer.innerHTML = `
         <h3>通用配置</h3>
         <div id="generic-settings-container">
             <p>正在加载通用配置...</p>
         </div>
     `;
-    settingsSection.appendChild(genericContainer);
-    
-    // Fetch generic settings with error handling and timeout
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+        settingsSection.appendChild(genericContainer);
 
-        const genericSettingsResponse = await fetch('/api/settings/generic', {
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        
-        if (!genericSettingsResponse.ok) {
-            throw new Error(`HTTP error! status: ${genericSettingsResponse.status}`);
-        }
-        
-        const genericSettings = await genericSettingsResponse.json();
-        const genericSettingsContainer = document.getElementById('generic-settings-container');
-        
-                genericSettingsContainer.innerHTML = `
+        // Fetch generic settings with error handling and timeout
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+
+            const genericSettingsResponse = await fetch('/api/settings/generic', {
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (!genericSettingsResponse.ok) {
+                throw new Error(`HTTP error! status: ${genericSettingsResponse.status}`);
+            }
+
+            const genericSettings = await genericSettingsResponse.json();
+            const genericSettingsContainer = document.getElementById('generic-settings-container');
+
+            genericSettingsContainer.innerHTML = `
             <form id="generic-settings-form">
                 <div class="form-group">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -1955,12 +2180,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 <button type="submit" class="control-button primary-btn">保存通用配置</button>
             </form>
         `;
-    } catch (error) {
-        console.error("无法加载通用配置:", error);
-        const genericSettingsContainer = document.getElementById('generic-settings-container');
-        genericSettingsContainer.innerHTML = '<p>加载通用配置失败。请检查服务器是否正常运行。</p>';
-    }
-    
+        } catch (error) {
+            console.error("无法加载通用配置:", error);
+            const genericSettingsContainer = document.getElementById('generic-settings-container');
+            genericSettingsContainer.innerHTML = '<p>加载通用配置失败。请检查服务器是否正常运行。</p>';
+        }
+
         // Function to save generic settings
         async function saveGenericSettingsNow() {
             const genericForm = document.getElementById('generic-settings-form');
@@ -1969,7 +2194,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             // Collect form data
             const formData = new FormData(genericForm);
             const settings = {};
-            
+
             // Handle checkboxes
             settings.LOGIN_IS_EDGE = formData.get('LOGIN_IS_EDGE') === 'on';
             settings.RUN_HEADLESS = formData.get('RUN_HEADLESS') === 'on';
@@ -1977,7 +2202,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             settings.ENABLE_THINKING = formData.get('ENABLE_THINKING') === 'on';
             settings.ENABLE_RESPONSE_FORMAT = formData.get('ENABLE_RESPONSE_FORMAT') === 'on';
             settings.SEND_URL_FORMAT_IMAGE = formData.get('SEND_URL_FORMAT_IMAGE') === 'on';
-            
+
             // Handle other inputs that are relevant
             settings.SERVER_PORT = parseInt(formData.get('SERVER_PORT'));
             settings.WEB_USERNAME = formData.get('WEB_USERNAME');
@@ -1987,7 +2212,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             try {
                 await fetch('/api/settings/generic', {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(settings),
                 });
             } catch (error) {
@@ -2001,11 +2226,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             // Save on form submit
             genericForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 // Collect form data for manual save button
                 const formData = new FormData(genericForm);
                 const settings = {};
-                
+
                 // Handle checkboxes
                 settings.LOGIN_IS_EDGE = formData.get('LOGIN_IS_EDGE') === 'on';
                 settings.RUN_HEADLESS = formData.get('RUN_HEADLESS') === 'on';
@@ -2013,25 +2238,25 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 settings.ENABLE_THINKING = formData.get('ENABLE_THINKING') === 'on';
                 settings.ENABLE_RESPONSE_FORMAT = formData.get('ENABLE_RESPONSE_FORMAT') === 'on';
                 settings.SEND_URL_FORMAT_IMAGE = formData.get('SEND_URL_FORMAT_IMAGE') === 'on';
-                
+
                 // Handle other inputs
                 settings.SERVER_PORT = parseInt(formData.get('SERVER_PORT'));
                 settings.WEB_USERNAME = formData.get('WEB_USERNAME');
                 settings.WEB_PASSWORD = formData.get('WEB_PASSWORD');
-                
+
                 // Save with user feedback
                 const saveBtn = genericForm.querySelector('button[type="submit"]');
                 const originalText = saveBtn.textContent;
                 saveBtn.disabled = true;
                 saveBtn.textContent = '保存中...';
-                
+
                 try {
                     const response = await fetch('/api/settings/generic', {
                         method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(settings),
                     });
-                    
+
                     if (response.ok) {
                         alert('通用配置已保存！');
                     } else {
@@ -2051,21 +2276,21 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 checkbox.addEventListener('change', saveGenericSettingsNow);
             });
 
-        // Add event listener for show password button
-        const toggleButton = document.getElementById('toggle-web-password-visibility');
-        const passwordInput = document.getElementById('web-password');
-        if (toggleButton && passwordInput) {
-            toggleButton.addEventListener('click', () => {
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    toggleButton.textContent = '🔒';
-                } else {
-                    passwordInput.type = 'password';
-                    toggleButton.textContent = '👁️';
-                }
-            });
+            // Add event listener for show password button
+            const toggleButton = document.getElementById('toggle-web-password-visibility');
+            const passwordInput = document.getElementById('web-password');
+            if (toggleButton && passwordInput) {
+                toggleButton.addEventListener('click', () => {
+                    if (passwordInput.type === 'password') {
+                        passwordInput.type = 'text';
+                        toggleButton.textContent = '🔒';
+                    } else {
+                        passwordInput.type = 'password';
+                        toggleButton.textContent = '👁️';
+                    }
+                });
+            }
         }
-    }
 
         // 3. Render AI Settings
         const aiContainer = document.createElement('div');
@@ -2093,7 +2318,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const promptSelector = document.getElementById('prompt-selector');
         const promptEditor = document.getElementById('prompt-editor');
         const savePromptBtn = document.getElementById('save-prompt-btn');
-        
+
         // Add new prompt button
         const promptListContainer = document.querySelector('.prompt-list-container');
         const newPromptBtn = document.createElement('button');
@@ -2167,7 +2392,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             savePromptBtn.disabled = false;
             savePromptBtn.textContent = '保存更改';
         });
-        
+
         // Delete prompt functionality
         deletePromptBtn.addEventListener('click', async () => {
             const selectedFile = promptSelector.value;
@@ -2175,37 +2400,37 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 alert("请先选择一个要删除的Prompt文件。");
                 return;
             }
-            
+
             if (!confirm(`你确定要删除Prompt文件 "${selectedFile}" 吗？此操作不可恢复。`)) {
                 return;
             }
-            
+
             deletePromptBtn.disabled = true;
             deletePromptBtn.textContent = '删除中...';
-            
+
             try {
                 const response = await fetch(`/api/prompts/${selectedFile}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.detail || '删除失败');
                 }
-                
+
                 const result = await response.json();
                 alert(result.message || '删除成功！');
-                
+
                 // Refresh the prompt list
                 const newPrompts = await fetchPrompts();
                 promptSelector.innerHTML = '<option value="">-- 请选择 --</option>' + newPrompts.map(p => `<option value="${p}">${p}</option>`).join('');
-                
+
                 // Reset editor
                 promptEditor.value = "请先从上方选择一个 Prompt 文件进行编辑...";
                 promptEditor.disabled = true;
                 savePromptBtn.disabled = true;
                 deletePromptBtn.disabled = true;
-                
+
             } catch (error) {
                 console.error('删除Prompt失败:', error);
                 alert('删除失败: ' + error.message);
@@ -2214,7 +2439,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 deletePromptBtn.textContent = '删除模板';
             }
         });
-        
+
         // New prompt functionality with modal instead of prompt()
         newPromptBtn.addEventListener('click', () => {
             // Create the modal HTML
@@ -2245,48 +2470,48 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     </div>
                 </div>
             `;
-            
+
             // Add modal to body
             document.body.insertAdjacentHTML('beforeend', modalHTML);
-            
+
             // Get modal elements
             const modal = document.getElementById('new-prompt-modal');
             const closeBtn = document.getElementById('close-new-prompt-modal');
             const cancelBtn = document.getElementById('cancel-new-prompt-btn');
             const saveBtn = document.getElementById('save-new-prompt-btn');
             const form = document.getElementById('new-prompt-form');
-            
+
             // Close modal
             const closeModal = () => {
                 modal.remove();
             };
-            
+
             closeBtn.addEventListener('click', closeModal);
             cancelBtn.addEventListener('click', closeModal);
-            
+
             // Click outside to close
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     closeModal();
                 }
             });
-            
+
             // Save new prompt
             saveBtn.addEventListener('click', () => {
                 if (!form.checkValidity()) {
                     form.reportValidity();
                     return;
                 }
-                
+
                 const newFileName = document.getElementById('new-prompt-name').value.trim();
                 const content = document.getElementById('new-prompt-content').value;
-                
+
                 // Validate file name
                 if (newFileName.includes('/') || newFileName.includes('..')) {
                     alert('无效的文件名');
                     return;
                 }
-                
+
                 // Call the API to create new prompt
                 fetch('/api/prompts', {
                     method: 'POST',
@@ -2298,23 +2523,23 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         content: content
                     }),
                 })
-                .then(response => response.json())
-                .then(data => {
-                    alert(data.message || '新建模板成功！');
-                    closeModal();
-                    // Refresh the prompt list
-                    return fetchPrompts();
-                })
-                .then(newPrompts => {
-                    if (newPrompts) {
-                        // Update the selector with new list
-                        promptSelector.innerHTML = '<option value="">-- 请选择 --</option>' + newPrompts.map(p => `<option value="${p}">${p}</option>`).join('');
-                    }
-                })
-                .catch(error => {
-                    console.error('创建新模板失败:', error);
-                    alert('创建新模板失败，请稍后重试。');
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message || '新建模板成功！');
+                        closeModal();
+                        // Refresh the prompt list
+                        return fetchPrompts();
+                    })
+                    .then(newPrompts => {
+                        if (newPrompts) {
+                            // Update the selector with new list
+                            promptSelector.innerHTML = '<option value="">-- 请选择 --</option>' + newPrompts.map(p => `<option value="${p}">${p}</option>`).join('');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('创建新模板失败:', error);
+                        alert('创建新模板失败，请稍后重试。');
+                    });
             });
         });
 
@@ -2344,7 +2569,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 const result = await updateAISettings(settings);
                 if (result) {
                     alert(result.message || "AI设置已保存！");
-                    
+
                     // 刷新系统状态检查
                     const status = await fetchSystemStatus();
                     const statusContainer = document.getElementById('system-status-container');
@@ -2411,7 +2636,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     try {
                         // 保存AI设置
                         const saveResult = await updateAISettings(settings);
-                        
+
                         if (saveResult) {
                             // 保存成功后执行后端测试
                             const response = await fetch('/api/settings/ai/test/backend', {
@@ -2437,7 +2662,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     } finally {
                         testBackendBtn.disabled = false;
                         testBackendBtn.textContent = originalText;
-                        
+
                         // 刷新系统状态检查
                         const status = await fetchSystemStatus();
                         const statusContainer = document.getElementById('system-status-container');
@@ -2452,7 +2677,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
     // Handle navigation clicks
     navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
             const hash = this.getAttribute('href');
             if (window.location.hash !== hash) {
@@ -2467,21 +2692,21 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
     });
 
     // --- Event Delegation for dynamic content ---
-        mainContent.addEventListener('click', async (event) => {
+    mainContent.addEventListener('click', async (event) => {
         const target = event.target;
         const button = target.closest('button'); // Find the closest button element
         if (!button) return;
 
-if (button.matches('.delete-card-btn')) {
+        if (button.matches('.delete-card-btn')) {
             const card = button.closest('.result-card');
             // 获取商品ID唯一标识
             const itemId = card.dataset.itemId;
-            
+
             if (confirm('你确定要删除此商品吗？')) {
                 // 实现API调用删除商品
                 const selector = document.getElementById('result-file-selector');
                 const selectedFile = selector.value;
-                
+
                 if (selectedFile) {
                     // 创建包含唯一标识的商品数据
                     const itemData = {
@@ -2489,7 +2714,7 @@ if (button.matches('.delete-card-btn')) {
                             商品链接: `id=${itemId}` // 使用商品ID构造一个简约的查找条件
                         }
                     };
-                    
+
                     // 调用API删除商品，传递唯一标识符
                     fetch(`/api/results/delete`, {
                         method: 'POST',
@@ -2501,18 +2726,18 @@ if (button.matches('.delete-card-btn')) {
                             item: itemData
                         })
                     })
-                    .then(response => {
-                        if (response.ok) {
-                            // 删除成功，从DOM中移除卡片
-                            card.remove();
-                        } else {
-                            throw new Error('删除失败');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('删除商品时出错:', error);
-                        alert('删除失败，请重试');
-                    });
+                        .then(response => {
+                            if (response.ok) {
+                                // 删除成功，从DOM中移除卡片
+                                card.remove();
+                            } else {
+                                throw new Error('删除失败');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('删除商品时出错:', error);
+                            alert('删除失败，请重试');
+                        });
                 } else {
                     // 没有找到文件或索引，直接从DOM删除但不通知API
                     card.remove();
@@ -2589,14 +2814,14 @@ if (button.matches('.delete-card-btn')) {
             const taskName = row.querySelector('td:nth-child(2)').textContent;
             if (confirm(`你确定要删除任务 "${taskName}" 吗?`)) {
                 const result = await deleteTask(taskId);
-            if (result) {
+                if (result) {
                     row.remove();
                 }
             }
         } else if (button.matches('.copy-btn')) {
             // Copy task functionality - optimized to not run AI again and handle duplicate names
             const task = JSON.parse(row.dataset.task);
-            
+
             // Create new task data with existing criteria - will be renamed by backend
             const newTaskData = {
                 task_name: task.task_name, // Name will be made unique by backend
@@ -2612,7 +2837,7 @@ if (button.matches('.delete-card-btn')) {
                 ai_prompt_criteria_file: task.ai_prompt_criteria_file, // Original criteria file path
                 is_running: false
             };
-            
+
             // Use direct task creation instead of AI generation
             try {
                 const response = await fetch('/api/tasks', {
@@ -2622,7 +2847,7 @@ if (button.matches('.delete-card-btn')) {
                     },
                     body: JSON.stringify(newTaskData),
                 });
-                
+
                 if (response.ok) {
                     // Refresh task list immediately for better UX
                     const container = document.getElementById('tasks-table-container');
@@ -2676,7 +2901,7 @@ if (button.matches('.delete-card-btn')) {
             const container = document.getElementById('tasks-table-container');
             const tasks = await fetchTasks();
             container.innerHTML = renderTasksTable(tasks);
-            } else if (button.matches('.refresh-criteria')) {
+        } else if (button.matches('.refresh-criteria')) {
             const task = JSON.parse(row.dataset.task);
             const modal = document.getElementById('refresh-criteria-modal');
             const textarea = document.getElementById('refresh-criteria-description');
@@ -2684,13 +2909,13 @@ if (button.matches('.delete-card-btn')) {
             const btnText = refreshBtn.querySelector('.btn-text');
             const spinner = refreshBtn.querySelector('.spinner');
             const loadingText = refreshBtn.querySelector('.loading-text');
-            
+
             // 恢复按钮默认状态
             btnText.style.display = 'inline-block';
             spinner.style.display = 'none';
             loadingText.style.display = 'none';
             refreshBtn.disabled = false;
-            
+
             // 检查任务是否正在生成AI标准
             if (task.generating_ai_criteria) {
                 // 如果正在生成，显示加载状态
@@ -2699,27 +2924,27 @@ if (button.matches('.delete-card-btn')) {
                 loadingText.style.display = 'inline-block';
                 refreshBtn.disabled = true;
             }
-            
+
             textarea.value = task['description'] || '';
             modal.dataset.taskId = taskId;
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('visible'), 10);
-            
+
             // Load reference files for refresh modal
             try {
                 const response = await fetch('/api/prompts');
                 const referenceFiles = await response.json();
                 const selector = document.getElementById('refresh-reference-file-selector');
-                
+
                 // Clear existing options
                 selector.innerHTML = '';
-                
+
                 // Add options
                 if (referenceFiles.length === 0) {
                     selector.innerHTML = '<option value="">没有可用的参考文件</option>';
                     return;
                 }
-                
+
                 // Add each file as an option
                 referenceFiles.forEach(file => {
                     const option = document.createElement('option');
@@ -2731,7 +2956,7 @@ if (button.matches('.delete-card-btn')) {
                     }
                     selector.appendChild(option);
                 });
-                
+
                 // Add event listener to preview button
                 const previewBtn = document.getElementById('refresh-preview-reference-file-btn');
                 previewBtn.addEventListener('click', (e) => {
@@ -2746,18 +2971,18 @@ if (button.matches('.delete-card-btn')) {
                         if (!filePath) {
                             return;
                         }
-                        
+
                         try {
                             const previewContainer = document.getElementById('refresh-reference-preview-container');
                             const previewContent = document.getElementById('refresh-reference-file-preview');
-                            
+
                             previewContent.textContent = '正在加载预览...';
                             previewContainer.style.display = 'block';
-                            
+
                             const fileName = filePath.replace('prompts/', '');
                             const response = await fetch(`/api/prompts/${fileName}`);
                             const data = await response.json();
-                            
+
                             previewContent.textContent = data.content;
                         } catch (error) {
                             console.error('无法加载参考文件内容:', error);
@@ -2766,31 +2991,31 @@ if (button.matches('.delete-card-btn')) {
                     }
                     loadRefreshReferenceFilePreview(selectedFile);
                 });
-                
+
             } catch (error) {
                 console.error('无法加载参考文件列表:', error);
                 const selector = document.getElementById('refresh-reference-file-selector');
                 selector.innerHTML = '<option value="">加载参考文件失败</option>';
             }
-        } 
-            // Handle criteria button click
+        }
+        // Handle criteria button click
         else if (button.matches('.criteria-btn')) {
             const criteriaFile = button.dataset.criteriaFile;
             const fileName = criteriaFile.replace(/^(prompts|requirement)\//, '');
-            
+
             // Load the criteria file content
             const modal = document.getElementById('criteria-editor-modal');
             const filenameInput = document.getElementById('criteria-filename');
             const editorTextarea = document.getElementById('criteria-editor');
-            
+
             filenameInput.value = fileName;
-            
+
             // Fetch and display the file content
             // Determine if it's a criteria file based on full path from backend
             const isCriteriaFile = criteriaFile.startsWith('criteria/');
             const isRequirementFile = criteriaFile.startsWith('requirement/');
             const cleanFileName = criteriaFile.replace('criteria/', '').replace('prompts/', '').replace('requirement/', '');
-            
+
             // Function to fetch content from the correct endpoint
             async function fetchContent() {
                 try {
@@ -2813,20 +3038,20 @@ if (button.matches('.delete-card-btn')) {
                     editorTextarea.value = '加载文件失败，请稍后重试...';
                 }
             }
-            
+
             fetchContent();
-            
+
             modal.style.display = 'flex';
             modal.dataset.filename = criteriaFile; // 保存完整的文件路径
             setTimeout(() => modal.classList.add('visible'), 10);
         } else if (button.matches('.send-notification-btn')) {
             const card = button.closest('.result-card');
             const notificationData = JSON.parse(card.dataset.notification);
-            
+
             // Change button text to indicate loading
             button.disabled = true;
             button.textContent = '发送中...';
-            
+
             // Send the notification
             sendNotification(notificationData).then(result => {
                 if (result) {
@@ -2835,7 +3060,7 @@ if (button.matches('.delete-card-btn')) {
                             .filter(([channel, status]) => status)
                             .map(([channel, _]) => channel)
                             .join('、');
-                        
+
                         if (successChannels) {
                             alert(`通知已发送成功到以下渠道: ${successChannels}`);
                         } else {
@@ -2865,7 +3090,7 @@ if (button.matches('.delete-card-btn')) {
             const isEnabled = target.checked;
 
             if (taskId) {
-                await updateTask(taskId, {enabled: isEnabled});
+                await updateTask(taskId, { enabled: isEnabled });
                 // 立即刷新任务列表以更新运行状态
                 const container = document.getElementById('tasks-table-container');
                 const tasks = await fetchTasks();
@@ -2900,7 +3125,7 @@ if (button.matches('.delete-card-btn')) {
                 loadReferenceFiles();
             }
         });
-        
+
         modal.addEventListener('mousedown', event => {
             canClose = event.target === modal;
         });
@@ -2910,23 +3135,23 @@ if (button.matches('.delete-card-btn')) {
                 closeModal();
             }
         });
-        
+
         // Function to load reference files
         async function loadReferenceFiles() {
             try {
                 const response = await fetch('/api/prompts');
                 const referenceFiles = await response.json();
                 const selector = document.getElementById('reference-file-selector');
-                
+
                 // Clear existing options
                 selector.innerHTML = '';
-                
+
                 // Add options
                 if (referenceFiles.length === 0) {
                     selector.innerHTML = '<option value="">没有可用的参考文件</option>';
                     return;
                 }
-                
+
                 // Add each file as an option
                 referenceFiles.forEach(file => {
                     const option = document.createElement('option');
@@ -2938,7 +3163,7 @@ if (button.matches('.delete-card-btn')) {
                     }
                     selector.appendChild(option);
                 });
-                
+
                 // Add event listener to preview button
                 const previewBtn = document.getElementById('preview-reference-file-btn');
                 previewBtn.addEventListener('click', (e) => {
@@ -2950,31 +3175,31 @@ if (button.matches('.delete-card-btn')) {
                     }
                     loadReferenceFilePreview(selectedFile);
                 });
-                
+
             } catch (error) {
                 console.error('无法加载参考文件列表:', error);
                 const selector = document.getElementById('reference-file-selector');
                 selector.innerHTML = '<option value="">加载参考文件失败</option>';
             }
         }
-        
+
         // Function to load reference file preview
         async function loadReferenceFilePreview(filePath) {
             if (!filePath) {
                 return;
             }
-            
+
             try {
                 const previewContainer = document.getElementById('reference-preview-container');
                 const previewContent = document.getElementById('reference-file-preview');
-                
+
                 previewContent.textContent = '正在加载预览...';
                 previewContainer.style.display = 'block';
-                
+
                 const fileName = filePath.replace('prompts/', '');
                 const response = await fetch(`/api/prompts/${fileName}`);
                 const data = await response.json();
-                
+
                 previewContent.textContent = data.content;
             } catch (error) {
                 console.error('无法加载参考文件内容:', error);
@@ -3065,12 +3290,12 @@ if (button.matches('.delete-card-btn')) {
             }
         });
 
-            refreshBtn.addEventListener('click', async () => {
+        refreshBtn.addEventListener('click', async () => {
             // 首先检查AI配置是否完整
             try {
                 const aiSettingsResponse = await fetch('/api/settings/ai');
                 const aiSettings = await aiSettingsResponse.json();
-                
+
                 if (!aiSettings.OPENAI_BASE_URL || !aiSettings.OPENAI_MODEL_NAME) {
                     alert('请先配置ai模型api接口');
                     return;
@@ -3080,7 +3305,7 @@ if (button.matches('.delete-card-btn')) {
                 alert('检查AI配置失败，请稍后重试');
                 return;
             }
-            
+
             if (form.checkValidity() === false) {
                 form.reportValidity();
                 return;
@@ -3098,57 +3323,57 @@ if (button.matches('.delete-card-btn')) {
             const taskId = refreshCriteriaModal.dataset.taskId;
             const formData = new FormData(form);
             const refreshReferenceSelector = document.getElementById('refresh-reference-file-selector');
-            
+
             // Send both description and reference file to updateTask, and set generating_ai_criteria to true
             const updateData = {
                 description: formData.get('description'),
                 reference_file: refreshReferenceSelector.value,
                 generating_ai_criteria: true
             };
-            
+
             try {
                 const result = await updateTask(taskId, updateData);
-                
-            // 立即更新当前任务行的状态为"生成中"
-            const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
-            if (taskRow) {
-                // 更新状态徽章
-                const statusBadge = taskRow.querySelector('.status-badge');
-                if (statusBadge) {
-                    statusBadge.className = 'status-badge status-generating';
-                    statusBadge.textContent = '生成中';
-                    statusBadge.style.backgroundColor = 'orange';
+
+                // 立即更新当前任务行的状态为"生成中"
+                const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
+                if (taskRow) {
+                    // 更新状态徽章
+                    const statusBadge = taskRow.querySelector('.status-badge');
+                    if (statusBadge) {
+                        statusBadge.className = 'status-badge status-generating';
+                        statusBadge.textContent = '生成中';
+                        statusBadge.style.backgroundColor = 'orange';
+                    }
+
+                    // 禁用所有操作按钮（运行、编辑、复制、删除）
+                    const actionButtons = taskRow.querySelectorAll('.action-btn');
+                    actionButtons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.backgroundColor = '#ccc'; // 灰色
+                        btn.style.cursor = 'not-allowed';
+                    });
+
+                    // 禁用AI标准的生成和编辑按钮
+                    const criteriaButtons = taskRow.querySelectorAll('.refresh-criteria, .criteria-btn');
+                    criteriaButtons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.backgroundColor = '#ccc'; // 灰色
+                        btn.style.cursor = 'not-allowed';
+                    });
+
+                    // 禁用任务开关
+                    const toggleSwitch = taskRow.querySelector('.switch input[type="checkbox"]');
+                    if (toggleSwitch) {
+                        toggleSwitch.disabled = true;
+                    }
                 }
-                
-                // 禁用所有操作按钮（运行、编辑、复制、删除）
-                const actionButtons = taskRow.querySelectorAll('.action-btn');
-                actionButtons.forEach(btn => {
-                    btn.disabled = true;
-                    btn.style.backgroundColor = '#ccc'; // 灰色
-                    btn.style.cursor = 'not-allowed';
-                });
-                
-                // 禁用AI标准的生成和编辑按钮
-                const criteriaButtons = taskRow.querySelectorAll('.refresh-criteria, .criteria-btn');
-                criteriaButtons.forEach(btn => {
-                    btn.disabled = true;
-                    btn.style.backgroundColor = '#ccc'; // 灰色
-                    btn.style.cursor = 'not-allowed';
-                });
-                
-                // 禁用任务开关
-                const toggleSwitch = taskRow.querySelector('.switch input[type="checkbox"]');
-                if (toggleSwitch) {
-                    toggleSwitch.disabled = true;
-                }
-            }
-                
+
                 // 不立即关闭模态框，保持打开状态直到生成完成
-                
+
             } catch (error) {
                 console.error('更新任务失败:', error);
                 alert('更新任务失败: ' + error.message);
-                
+
                 // 恢复按钮状态
                 btnText.style.display = 'inline-block';
                 spinner.style.display = 'none';
@@ -3161,7 +3386,7 @@ if (button.matches('.delete-card-btn')) {
 
     // Initial load
     refreshLoginStatusWidget();
-    
+
     // Add manual login button to the top header status widget
     const loginStatusWidget = document.querySelector('.login-status-widget');
     if (loginStatusWidget) {
@@ -3175,19 +3400,19 @@ if (button.matches('.delete-card-btn')) {
         manualLoginBtn.style.padding = '8px 12px';
         manualLoginBtn.style.marginRight = '15px';
         manualLoginBtn.textContent = '点击自动获取cookie登录';
-        
+
         // Add click event to show modal instead of confirm dialog
         manualLoginBtn.addEventListener('click', () => {
             // Show the custom modal
             const modal = document.getElementById('manual-login-confirm-modal');
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('visible'), 10);
-            
+
             // Get modal elements
             const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
             const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
             const closeBtn = document.getElementById('close-manual-login-confirm-modal');
-            
+
             // Function to close the modal
             const closeModal = () => {
                 modal.classList.remove('visible');
@@ -3195,75 +3420,75 @@ if (button.matches('.delete-card-btn')) {
                     modal.style.display = 'none';
                 }, 300); // Match the modal transition duration
             };
-            
-                // Function to handle the confirmation action
-                const handleConfirmation = async () => {
-                    try {
-                        const response = await fetch('/api/manual-login', {
-                            method: 'POST'
-                        });
-                        
-                        if (!response.ok) {
-                            const errorData = await response.json();
-                            alert('启动失败: ' + (errorData.detail || '未知错误'));
-                        } else {
-                            // 开始轮询检查登录状态
-                            const pollInterval = 2000; // 每 2 秒检查一次
-                            const pollTimeout = 300000; // 300 秒后超时
-                            let pollAttempts = 0;
-                            const maxAttempts = pollTimeout / pollInterval;
-                            
-                            // 开始轮询检查登录状态
-                            const intervalId = setInterval(async () => {
-                                pollAttempts++;
-                                
-                                try {
-                                    const status = await fetchSystemStatus();
-                                    if (status && status.login_state_file && status.login_state_file.exists) {
-                                        // 登录状态已更新，刷新登录状态 widget
-                                        await refreshLoginStatusWidget();
-                                        // 停止轮询
-                                        clearInterval(intervalId);
-                                        return;
-                                    }
-                                } catch (error) {
-                                    console.error('轮询检查登录状态时出错:', error);
-                                }
-                                
-                                // 检查是否超时
-                                if (pollAttempts >= maxAttempts) {
-                                    console.log('轮询检查登录状态超时');
+
+            // Function to handle the confirmation action
+            const handleConfirmation = async () => {
+                try {
+                    const response = await fetch('/api/manual-login', {
+                        method: 'POST'
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        alert('启动失败: ' + (errorData.detail || '未知错误'));
+                    } else {
+                        // 开始轮询检查登录状态
+                        const pollInterval = 2000; // 每 2 秒检查一次
+                        const pollTimeout = 300000; // 300 秒后超时
+                        let pollAttempts = 0;
+                        const maxAttempts = pollTimeout / pollInterval;
+
+                        // 开始轮询检查登录状态
+                        const intervalId = setInterval(async () => {
+                            pollAttempts++;
+
+                            try {
+                                const status = await fetchSystemStatus();
+                                if (status && status.login_state_file && status.login_state_file.exists) {
+                                    // 登录状态已更新，刷新登录状态 widget
+                                    await refreshLoginStatusWidget();
+                                    // 停止轮询
                                     clearInterval(intervalId);
                                     return;
                                 }
-                            }, pollInterval);
-                        }
-                        // No alert for success - directly close the modal
-                    } catch (error) {
-                        alert('启动失败: ' + error.message);
-                    } finally {
-                        closeModal();
+                            } catch (error) {
+                                console.error('轮询检查登录状态时出错:', error);
+                            }
+
+                            // 检查是否超时
+                            if (pollAttempts >= maxAttempts) {
+                                console.log('轮询检查登录状态超时');
+                                clearInterval(intervalId);
+                                return;
+                            }
+                        }, pollInterval);
                     }
-                };
-            
+                    // No alert for success - directly close the modal
+                } catch (error) {
+                    alert('启动失败: ' + error.message);
+                } finally {
+                    closeModal();
+                }
+            };
+
             // Add event listeners with once: true to avoid memory leaks
             confirmBtn.addEventListener('click', handleConfirmation, { once: true });
             cancelBtn.addEventListener('click', closeModal, { once: true });
             closeBtn.addEventListener('click', closeModal, { once: true });
-            
-                // Add click outside to close functionality
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) closeModal();
-                }, { once: true });
+
+            // Add click outside to close functionality
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            }, { once: true });
         });
-        
+
         // Insert the button before the status text
         const statusText = loginStatusWidget.querySelector('.status-text');
         if (statusText) {
             loginStatusWidget.insertBefore(manualLoginBtn, statusText);
         }
     }
-    
+
     navigateTo(window.location.hash || '#tasks');
 
     // --- Global Event Listener for header/modals ---
@@ -3364,7 +3589,7 @@ if (button.matches('.delete-card-btn')) {
         const saveBtn = document.getElementById('save-criteria-editor-btn');
         const backBtn = document.getElementById('back-from-editor-btn');
         const editorTextarea = document.getElementById('criteria-editor');
-        
+
         const closeModal = () => {
             criteriaEditorModal.classList.remove('visible');
             setTimeout(() => {
@@ -3393,52 +3618,52 @@ if (button.matches('.delete-card-btn')) {
             }
         });
 
-            // Save button event handler
-            saveBtn.addEventListener('click', async () => {
-                const fullFileName = criteriaEditorModal.dataset.filename;
-                const content = editorTextarea.value;
+        // Save button event handler
+        saveBtn.addEventListener('click', async () => {
+            const fullFileName = criteriaEditorModal.dataset.filename;
+            const content = editorTextarea.value;
 
-                if (!fullFileName || !content) {
-                    alert('请确保文件名和内容都已填写。');
-                    return;
+            if (!fullFileName || !content) {
+                alert('请确保文件名和内容都已填写。');
+                return;
+            }
+
+            try {
+                let apiPath;
+                // 根据文件名判断是哪种类型的文件并选择正确的API路径
+                if (fullFileName.includes('requirement/')) {
+                    // requirement文件使用/api/criteria端点
+                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('requirement/', ''))}`;
+                } else if (fullFileName.includes('criteria/')) {
+                    // criteria文件使用/api/criteria端点
+                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('criteria/', ''))}`;
+                } else if (fullFileName.includes('prompts/')) {
+                    // prompt文件使用/api/prompts端点
+                    apiPath = `/api/prompts/${encodeURIComponent(fullFileName.replace('prompts/', ''))}`;
+                } else {
+                    // 普通文件名直接使用/api/criteria端点
+                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName)}`;
                 }
-                
-                try {
-                    let apiPath;
-                    // 根据文件名判断是哪种类型的文件并选择正确的API路径
-                    if (fullFileName.includes('requirement/')) {
-                        // requirement文件使用/api/criteria端点
-                        apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('requirement/', ''))}`;
-                    } else if (fullFileName.includes('criteria/')) {
-                        // criteria文件使用/api/criteria端点
-                        apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('criteria/', ''))}`;
-                    } else if (fullFileName.includes('prompts/')) {
-                        // prompt文件使用/api/prompts端点
-                        apiPath = `/api/prompts/${encodeURIComponent(fullFileName.replace('prompts/', ''))}`;
-                    } else {
-                        // 普通文件名直接使用/api/criteria端点
-                        apiPath = `/api/criteria/${encodeURIComponent(fullFileName)}`;
-                    }
-                    
-                    const response = await fetch(apiPath, {
-                        method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({content: content}),
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        alert('文件保存成功！');
-                        closeModal();
-                    } else {
-                        const errorData = await response.json();
-                        throw new Error(errorData.detail || '保存失败');
-                    }
-                } catch (error) {
-                    console.error('Failed to save file:', error);
-                    alert('文件保存失败: ' + error.message);
+
+                const response = await fetch(apiPath, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content }),
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('文件保存成功！');
+                    closeModal();
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '保存失败');
                 }
-            });
+            } catch (error) {
+                console.error('Failed to save file:', error);
+                alert('文件保存失败: ' + error.message);
+            }
+        });
     }
 
     // --- Login State Modal Logic ---
@@ -3464,8 +3689,8 @@ if (button.matches('.delete-card-btn')) {
             try {
                 const response = await fetch('/api/login-state', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({content: content}),
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content }),
                 });
                 if (!response.ok) {
                     const errorData = await response.json();
