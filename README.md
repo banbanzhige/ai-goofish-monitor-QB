@@ -290,8 +290,10 @@ docker项目地址
 
 **使用docker compose开箱即用**:
 
-  - 提前下载.env.example并改名成.env放在工作文件夹根目录下
-  - 有需要也可以挂载prompts，持续化保存自定义的ai标准模板
+  - 提前下载`.env.example`并改名成`.env`放在`/工作文件夹根目录`下或者手动填入`.env.example`内的参数到你自己创建的`.env`文件内
+  - 提前在`/工作文件夹根目录/config/`内创建空的`config.json`文件，以持久化管理你的监控任务
+  - 推荐下载`/prompts/base_prompt.txt`，并挂载`/app/prompts`卷，提前创建好`/工作目录文件夹/prompts`文件夹并且复制一份`base_prompt.txt`在你的`/prompts`内，不挂载不影响正常使用，但是每次更新自定义的prompt内容会消失，如无需求可以不需要挂载。
+
 ```yaml
 services:
  app:
@@ -302,6 +304,7 @@ services:
      - "8001:8000"
    volumes:
      - ./.env:/app/.env
+     - ./config/config.json:/app/config.json
      - ./logs:/app/logs
      - ./jsonl:/app/jsonl
      - ./images:/app/images
@@ -309,7 +312,6 @@ services:
      - ./requirement:/app/requirement
    # - ./prompts:/app/prompts 
    restart: unless-stopped
-
 
 ```
 
