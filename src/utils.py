@@ -62,14 +62,18 @@ async def random_sleep(min_seconds: float, max_seconds: float):
     await asyncio.sleep(delay)
 
 
-def log_time(message: str, prefix: str = "", task_name: str = "") -> None:
-    """在日志前加上 YY-MM-DD HH:MM:SS 时间戳和任务名称的简单打印。"""
+def log_time(message: str, prefix: str = "", task_name: str = "", level: str = "info") -> None:
+    """在日志前加上 YY-MM-DD HH:MM:SS 时间戳、任务名称和日志级别的统一格式打印。"""
     try:
-        ts = datetime.now().strftime(' %Y-%m-%d %H:%M:%S')
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
-        ts = "--:--:--"
-    task_prefix = f"[{task_name}] " if task_name else ""
-    print(f"[{ts}] {prefix}{task_prefix}{message}")
+        timestamp = "--:--:--"
+    
+    # 统一日志格式，确保任务名称使用方括号包裹，级别也使用方括号包裹
+    task_prefix = f"[{task_name}]" if task_name else "[系统]"
+    level_prefix = f"[{level.upper()}]" if level else "[INFO]"
+    
+    print(f"[{timestamp}] {task_prefix} {level_prefix} {prefix}{message}")
 
 
 def convert_goofish_link(url: str) -> str:
@@ -150,3 +154,14 @@ def format_registration_days(total_days: int) -> str:
         return f"来闲鱼{months}个月"
     else:
         return "来闲鱼不足一个月"
+
+
+def write_log(message):
+    """将日志消息写入到 fetcher.log 文件中"""
+    os.makedirs("logs", exist_ok=True)
+    log_file_path = os.path.join("logs", "fetcher.log")
+    try:
+        with open(log_file_path, 'a', encoding='utf-8') as f:
+            f.write(message + '\n')
+    except Exception as e:
+        print(f"写入日志时出错: {e}")
