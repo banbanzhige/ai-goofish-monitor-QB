@@ -25,6 +25,16 @@ class BaseNotifier(ABC):
         """发送产品通知"""
         pass
     
+    @abstractmethod
+    async def send_task_start_notification(self, task_name: str, reason: str) -> bool:
+        """发送任务开始通知"""
+        pass
+    
+    @abstractmethod
+    async def send_task_completion_notification(self, task_name: str, reason: str, processed_count: int = 0, recommended_count: int = 0) -> bool:
+        """发送任务完成通知"""
+        pass
+    
     def _replace_placeholders(self, template_str: str, notification_title: str, message: str) -> str:
         """替换模板中的占位符"""
         if not template_str:

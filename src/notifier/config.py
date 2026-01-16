@@ -1,6 +1,5 @@
 import json
-import os
-from dotenv import dotenv_values
+from src.config import get_env_value, get_bool_env_value
 
 class NotificationConfig:
     """通知配置管理类"""
@@ -11,49 +10,51 @@ class NotificationConfig:
     def _load_config(self):
         """加载配置"""
         # 从.env文件加载配置
-        env_config = dotenv_values(".env")
-        
-        # 加载并解析webhook headers
-        webhook_headers = {}
-        if env_config.get("WEBHOOK_HEADERS"):
-            try:
-                webhook_headers = json.loads(env_config["WEBHOOK_HEADERS"])
-            except json.JSONDecodeError:
-                webhook_headers = {}
-        
         return {
             # 通知渠道配置
-            "NTFY_TOPIC_URL": env_config.get("NTFY_TOPIC_URL", ""),
-            "NTFY_ENABLED": env_config.get("NTFY_ENABLED", "false").lower() == "true",
-            "GOTIFY_URL": env_config.get("GOTIFY_URL", ""),
-            "GOTIFY_TOKEN": env_config.get("GOTIFY_TOKEN", ""),
-            "GOTIFY_ENABLED": env_config.get("GOTIFY_ENABLED", "false").lower() == "true",
-            "BARK_URL": env_config.get("BARK_URL", ""),
-            "BARK_ENABLED": env_config.get("BARK_ENABLED", "false").lower() == "true",
-            "WX_BOT_URL": env_config.get("WX_BOT_URL", ""),
-            "WX_BOT_ENABLED": env_config.get("WX_BOT_ENABLED", "false").lower() == "true",
-            "WX_CORP_ID": env_config.get("WX_CORP_ID", ""),
-            "WX_AGENT_ID": env_config.get("WX_AGENT_ID", ""),
-            "WX_SECRET": env_config.get("WX_SECRET", ""),
-            "WX_TO_USER": env_config.get("WX_TO_USER", "@all"),
-            "WX_APP_ENABLED": env_config.get("WX_APP_ENABLED", "false").lower() == "true",
-            "TELEGRAM_BOT_TOKEN": env_config.get("TELEGRAM_BOT_TOKEN", ""),
-            "TELEGRAM_CHAT_ID": env_config.get("TELEGRAM_CHAT_ID", ""),
-            "TELEGRAM_ENABLED": env_config.get("TELEGRAM_ENABLED", "false").lower() == "true",
-            "WEBHOOK_URL": env_config.get("WEBHOOK_URL", ""),
-            "WEBHOOK_ENABLED": env_config.get("WEBHOOK_ENABLED", "false").lower() == "true",
+            "NTFY_TOPIC_URL": get_env_value("NTFY_TOPIC_URL", ""),
+            "NTFY_ENABLED": get_bool_env_value("NTFY_ENABLED", False),
+            "GOTIFY_URL": get_env_value("GOTIFY_URL", ""),
+            "GOTIFY_TOKEN": get_env_value("GOTIFY_TOKEN", ""),
+            "GOTIFY_ENABLED": get_bool_env_value("GOTIFY_ENABLED", False),
+            "BARK_URL": get_env_value("BARK_URL", ""),
+            "BARK_ENABLED": get_bool_env_value("BARK_ENABLED", False),
+            "WX_BOT_URL": get_env_value("WX_BOT_URL", ""),
+            "WX_BOT_ENABLED": get_bool_env_value("WX_BOT_ENABLED", False),
+            "WX_CORP_ID": get_env_value("WX_CORP_ID", ""),
+            "WX_AGENT_ID": get_env_value("WX_AGENT_ID", ""),
+            "WX_SECRET": get_env_value("WX_SECRET", ""),
+            "WX_TO_USER": get_env_value("WX_TO_USER", "@all"),
+            "WX_APP_ENABLED": get_bool_env_value("WX_APP_ENABLED", False),
+            "TELEGRAM_BOT_TOKEN": get_env_value("TELEGRAM_BOT_TOKEN", ""),
+            "TELEGRAM_CHAT_ID": get_env_value("TELEGRAM_CHAT_ID", ""),
+            "TELEGRAM_ENABLED": get_bool_env_value("TELEGRAM_ENABLED", False),
+            "WEBHOOK_URL": get_env_value("WEBHOOK_URL", ""),
+            "WEBHOOK_ENABLED": get_bool_env_value("WEBHOOK_ENABLED", False),
             
             # Webhook配置
-            "WEBHOOK_METHOD": env_config.get("WEBHOOK_METHOD", "POST").upper(),
-            "WEBHOOK_HEADERS": webhook_headers,
-            "WEBHOOK_CONTENT_TYPE": env_config.get("WEBHOOK_CONTENT_TYPE", "JSON").upper(),
-            "WEBHOOK_QUERY_PARAMETERS": env_config.get("WEBHOOK_QUERY_PARAMETERS", ""),
-            "WEBHOOK_BODY": env_config.get("WEBHOOK_BODY", ""),
+            "WEBHOOK_METHOD": get_env_value("WEBHOOK_METHOD", "POST").upper(),
+            "WEBHOOK_HEADERS": self._parse_webhook_headers(),
+            "WEBHOOK_CONTENT_TYPE": get_env_value("WEBHOOK_CONTENT_TYPE", "JSON").upper(),
+            "WEBHOOK_QUERY_PARAMETERS": get_env_value("WEBHOOK_QUERY_PARAMETERS", ""),
+            "WEBHOOK_BODY": get_env_value("WEBHOOK_BODY", ""),
             
             # 其他配置
-            "PCURL_TO_MOBILE": env_config.get("PCURL_TO_MOBILE", "true").lower() == "true",
-            "NOTIFY_AFTER_TASK_COMPLETE": env_config.get("NOTIFY_AFTER_TASK_COMPLETE", "true").lower() == "true",
+            "PCURL_TO_MOBILE": get_bool_env_value("PCURL_TO_MOBILE", True),
+            "NOTIFY_AFTER_TASK_COMPLETE": get_bool_env_value("NOTIFY_AFTER_TASK_COMPLETE", True),
         }
+    
+    def _parse_webhook_headers(self):
+        """解析webhook headers"""
+        headers_str = get_env_value("WEBHOOK_HEADERS", "")
+        if not headers_str:
+            return {}
+        
+        try:
+            import json
+            return json.loads(headers_str)
+        except Exception:
+            return {}
     
     def reload(self):
         """重新加载配置"""
