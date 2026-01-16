@@ -70,7 +70,7 @@
 ![豆包1.8定价](Example/0.9.5/doubao1.8模型定价测算.png)
 根据测算可得出20个产品分析预估模型调用费用约0.2元人民币，成本消耗控制十分可观
 
-
+0
 </details>
 
 # 🆕 新特性
@@ -319,41 +319,62 @@ services:
 
 ## 💻 Windows部署
 
-### 1.使用start_web_server.bat启动(推荐)
+### 1. 拉取项目代码
 
-   - 拉取项目代码
+  - **需要自行准备 ：python 3.8+的环境，并且配置好path变量**
 
+  - 方式1：直接点击code-[download ZIP](https://github.com/banbanzhige/ai-goofish-monitor-QB/archive/refs/heads/master.zip)下载
+
+  - 方式2：git拉取
   ```PowerShell
   git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
   cd banbanzhige/ai-goofish-monitor-QB
   ```
-  - 或者直接点击code-[download ZIP](https://github.com/banbanzhige/ai-goofish-monitor-QB/archive/refs/heads/master.zip)
+
   
 
-  - **需要自行准备 ：python 3.8+的环境**
-  - 解压后双击打开start_web_server.bat启动
-  - start_web_server.bat会自行创建虚拟环境，安装依赖，检测端口，并且自行启动web_server.py
+
+
+### 2. 启动Web管理界面与后端代码
+
+- 方式1：解压后双击打开`start_web_server.bat`启动(推荐)
+- 方式2：在根目录用PowerShell终端打开
+
+```PowerShell
+# 1. 获取PowerShell执行权限（首次执行即可，后续跳过）
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 2. 创建虚拟环境
+python -m venv venv
+
+# 3. 激活虚拟环境
+.\venv\Scripts\Activate.ps1
+
+# 4. 安装requirements.txt中的依赖
+pip install -r requirements.txt
+# . 启动主程序
+python web_server.py
+```
+
+
+  - `start_web_server.bat`会自行创建虚拟环境，安装依赖，检测端口，并且自行启动`web_server.py`
 
   ![start_web_server启动样式](Example/0.9.5/start_web_server启动样式.png)
 
-### 2. 配置环境变量
+### 3. 使用前需要提前准备好的内容
 
-- 1，直接编辑.env文件：
-- 2，或者在web界面中系统设置中直接配置环境变量（推荐）
+- 需要在web界面中系统设置中直接配置环境的变量
+  · 视觉大模型的ai API调用token
+  · 通知渠道token
+  · 闲鱼账号
 
-### 3. 启动Web管理界面与后端代码
-- 如果使用start_web_server.bat则不需要这步可一键启动
-
-```PowerShell
-python web_server.py
-```
 
 
 # 📋 快速开始
 
 ### 1. 打开Web管理界面
 部署完成后
-在浏览器中访问：http://localhost:8000
+在浏览器中访问：http://localhost:8000 （若端口冲突可以在`.env`配置端口号）
 
 - 默认登录用户名：**admin**
 - 默认登录密码：**admin123**
@@ -361,7 +382,7 @@ python web_server.py
 ### 2. 登录咸鱼账号
 
 - 方式一：在WEB管理界面右上角使用自动登录（推荐）
-**注意：docker用户无法使用此功能，建议使用方法二获取**
+**注意：docker用户无法使用此功能，建议使用方式二获取**
   - 程序自动打开咸鱼首页
   - 在咸鱼首页扫码登录
   - 登录完成后会自动刷新获取cookie，请不要手动关闭网页
@@ -414,8 +435,17 @@ python web_server.py
 - 默认登录用户名：**admin**
 - 默认登录密码：**admin123**
 
-### 4. 配置通知
-- 按web指提交引渠道的配置URL或密钥保存即可，这部分设置也保存在`.env`内
+### 4. 🔔配置通知
+支持以下通知渠道：
+1. **Ntfy**
+2. **Gotify**
+3. **Bark**
+4. **企业微信机器人**
+5. **企业微信应用**
+6. **Telegram**
+7. **Webhook**
+
+- 按web指提交引渠道的配置URL或密钥保存即可，这部分设置也保存在`.env`内编辑
 ### 5. 配置监控任务
 
 在Web界面中：
@@ -454,25 +484,11 @@ Cron表达式用于配置任务的执行频率，格式：
 - `0 18 * * 1-5`：每周一至周五下午6点执行一次
 - `0 0 */2 * *`:每两小时执行一次
 
-## 🔔 通知配置
-
-支持以下通知渠道：
-
-1. **Ntfy**
-2. **Gotify**
-3. **Bark**
-4. **企业微信机器人**
-5. **企业微信应用**
-6. **Telegram**
-7. **Webhook**
-
-可以根据Web界面的"系统设置"中提供的示例配置通知渠道
-
 ## 📝 日志管理
 
-日志文件存储在logs/目录下：
-- scraper.log：Web服务器日志
-- 日期_随机编号.log：产品信息发送ai请求文件
+日志文件存储在`logs/`目录下：
+- `scraper.log`：Web服务器日志
+- `日期_随机编号.log`：产品信息发送ai请求文件
 
 可以在Web界面中查看和清空日志。
 
