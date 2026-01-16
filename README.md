@@ -284,11 +284,11 @@ mindmap
 
 docker项目地址
   - https://hub.docker.com/r/banbanzhige/ai-goofish-monitor-qb
-  
 
 
 
-**使用docker compose开箱即用**:
+
+**方式一：使用docker compose开箱即用**:
 
   - 提前下载`.env.example`并改名成`.env`放在`/工作文件夹根目录`下或者手动填入`.env.example`内的参数到你自己创建的`.env`文件内
   - 提前在`/工作文件夹根目录/config/`内创建空的`config.json`文件，以持久化管理你的监控任务
@@ -315,7 +315,10 @@ services:
 
 ```
 
-
+**方式二**:  
+```
+docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.6-beta
+```
   
 
 
