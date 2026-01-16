@@ -1,0 +1,47 @@
+# Python虚拟环境
+venv/
+env/
+
+# Python缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+src/__pycache__/
+
+# 配置文件
+.idea
+*.iml
+.vscode/
+.env
+config.json
+
+# 日志文件
+*.log
+logs/
+
+# 产生的文件
+images/
+jsonl/
+requirement/
+criteria/
+xianyu_state.json
+installed_packages.txt
+qrcode.png
+
+
+
+# 其他
+.aider*
+docker-build-guide.md
+
+old/
+
+task_stats/
+.pytest_cache/
+*.spec
+dist/
+build/
+升级.txt
+upgrade.txt
+.env
+
