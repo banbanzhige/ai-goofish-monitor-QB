@@ -75,9 +75,28 @@
 
 # 🆕 新特性
 **近期更新：**
+<details open>
+<summary>v0.9.6 更新日志 - 2026-01-16</summary>
+
+  <ul>
+    <li><strong>新增定时任务管理界面</strong>：添加了独立的定时任务执行列表，支持查看任务执行顺序、计算并显示下次执行时间。</li>
+    <li><strong>Cron 表达式在线编辑</strong>：支持直接在列表中修改 Cron 表达式，并在修改后自动同步更新到任务配置。</li>
+    <li><strong>更灵活的任务控制</strong>：新增了跳过本次任务、立即执行任务、取消任务（保留配置但关闭启用）的操作功能。</li>
+    <li><strong>重构项目架构</strong>：将 web_server.py 拆分为 main.py, auth.py, scheduler.py 等 9 个独立模块，大幅提升代码可维护性。</li>
+    <li><strong>统一配置与规范管理</strong>：统一了配置管理逻辑，新增了项目规范文档，规范了代码结构。</li>
+    <li><strong>功能增强与修复</strong>：
+      <ul>
+        <li>整合系统日志到控制台输出，方便调试查看。</li>
+        <li>添加了任务开始和结束的通知推送，增加了统计计数。</li>
+        <li>修复了启用按钮开关报错、创建表达式未载入任务等 bug。</li>
+        <li>升级了新闲鱼登录状态提取器，支持捕获更完整的浏览器环境信息。</li>
+      </ul>
+    </li>
+  </ul>
+</details>
+
+
 <details>
-
-
 <summary>v0.9.5更新日志-2026-01-04</summary>
 
   <ul>
@@ -516,23 +535,26 @@ Cron表达式用于配置任务的执行频率，格式：
 
 ```
 .
-├── ai-goofish-monitor-QB-0.8.8/
+├── ai-goofish-monitor-QB/
 │   ├── .env                      # 环境变量配置文件
 │   ├── config.json               # 任务配置文件
 │   ├── Dockerfile                # Docker配置文件
-│   ├── login.py                  # 登录模块（可选）
+│   ├── login.py                  # 登录模块
 │   ├── prompt_generator.py       # AI Prompt生成工具
 │   ├── requirements.txt          # 项目依赖
 │   ├── collector.py              # 数据收集模块
-│   ├── web_server.py             # Web服务器
-│   ├── chrome-extension/         # Chrome扩展（可选）
+│   ├── web_server.py             # Web服务器入口
+│   ├── check_env.py              # 环境检查脚本
+│   ├── start_web_server.bat      # Windows一键启动脚本
+│   ├── 项目规范.md                # 项目开发规范文档
+│   ├── 升级.txt                   # 版本升级说明
+│   ├── chrome-extension/         # Chrome扩展
 │   ├── logo/                     # 项目Logo
 │   ├── prompts/                  # AI Prompt模板
-│   │   └── base_prompt.txt       # 基础Prompt模板
 │   ├── src/                      # 核心源代码
 │   │   ├── __init__.py
 │   │   ├── ai_handler.py         # AI分析模块
-│   │   ├── config.py             # 配置模块
+│   │   ├── config.py             # 配置模块（统一配置管理）
 │   │   ├── file_operator.py      # 文件操作模块
 │   │   ├── parsers.py            # 解析器模块
 │   │   ├── prompt_utils.py       # Prompt工具
@@ -540,14 +562,25 @@ Cron表达式用于配置任务的执行频率，格式：
 │   │   ├── task.py               # 任务管理
 │   │   ├── utils.py              # 工具函数
 │   │   ├── version.py            # 版本信息
-│   │   └── notifier/             # 通知模块
+│   │   ├── notifier/             # 通知模块
+│   │   └── web/                  # Web服务器核心模块（重构后）
+│   │       ├── main.py           # FastAPI应用入口
+│   │       ├── auth.py           # 认证模块
+│   │       ├── scheduler.py      # 定时任务调度器
+│   │       ├── task_manager.py   # 任务管理接口
+│   │       ├── log_manager.py    # 日志管理
+│   │       ├── result_manager.py # 结果管理
+│   │       ├── settings_manager.py # 设置管理
+│   │       ├── notification_manager.py # 通知管理
+│   │       ├── ai_manager.py     # AI管理接口
+│   │       └── models.py         # 数据模型
 │   ├── static/                   # 静态文件
 │   ├── templates/                # HTML模板
 │   ├── requirement/              # 用户需求文件
 │   ├── criteria/                 # AI分析标准
 │   ├── logs/                     # 日志文件
 │   ├── jsonl/                    # 结果存储
-│   └── xianyu_state.json         # 登录状态文件（自动生成）
+│   └── xianyu_state.json         # 登录状态文件
 ```
 </details>
 
