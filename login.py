@@ -1,16 +1,23 @@
 import asyncio
 import os
-from playwright.async_api import async_playwright
 import json
+from datetime import datetime
+from typing import Dict, Any
+
+from playwright.async_api import async_playwright
 
 STATE_FILE = "xianyu_state.json"
 LOGIN_IS_EDGE = os.getenv("LOGIN_IS_EDGE", "false").lower() == "true"
 RUNNING_IN_DOCKER = os.getenv("RUNNING_IN_DOCKER", "false").lower() == "true"
 
+# 统一日志格式化函数
+def log_message(task_name, level, message):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f"[{timestamp}] [{task_name}] [{level.upper()}] {message}"
 
 async def main():
     async with async_playwright() as p:
-        print("正在启动自动登录程序...")
+        print(log_message("系统", "info", "正在启动自动登录程序..."))
         
         # 配置浏览器启动选项
         launch_options = {
@@ -26,19 +33,19 @@ async def main():
             else:
                 browser = await p.chromium.launch(channel="chrome", **launch_options)
 
-        # 创建一个新的浏览器上下文
+        # 使用桌面版浏览器上下文（与旧版 login.py 相同）
         context = await browser.new_context()
         page = await context.new_page()
 
         try:
-            print("正在打开咸鱼首页...")
+            print(log_message("系统", "info", "正在打开咸鱼首页..."))
             await page.goto("https://www.goofish.com/")
-            print("等待页面加载完成...")
+            print(log_message("系统", "info", "等待页面加载完成..."))
             
             # 等待登录按钮出现并点击
             await page.wait_for_selector("div.nick--RyNYtDXM", timeout=60000)
             await page.click("div.nick--RyNYtDXM")
-            print("已点击登录按钮")
+            print(log_message("系统", "info", "已点击登录按钮"))
 
             # 等待登录完成 - 这里我们监听页面变化，当登录iframe消失时认为登录完成
             print("\n" + "=" * 50)
@@ -67,7 +74,7 @@ async def main():
                 # 1. 等待登录iframe消失
                 # 2. 访问个人页面
                 # 3. 检查是否再次弹出登录iframe，如果没有则登录成功
-                print("正在等待登录完成...")
+                print(log_message("系统", "info", "正在等待登录完成..."))
                 
                 login_successful = False
                 timeout_reached = False
@@ -80,12 +87,12 @@ async def main():
                         await page.wait_for_selector("#alibaba-login-box", timeout=1000)
                     except:
                         # iframe消失了，尝试验证登录状态
-                        print("检测到登录iframe消失，正在验证登录状态...")
+                        print(log_message("系统", "info", "检测到登录iframe消失，正在验证登录状态..."))
                         
                         try:
                             # 刷新当前页面而不是访问个人页面，避免404错误
                             await page.reload(timeout=10000)
-                            print("已刷新页面，正在检查登录状态...")
+                            print(log_message("系统", "info", "已刷新页面，正在检查登录状态..."))
                             
                             # 检查是否再次弹出登录iframe或页面上是否有登录相关元素
                             login_incomplete = False
@@ -123,16 +130,95 @@ async def main():
                                 login_incomplete = found_login_elements
                             
                             if login_incomplete:
-                                print("⚠️ 页面仍需要登录，登录未完成")
+                                print(log_message("系统", "warning", "页面仍需要登录，登录未完成"))
                                 # 可能需要点击登录按钮重新触发登录流程
                                 try:
                                     await page.click("div.nick--RyNYtDXM", timeout=5000)
-                                    print("已重新点击登录按钮")
+                                    print(log_message("系统", "info", "已重新点击登录按钮"))
                                 except:
                                     pass
                             else:
                                 # 登录iframe和登录元素都没有出现，登录成功
-                                print("✅ 页面已登录，登录成功")
+                                print(log_message("系统", "info", "页面已登录，登录成功"))
+                                
+                                # 从真实浏览器环境中抓取信息
+                                print(log_message("系统", "info", "正在抓取浏览器环境信息..."))
+                                browser_env = await page.evaluate('''() => {
+                                    // 从浏览器中获取真实的环境信息
+                                    const intl = (() => {
+                                        try {
+                                            return Intl.DateTimeFormat().resolvedOptions();
+                                        } catch (e) {
+                                            return {};
+                                        }
+                                    })();
+
+                                    const uaData = (() => {
+                                        try {
+                                            return navigator.userAgentData ? navigator.userAgentData.toJSON() : null;
+                                        } catch (e) {
+                                            return null;
+                                        }
+                                    })();
+
+                                    return {
+                                        navigator: {
+                                            userAgent: navigator.userAgent,
+                                            platform: navigator.platform,
+                                            vendor: navigator.vendor,
+                                            language: navigator.language,
+                                            languages: navigator.languages,
+                                            hardwareConcurrency: navigator.hardwareConcurrency,
+                                            deviceMemory: navigator.deviceMemory,
+                                            webdriver: navigator.webdriver,
+                                            doNotTrack: navigator.doNotTrack,
+                                            maxTouchPoints: navigator.maxTouchPoints,
+                                            userAgentData: uaData,
+                                        },
+                                        screen: {
+                                            width: screen.width,
+                                            height: screen.height,
+                                            availWidth: screen.availWidth,
+                                            availHeight: screen.availHeight,
+                                            colorDepth: screen.colorDepth,
+                                            pixelDepth: screen.pixelDepth,
+                                            devicePixelRatio: window.devicePixelRatio,
+                                        },
+                                        intl,
+                                        storage: {
+                                            local: (() => {
+                                                try {
+                                                    const obj = {};
+                                                    for (let i = 0; i < localStorage.length; i += 1) {
+                                                        const key = localStorage.key(i);
+                                                        if (key !== null) {
+                                                            obj[key] = localStorage.getItem(key);
+                                                        }
+                                                    }
+                                                    return obj;
+                                                } catch (e) {
+                                                    return {};
+                                                }
+                                            })(),
+                                            session: (() => {
+                                                try {
+                                                    const obj = {};
+                                                    for (let i = 0; i < sessionStorage.length; i += 1) {
+                                                        const key = sessionStorage.key(i);
+                                                        if (key !== null) {
+                                                            obj[key] = sessionStorage.getItem(key);
+                                                        }
+                                                    }
+                                                    return obj;
+                                                } catch (e) {
+                                                    return {};
+                                                }
+                                            })(),
+                                        },
+                                    };
+                                }''')
+                                
+                                print(log_message("系统", "info", "浏览器环境信息抓取成功"))
                                 
                                 # 保存登录状态并处理成标准格式
                                 full_state = await context.storage_state()
@@ -157,27 +243,60 @@ async def main():
                                     }
                                     standard_cookies.append(clean_cookie)
                                 
-                                standard_state = {"cookies": standard_cookies}
+                                # 创建增强版快照格式
+                                snapshot_data = {
+                                    "capturedAt": datetime.now().isoformat(),
+                                    "pageUrl": page.url,
+                                    "page": {
+                                        "pageUrl": page.url,
+                                        "referrer": page.url,  # 使用当前页面作为referrer
+                                        "visibilityState": "visible"
+                                    },
+                                    "env": browser_env,
+                                    "storage": browser_env["storage"],
+                                    "meta": {
+                                        "droppedStorageKeys": {
+                                            "local": [],
+                                            "session": []
+                                        }
+                                    },
+                                    "headers": {
+                                        "User-Agent": browser_env["navigator"]["userAgent"],
+                                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                                        "Accept-Language": browser_env["navigator"]["language"],
+                                        "Accept-Encoding": "gzip, deflate, br",
+                                        "Referer": "https://www.goofish.com/",
+                                        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                                        "Sec-Ch-Ua-Mobile": "?1",
+                                        "Sec-Ch-Ua-Platform": '"Android"',
+                                        "Sec-Fetch-Site": "same-origin",
+                                        "Sec-Fetch-Mode": "navigate",
+                                        "Sec-Fetch-Dest": "document",
+                                        "Upgrade-Insecure-Requests": "1",
+                                        "Cache-Control": "max-age=0"
+                                    },
+                                    "cookies": standard_cookies
+                                }
                                 
                                 # 写入文件
                                 with open(STATE_FILE, 'w', encoding='utf-8') as f:
-                                    json.dump(standard_state, f, indent=2, ensure_ascii=False)
-                                print(f"✅ 登录状态已成功保存到: {STATE_FILE}")
+                                    json.dump(snapshot_data, f, indent=2, ensure_ascii=False)
+                                print(log_message("系统", "info", f"登录状态已成功保存到: {STATE_FILE}"))
                                 
                                 # 验证保存的状态文件
                                 if os.path.exists(STATE_FILE):
                                     with open(STATE_FILE, 'r', encoding='utf-8') as f:
                                         state_data = json.load(f)
                                     if state_data.get('cookies') and len(state_data['cookies']) > 0:
-                                        print(f"✅ 已保存 {len(state_data['cookies'])} 个Cookie")
+                                        print(log_message("系统", "info", f"已保存 {len(state_data['cookies'])} 个Cookie"))
                                     else:
-                                        print("⚠️ 保存的状态文件中Cookie数量为0，请检查登录状态")
+                                        print(log_message("系统", "warning", "保存的状态文件中Cookie数量为0，请检查登录状态"))
                                 
                                 login_successful = True
                                 break
                                 
                         except Exception as e:
-                            print(f"验证登录状态时出错: {e}")
+                            print(log_message("系统", "error", f"验证登录状态时出错: {e}"))
                 
                     if login_successful:
                         break
@@ -185,8 +304,8 @@ async def main():
                     await page.wait_for_timeout(500)  # 等待500毫秒后再检查
                 
                 if not login_successful:
-                    print("⚠️ 登录超时，未成功完成登录")
-                    print("正在尝试最后一次保存状态...")
+                    print(log_message("系统", "warning", "登录超时，未成功完成登录"))
+                    print(log_message("系统", "info", "正在尝试最后一次保存状态..."))
                     
                     # 尝试手动保存状态
                     full_state = await context.storage_state()
@@ -209,11 +328,11 @@ async def main():
                     standard_state = {"cookies": filtered_cookies}
                     with open(STATE_FILE, 'w', encoding='utf-8') as f:
                         json.dump(standard_state, f, indent=2, ensure_ascii=False)
-                    print(f"✅ 登录状态已手动保存到: {STATE_FILE}")
+                    print(log_message("系统", "info", f"登录状态已手动保存到: {STATE_FILE}"))
                 
             except Exception as e:
-                print(f"⚠️ 登录过程出错: {e}")
-                print("正在尝试手动保存状态...")
+                print(log_message("系统", "warning", f"登录过程出错: {e}"))
+                print(log_message("系统", "info", "正在尝试手动保存状态..."))
                 
                 # 尝试手动保存状态
                 try:
@@ -250,17 +369,17 @@ async def main():
                     standard_state = {"cookies": filtered_cookies}
                     with open(STATE_FILE, 'w', encoding='utf-8') as f:
                         json.dump(standard_state, f, indent=2, ensure_ascii=False)
-                    print(f"✅ 登录状态已手动保存到: {STATE_FILE}")
+                    print(log_message("系统", "info", f"登录状态已手动保存到: {STATE_FILE}"))
                 except Exception as save_error:
-                    print(f"❌ 手动保存状态失败: {save_error}")
+                    print(log_message("系统", "error", f"手动保存状态失败: {save_error}"))
                     
         except Exception as e:
-            print(f"❌ 页面加载或登录流程出错: {e}")
+            print(log_message("系统", "error", f"页面加载或登录流程出错: {e}"))
         finally:
             # 关闭浏览器
             await browser.close()
 
 
 if __name__ == "__main__":
-    print("正在启动咸鱼登录流程...")
+    print(log_message("系统", "info", "正在启动咸鱼登录流程..."))
     asyncio.run(main())
