@@ -1,0 +1,17 @@
+services:
+ app:
+   image: banbanzhige/ai-goofish-monitor-qb:latest
+   container_name: ai-goofish-monitor-qb
+   pull_policy: always
+   ports:
+     - "8001:8000"
+   volumes:
+     - ./.env:/app/.env
+     - ./logs:/app/logs
+     - ./jsonl:/app/jsonl
+     - ./images:/app/images
+     - ./criteria:/app/criteria
+     - ./requirement:/app/requirement
+   # - ./prompts:/app/prompts 
+   restart: unless-stopped
+
