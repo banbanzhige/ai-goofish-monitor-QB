@@ -1,9 +1,9 @@
 <a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" title="ai-goofish-monitor-QB">
-  <img src="/logo/banner.png" alt="ai-goofish-monitor-QB Banner" width="80%">
+  <img src="/logo/banner.png" alt="ai-goofish-monitor-QB Banner" width="100%">
 </a>
 
 
-# 咸鱼智能监控机器人
+# 咸鱼AI智能监控机器人
 基于 Playwright 和 AI 的闲鱼多任务实时监控工具机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
 基于原仓库地址代码：[Usagi-org/ai-goofish-monitor](https://github.com/Usagi-org/ai-goofish-monitor) 大量修改优化代码与操作逻辑调整到更舒适的使用体验风格。
 - 本项目仅供学习和技术研究使用，请勿用于非法用途。
