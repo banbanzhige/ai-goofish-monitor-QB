@@ -31,9 +31,14 @@ async def get_system_status():
             asyncio.create_task(update_task_running_status(task_id, False))
     status = {
         "scraper_running": len(running_pids) > 0,
+        # [已弃用] 原xianyu_state.json检查 - 现改为检查账号目录
         "login_state_file": {
-            "exists": os.path.exists("xianyu_state.json"),
-            "path": "xianyu_state.json"
+            # 检查state目录是否有可用账号
+            "exists": os.path.exists("state") and any(
+                f.endswith(".json") and not f.startswith("_") 
+                for f in os.listdir("state") if os.path.isfile(os.path.join("state", f))
+            ) if os.path.exists("state") else False,
+            "path": "state/*.json"  # 现使用多账号管理
         },
         "env_file": {
             "exists": os.path.exists(".env"),
@@ -51,6 +56,7 @@ async def get_system_status():
             "telegram_bot_token_set": bool(TELEGRAM_BOT_TOKEN()),
             "telegram_chat_id_set": bool(TELEGRAM_CHAT_ID()),
             "webhook_url_set": bool(WEBHOOK_URL()),
+            "dingtalk_webhook_set": bool(get_env_value("DINGTALK_WEBHOOK", "")),
         }
     }
     return status
@@ -199,6 +205,20 @@ async def delete_prompt(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除 Prompt 文件时出错: {e}")
 
+@router.get("/api/login-state")
+async def get_login_state():
+    """读取 xianyu_state.json 文件内容。"""
+    state_file = "xianyu_state.json"
+    if not os.path.exists(state_file):
+        raise HTTPException(status_code=404, detail="登录状态文件不存在")
+    
+    try:
+        async with aiofiles.open(state_file, 'r', encoding='utf-8') as f:
+            content = await f.read()
+        return {"content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取登录状态文件时出错: {e}")
+
 
 @router.post("/api/login-state")
 async def update_login_state(data: LoginStateUpdate):
@@ -280,7 +300,9 @@ async def get_notification_settings():
         "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
         "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
         "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS",
-        "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"
+        "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY", 
+        "DINGTALK_WEBHOOK", "DINGTALK_SECRET", "DINGTALK_ENABLED",
+        "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"
     ]
     
     settings = {}
@@ -303,7 +325,9 @@ async def update_notification_settings(settings: NotificationSettings):
             "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
             "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
             "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS",
-            "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"
+            "WEBHOOK_CONTENT_TYPE", "WEBHOOK_QUERY_PARAMETERS", "WEBHOOK_BODY",
+            "DINGTALK_WEBHOOK", "DINGTALK_SECRET", "DINGTALK_ENABLED",
+            "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"
         ]
         
         save_env_settings(settings_dict, notification_keys)
