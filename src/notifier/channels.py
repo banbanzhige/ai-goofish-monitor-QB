@@ -443,7 +443,7 @@ class WeChatBotNotifier(BaseNotifier):
             
             headers = { "Content-Type": "application/json" }
             
-            await asyncio.get_running_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
                     config["WX_BOT_URL"],
@@ -452,6 +452,15 @@ class WeChatBotNotifier(BaseNotifier):
                     timeout=10
                 )
             )
+            
+            # 检查响应状态
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get("errcode") != 0:
+                print(f"   -> 发送企业微信机器人测试通知失败: {result.get('errmsg', '未知错误')}")
+                return False
+                
             return True
         except Exception as e:
             print(f"   -> 发送企业微信机器人测试通知失败: {e}")
@@ -476,7 +485,7 @@ class WeChatBotNotifier(BaseNotifier):
                 }
             }
             
-            await asyncio.get_running_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
                     config["WX_BOT_URL"],
@@ -485,6 +494,14 @@ class WeChatBotNotifier(BaseNotifier):
                     timeout=10
                 )
             )
+            
+            # 检查文字消息发送状态
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get("errcode") != 0:
+                print(f"   -> 发送企业微信机器人文字通知失败: {result.get('errmsg', '未知错误')}")
+                return False
             
             # 2. 如果有商品图片，发送图文消息（包含标题+价格+发布时间）
             if main_image:
@@ -510,7 +527,7 @@ class WeChatBotNotifier(BaseNotifier):
                         }
                     }
                     
-                    await asyncio.get_running_loop().run_in_executor(
+                    img_response = await asyncio.get_running_loop().run_in_executor(
                         None,
                         lambda: requests.post(
                             config["WX_BOT_URL"],
@@ -519,6 +536,13 @@ class WeChatBotNotifier(BaseNotifier):
                             timeout=10
                         )
                     )
+                    
+                    img_response.raise_for_status()
+                    img_result = img_response.json()
+                    
+                    if img_result.get("errcode") != 0:
+                        print(f"   -> 发送商品图文消息失败: {img_result.get('errmsg', '未知错误')}")
+                        # 图文消息发送失败不影响整个通知流程
                 except Exception as img_e:
                     print(f"   -> 发送商品图文消息失败: {img_e}")
                     # 图文消息发送失败不影响整个通知流程
@@ -544,7 +568,7 @@ class WeChatBotNotifier(BaseNotifier):
             
             headers = {"Content-Type": "application/json"}
             
-            await asyncio.get_running_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
                     config["WX_BOT_URL"],
@@ -553,6 +577,15 @@ class WeChatBotNotifier(BaseNotifier):
                     timeout=10
                 )
             )
+            
+            # 检查响应状态
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get("errcode") != 0:
+                print(f"   -> 发送企业微信机器人任务开始通知失败: {result.get('errmsg', '未知错误')}")
+                return False
+                
             return True
         except Exception as e:
             print(f"   -> 发送企业微信机器人任务开始通知失败: {e}")
@@ -576,7 +609,7 @@ class WeChatBotNotifier(BaseNotifier):
             
             headers = {"Content-Type": "application/json"}
             
-            await asyncio.get_running_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
                     config["WX_BOT_URL"],
@@ -585,6 +618,15 @@ class WeChatBotNotifier(BaseNotifier):
                     timeout=10
                 )
             )
+            
+            # 检查响应状态
+            response.raise_for_status()
+            result = response.json()
+            
+            if result.get("errcode") != 0:
+                print(f"   -> 发送企业微信机器人任务完成通知失败: {result.get('errmsg', '未知错误')}")
+                return False
+                
             return True
         except Exception as e:
             print(f"   -> 发送企业微信机器人任务完成通知失败: {e}")
@@ -1136,3 +1178,225 @@ class WebhookNotifier(BaseNotifier):
                     print(f"   -> [警告] Webhook 请求体格式错误，请检查 .env 中的 WEBHOOK_BODY。")
             
             requests.post(final_url, headers=headers, json=json_payload, data=data, timeout=15)
+
+
+class DingTalkNotifier(BaseNotifier):
+    """钉钉机器人通知渠道"""
+    
+    def __init__(self):
+        super().__init__("dingtalk")
+    
+    def _get_signed_url(self) -> str:
+        """
+        获取带签名的钉钉Webhook URL
+        如果配置了SECRET，则使用HMAC-SHA256签名
+        """
+        import time
+        import hmac
+        import hashlib
+        import base64
+        import urllib.parse
+        
+        webhook_url = config["DINGTALK_WEBHOOK"]
+        secret = config.get("DINGTALK_SECRET", "")
+        
+        if secret:
+            timestamp = str(round(time.time() * 1000))
+            secret_enc = secret.encode('utf-8')
+            string_to_sign = f'{timestamp}\n{secret}'
+            string_to_sign_enc = string_to_sign.encode('utf-8')
+            hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
+            sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+            return f"{webhook_url}&timestamp={timestamp}&sign={sign}"
+        
+        return webhook_url
+    
+    async def send_test_notification(self) -> bool:
+        if not config["DINGTALK_WEBHOOK"] or not config["DINGTALK_ENABLED"]:
+            return False
+            
+        try:
+            test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
+            test_message = "这是一个测试通知，用于验证钉钉机器人配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
+            
+            # 使用ActionCard图文卡片格式
+            payload = {
+                "msgtype": "actionCard",
+                "actionCard": {
+                    "title": test_title,
+                    "text": f"### {test_title}\n\n{test_message}",
+                    "btnOrientation": "0",
+                    "singleTitle": "查看管理后台",
+                    "singleURL": "http://127.0.0.1:8791"
+                }
+            }
+            
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            url = self._get_signed_url()
+            
+            response = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            
+            result = response.json()
+            if result.get("errcode") == 0:
+                print("   -> 钉钉测试通知发送成功")
+                return True
+            else:
+                print(f"   -> 钉钉发送通知失败: errcode={result.get('errcode')}, errmsg={result.get('errmsg')}")
+                return False
+        except Exception as e:
+            print(f"   -> 发送钉钉测试通知异常: {e}")
+            return False
+    
+    async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
+        if not config["DINGTALK_WEBHOOK"] or not config["DINGTALK_ENABLED"]:
+            return False
+            
+        try:
+            product_info = self._get_product_info(product)
+            actual_product = product_info['actual_product']
+            pc_link = product_info['pc_link']
+            mobile_link = product_info['mobile_link']
+            main_image = product_info['main_image']
+            
+            title = actual_product.get('商品标题', '未知商品')
+            price = actual_product.get('当前售价', '未知价格')
+            publish_time = actual_product.get('发布时间', '未知时间')
+            
+            # 选择合适的链接
+            product_link = mobile_link if config["PCURL_TO_MOBILE"] else pc_link
+            
+            # 构建Markdown内容
+            markdown_text = f"### 🚨 新推荐商品\n\n"
+            markdown_text += f"**{title}**\n\n"
+            markdown_text += f"💰 价格: {price}\n\n"
+            markdown_text += f"⏰ 发布时间: {publish_time}\n\n"
+            markdown_text += f"📝 推荐理由: {reason}\n\n"
+            
+            if main_image:
+                markdown_text += f"![商品图片]({main_image})\n\n"
+            
+            # 使用ActionCard图文卡片格式，点击跳转商品链接
+            payload = {
+                "msgtype": "actionCard",
+                "actionCard": {
+                    "title": f"🚨 {title[:30]}...",
+                    "text": markdown_text,
+                    "btnOrientation": "0",
+                    "singleTitle": "查看商品详情 >>",
+                    "singleURL": product_link
+                }
+            }
+            
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            url = self._get_signed_url()
+            
+            response = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            
+            result = response.json()
+            if result.get("errcode") == 0:
+                print("   -> 钉钉商品通知发送成功")
+                return True
+            else:
+                print(f"   -> 钉钉发送商品通知失败: errcode={result.get('errcode')}, errmsg={result.get('errmsg')}")
+                return False
+        except Exception as e:
+            print(f"   -> 发送钉钉商品通知异常: {e}")
+            return False
+    
+    async def send_task_start_notification(self, task_name: str, reason: str) -> bool:
+        if not config["DINGTALK_WEBHOOK"] or not config["DINGTALK_ENABLED"]:
+            return False
+        try:
+            notification_title = "🚀 任务开始"
+            message = f"开始了 '{task_name}' 任务 - {reason}"
+            
+            # 使用Markdown格式
+            payload = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "title": notification_title,
+                    "text": f"### {notification_title}\n\n{message}"
+                }
+            }
+            
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            url = self._get_signed_url()
+            
+            response = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            
+            result = response.json()
+            if result.get("errcode") == 0:
+                print("   -> 钉钉任务开始通知发送成功")
+                return True
+            else:
+                print(f"   -> 钉钉发送任务开始通知失败: errcode={result.get('errcode')}, errmsg={result.get('errmsg')}")
+                return False
+        except Exception as e:
+            print(f"   -> 发送钉钉任务开始通知异常: {e}")
+            return False
+    
+    async def send_task_completion_notification(self, task_name: str, reason: str, processed_count: int = 0, recommended_count: int = 0) -> bool:
+        if not config["DINGTALK_WEBHOOK"] or not config["DINGTALK_ENABLED"]:
+            return False
+        try:
+            notification_title = "✅ 任务完成"
+            message = f"结束了 '{task_name}' 任务 - {reason}"
+            if processed_count > 0 or recommended_count > 0:
+                message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
+            
+            # 使用Markdown格式
+            payload = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "title": notification_title,
+                    "text": f"### {notification_title}\n\n{message}"
+                }
+            }
+            
+            headers = {"Content-Type": "application/json; charset=utf-8"}
+            url = self._get_signed_url()
+            
+            response = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: requests.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+            )
+            
+            result = response.json()
+            if result.get("errcode") == 0:
+                print("   -> 钉钉任务完成通知发送成功")
+                return True
+            else:
+                print(f"   -> 钉钉发送任务完成通知失败: errcode={result.get('errcode')}, errmsg={result.get('errmsg')}")
+                return False
+        except Exception as e:
+            print(f"   -> 发送钉钉任务完成通知异常: {e}")
+            return False
