@@ -6,14 +6,29 @@ from typing import Dict, Any
 
 from playwright.async_api import async_playwright
 
-STATE_FILE = "xianyu_state.json"
 LOGIN_IS_EDGE = os.getenv("LOGIN_IS_EDGE", "false").lower() == "true"
 RUNNING_IN_DOCKER = os.getenv("RUNNING_IN_DOCKER", "false").lower() == "true"
+STATE_DIR = "state"
 
 # 统一日志格式化函数
 def log_message(task_name, level, message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return f"[{timestamp}] [{task_name}] [{level.upper()}] {message}"
+
+def ensure_state_dir():
+    """确保state目录存在"""
+    os.makedirs(STATE_DIR, exist_ok=True)
+
+def generate_unique_account_name():
+    """生成唯一的账号名称"""
+    ensure_state_dir()
+    base_name = "auto_account"
+    counter = 1
+    while True:
+        account_name = f"{base_name}_{counter}"
+        if not os.path.exists(os.path.join(STATE_DIR, f"{account_name}.json")):
+            return account_name
+        counter += 1
 
 async def main():
     async with async_playwright() as p:
@@ -278,14 +293,31 @@ async def main():
                                     "cookies": standard_cookies
                                 }
                                 
-                                # 写入文件
-                                with open(STATE_FILE, 'w', encoding='utf-8') as f:
-                                    json.dump(snapshot_data, f, indent=2, ensure_ascii=False)
-                                print(log_message("系统", "info", f"登录状态已成功保存到: {STATE_FILE}"))
+                                # 生成唯一账号名称并保存到state目录
+                                ensure_state_dir()
+                                account_name = generate_unique_account_name()
+                                display_name = f"自动获取账号_{datetime.now().strftime('%m%d_%H%M')}"
+                                account_data = {
+                                    "display_name": display_name,
+                                    "created_at": datetime.now().isoformat(),
+                                    "last_used_at": None,
+                                    "risk_control_count": 0,
+                                    "risk_control_history": [],
+                                    "cookies": snapshot_data["cookies"],
+                                    "env": snapshot_data.get("env"),
+                                    "headers": snapshot_data.get("headers"),
+                                    "page": snapshot_data.get("page"),
+                                    "storage": snapshot_data.get("storage")
+                                }
+                                
+                                account_file_path = os.path.join(STATE_DIR, f"{account_name}.json")
+                                with open(account_file_path, 'w', encoding='utf-8') as f:
+                                    json.dump(account_data, f, indent=2, ensure_ascii=False)
+                                print(log_message("系统", "info", f"登录状态已成功保存到: {account_file_path}"))
                                 
                                 # 验证保存的状态文件
-                                if os.path.exists(STATE_FILE):
-                                    with open(STATE_FILE, 'r', encoding='utf-8') as f:
+                                if os.path.exists(account_file_path):
+                                    with open(account_file_path, 'r', encoding='utf-8') as f:
                                         state_data = json.load(f)
                                     if state_data.get('cookies') and len(state_data['cookies']) > 0:
                                         print(log_message("系统", "info", f"已保存 {len(state_data['cookies'])} 个Cookie"))
@@ -325,10 +357,23 @@ async def main():
                             }
                             filtered_cookies.append(clean_cookie)
                     
-                    standard_state = {"cookies": filtered_cookies}
-                    with open(STATE_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(standard_state, f, indent=2, ensure_ascii=False)
-                    print(log_message("系统", "info", f"登录状态已手动保存到: {STATE_FILE}"))
+                    # 生成唯一账号名称并保存到state目录
+                    ensure_state_dir()
+                    account_name = generate_unique_account_name()
+                    display_name = f"自动获取账号_{datetime.now().strftime('%m%d_%H%M')}"
+                    account_data = {
+                        "display_name": display_name,
+                        "created_at": datetime.now().isoformat(),
+                        "last_used_at": None,
+                        "risk_control_count": 0,
+                        "risk_control_history": [],
+                        "cookies": filtered_cookies
+                    }
+                    
+                    account_file_path = os.path.join(STATE_DIR, f"{account_name}.json")
+                    with open(account_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(account_data, f, indent=2, ensure_ascii=False)
+                    print(log_message("系统", "info", f"登录状态已手动保存到: {account_file_path}"))
                 
             except Exception as e:
                 print(log_message("系统", "warning", f"登录过程出错: {e}"))
@@ -366,10 +411,23 @@ async def main():
                             }
                             filtered_cookies.append(clean_cookie)
                     
-                    standard_state = {"cookies": filtered_cookies}
-                    with open(STATE_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(standard_state, f, indent=2, ensure_ascii=False)
-                    print(log_message("系统", "info", f"登录状态已手动保存到: {STATE_FILE}"))
+                    # 生成唯一账号名称并保存到state目录
+                    ensure_state_dir()
+                    account_name = generate_unique_account_name()
+                    display_name = f"自动获取账号_{datetime.now().strftime('%m%d_%H%M')}"
+                    account_data = {
+                        "display_name": display_name,
+                        "created_at": datetime.now().isoformat(),
+                        "last_used_at": None,
+                        "risk_control_count": 0,
+                        "risk_control_history": [],
+                        "cookies": filtered_cookies
+                    }
+                    
+                    account_file_path = os.path.join(STATE_DIR, f"{account_name}.json")
+                    with open(account_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(account_data, f, indent=2, ensure_ascii=False)
+                    print(log_message("系统", "info", f"登录状态已手动保存到: {account_file_path}"))
                 except Exception as save_error:
                     print(log_message("系统", "error", f"手动保存状态失败: {save_error}"))
                     
@@ -378,6 +436,14 @@ async def main():
         finally:
             # 关闭浏览器
             await browser.close()
+
+            # 确保不生成 xianyu_state.json 文件
+            if os.path.exists("xianyu_state.json"):
+                try:
+                    os.remove("xianyu_state.json")
+                    print(log_message("系统", "info", "已删除临时文件 xianyu_state.json"))
+                except Exception as e:
+                    print(log_message("系统", "warning", f"删除临时文件失败: {e}"))
 
 
 if __name__ == "__main__":
