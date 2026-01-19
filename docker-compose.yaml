@@ -9,9 +9,9 @@ services:
      - ./.env:/app/.env
      - ./logs:/app/logs
      - ./jsonl:/app/jsonl
-     - ./images:/app/images
      - ./criteria:/app/criteria
      - ./requirement:/app/requirement
    # - ./prompts:/app/prompts 
+   # - ./state:/app/state 
    restart: unless-stopped
 
