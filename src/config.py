@@ -214,13 +214,18 @@ def save_env_settings(settings: dict, setting_keys: list):
 
 def reload_config():
     """Reload all configuration and restart AI client if needed"""
-    # Clear the existing environment variables to ensure fresh values
-    for key in list(os.environ.keys()):
-        if key.startswith('OPENAI_') or key == 'PROXY_URL' or key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"]:
-            del os.environ[key]
+    # print("DEBUG: 开始重新加载配置")
     
+    # 强制重新加载 .env 文件
     load_dotenv(override=True)  # Reload .env with override=True
-    return initialize_ai_client()  # Reinitialize AI client with new config
+    
+    # print(f"DEBUG: 重新加载后的配置 - OPENAI_API_KEY: {os.getenv('OPENAI_API_KEY')}, "
+    #       f"OPENAI_BASE_URL: {os.getenv('OPENAI_BASE_URL')}, "
+    #       f"OPENAI_MODEL_NAME: {os.getenv('OPENAI_MODEL_NAME')}")
+    
+    result = initialize_ai_client()
+    # print(f"DEBUG: AI客户端初始化结果: {result}")
+    return result
 
 # 初始客户端初始化
 client = None
