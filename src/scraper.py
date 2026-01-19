@@ -277,10 +277,15 @@ async def fetch_user_profile(context, user_id: str) -> dict:
     return profile_data
 
 
-async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
+async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: str = None):
     """
     【核心执行器】
     根据单个任务配置，异步浏览闲鱼商品数据，并对每个新发现的商品进行实时的、独立的AI分析和通知。
+    
+    Args:
+        task_config: 任务配置
+        debug_limit: 调试模式下的商品处理限制
+        bound_account: 绑定的账号名，如果指定则从 state/{bound_account}.json 加载
     """
     keyword = task_config['keyword']
     task_name = task_config.get('task_name', keyword)
@@ -334,19 +339,94 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
             else:
                 browser = await p.chromium.launch(headless=RUN_HEADLESS(), channel="chrome", args=launch_args)
 
+        # 确定要使用的state文件路径
+        if bound_account:
+            state_file_path = os.path.join("state", f"{bound_account}.json")
+            print(f"LOG: 使用绑定账号 '{bound_account}' 的状态文件: {state_file_path}")
+        else:
+            # 默认随机选择一个有效账号
+            state_dir = "state"
+            available_accounts = []
+            valid_accounts = []
+            current_time = datetime.now().timestamp()
+            
+            if os.path.exists(state_dir):
+                for filename in os.listdir(state_dir):
+                    if filename.endswith(".json") and not filename.startswith("_"):
+                        account_name = filename[:-5]
+                        account_file = os.path.join(state_dir, filename)
+                        available_accounts.append(account_name)
+                        
+                        # 检查账号Cookie是否有效
+                        try:
+                            with open(account_file, 'r', encoding='utf-8') as f:
+                                account_data = json.load(f)
+                            
+                            cookies = account_data.get("cookies", [])
+                            is_valid = True
+                            
+                            # 检查关键Cookie是否过期
+                            required_cookies = ["_m_h5_tk", "cookie2", "sgcookie"]
+                            for cookie in cookies:
+                                if cookie.get("name") in required_cookies:
+                                    expires = cookie.get("expires", 0)
+                                    if expires > 0 and expires < current_time:
+                                        is_valid = False
+                                        break
+                            
+                            if is_valid and cookies:
+                                valid_accounts.append(account_name)
+                        except Exception as e:
+                            print(f"LOG: 检查账号 {account_name} 有效性时出错: {e}")
+            
+            # 优先选择有效账号
+            if valid_accounts:
+                selected_account = random.choice(valid_accounts)
+                state_file_path = os.path.join("state", f"{selected_account}.json")
+                print(f"LOG: 随机选择有效账号 '{selected_account}': {state_file_path}")
+                
+                # 更新账号最后使用时间
+                try:
+                    with open(state_file_path, 'r', encoding='utf-8') as f:
+                        account_data = json.load(f)
+                    account_data["last_used_at"] = datetime.now().isoformat()
+                    with open(state_file_path, 'w', encoding='utf-8') as f:
+                        json.dump(account_data, f, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    print(f"LOG: 更新账号使用时间失败: {e}")
+                    
+            elif available_accounts:
+                # 没有有效账号但有账号存在
+                print("\n==================== 无有效Cookie ====================")
+                print("所有账号的Cookie均已过期，任务无法执行。")
+                print("请在账号管理页面更新Cookie后重试。")
+                print("==================================================")
+                
+                await browser.close()
+                return 0, 0, "NO_VALID_COOKIE:所有账号Cookie已过期"
+            else:
+                # 没有任何账号
+                print("\n==================== 无可用账号 ====================")
+                print("未找到任何可用账号，任务无法执行。")
+                print("请在账号管理页面添加账号后重试。")
+                print("==================================================")
+                
+                await browser.close()
+                return 0, 0, "NO_ACCOUNT:无可用账号"
+
         # 加载登录状态文件
         snapshot_data = None
         try:
-            if os.path.exists(STATE_FILE):
-                with open(STATE_FILE, "r", encoding="utf-8") as f:
+            if os.path.exists(state_file_path):
+                with open(state_file_path, "r", encoding="utf-8") as f:
                     snapshot_data = json.load(f)
             else:
-                print(f"警告：登录状态文件不存在: {STATE_FILE}")
+                print(f"警告：登录状态文件不存在: {state_file_path}")
         except Exception as e:
             print(f"警告：读取登录状态文件失败，将使用默认配置: {e}")
 
         context_kwargs = _default_context_options()
-        storage_state_arg = STATE_FILE
+        storage_state_arg = state_file_path
 
         if isinstance(snapshot_data, dict):
             # 新版扩展导出的增强快照，包含环境和Header
@@ -424,15 +504,11 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
             try:
                 # 等待弹窗在2秒内出现。如果出现，则执行块内代码。
                 await baxia_dialog.wait_for(state='visible', timeout=2000)
-                print("\n==================== CRITICAL BLOCK DETECTED ====================")
-                print("检测到页面验证弹窗 (baxia-dialog)，无法继续操作。")
-                print("这通常是因为操作过于频繁或网络环境问题。")
-                print("建议：")
-                print("1. 停止脚本一段时间再试。")
-                print("2. (推荐) 在 .env 文件中设置 RUN_HEADLESS=false，以非无头模式运行，这有助于验证。")
+                print("\n==================== 风控触发 ====================")
+                print("检测到页面验证弹窗 (baxia-dialog)，触发风控保护。")
                 print(f"任务 '{keyword}' 将在此处中止。")
-                print("===================================================================")
-                end_reason = "操作终止-结束原因：检测到页面验证弹窗，无法继续操作"
+                print("==================================================")
+                end_reason = "RISK_CONTROL:BAXIA_DIALOG"
                 await browser.close()
                 return processed_item_count, recommended_item_count, end_reason
             except PlaywrightTimeoutError:
@@ -442,16 +518,11 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
             # 检查是否有J_MIDDLEWARE_FRAME_WIDGET覆盖层
             try:
                 await middleware_widget.wait_for(state='visible', timeout=2000)
-                print("\n==================== CRITICAL BLOCK DETECTED ====================")
-                print("检测到页面验证弹窗 (J_MIDDLEWARE_FRAME_WIDGET)，无法继续操作。")
-                print("这通常是因为操作过于频繁或网络环境问题。")
-                print("建议：")
-                print("1. 停止脚本一段时间再试。")
-                print("2. (推荐) 更新登录状态文件，确保登录状态有效。")
-                print("3. 降低任务执行频率，避免过于频繁的访问。")
+                print("\n==================== 风控触发 ====================")
+                print("检测到页面验证弹窗 (J_MIDDLEWARE_FRAME_WIDGET)，触发风控保护。")
                 print(f"任务 '{keyword}' 将在此处中止。")
-                print("===================================================================")
-                end_reason = "操作终止-结束原因：检测到页面验证弹窗，无法继续操作"
+                print("==================================================")
+                end_reason = "RISK_CONTROL:MIDDLEWARE_WIDGET"
                 await browser.close()
                 return processed_item_count, recommended_item_count, end_reason
             except PlaywrightTimeoutError:
@@ -561,63 +632,16 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0):
 
                             ret_string = str(await safe_get(detail_json, 'ret', default=[]))
                             if "FAIL_SYS_USER_VALIDATE" in ret_string:
-                                print("\n==================== CRITICAL BLOCK DETECTED ====================")
+                                print("\n==================== 风控触发 ====================")
                                 print("检测到系统验证请求 (FAIL_SYS_USER_VALIDATE)")
-                                print("请在60秒内手动完成验证...")
-                                print("注意：请不要关闭浏览器窗口，等待您手动完成验证。")
-                                
-                                # 等待60秒，让用户有机会手动完成验证
-                                # 不再自动刷新页面，避免影响用户操作
-                                verification_passed = False
-                                for i in range(60):
-                                    if i % 10 == 0:
-                                        print(f"等待验证中... 剩余时间: {60-i}秒 (请手动完成滑块验证)")
-                                    
-                                    # 检查页面上是否还有验证相关的元素
-                                    try:
-                                        # 检查是否还存在验证相关的元素
-                                        verify_elements = await detail_page.locator("text=请完成验证").count()
-                                        
-                                        # 如果找不到验证提示，尝试检查页面内容是否为正常商品页面
-                                        page_content = await detail_page.content()
-                                        
-                                        # 检查是否已经成功通过验证，页面加载为正常的商品详情
-                                        if "请完成验证" not in page_content and "verify" not in page_content.lower() and "validate" not in page_content.lower():
-                                            # 再次检查API响应是否正常
-                                            try:
-                                                # 尝试重新获取API响应来确认验证是否通过
-                                                await detail_page.wait_for_load_state("networkidle", timeout=5000)
-                                                # 检查页面是否已恢复正常
-                                                current_url = await detail_page.url()
-                                                
-                                                # 检查URL是否恢复正常，不再是验证页面
-                                                if "verify" not in current_url.lower() and "validate" not in current_url.lower() and "security" not in current_url.lower():
-                                                    # 尝试重新获取页面标题，如果是正常商品页面则验证已通过
-                                                    page_title = await detail_page.title()
-                                                    if page_title and "闲鱼" in page_title and "验证" not in page_title:
-                                                        print("✅ 验证已通过，继续执行...")
-                                                        verification_passed = True
-                                                        break
-                                            except:
-                                                pass
-                                    
-                                    except Exception as e:
-                                        # 如果检查页面内容出错，继续等待
-                                        pass
-                                    
-                                    await asyncio.sleep(1)
-                                
-                                if not verification_passed:
-                                    # 60秒后验证仍未通过
-                                    print("60秒内未完成验证，程序将终止。")
-                                    long_sleep_duration = random.randint(30, 120)  # 增加休眠时间
-                                    print(f"为避免账户风险，将执行一次长时间休眠 ({long_sleep_duration} 秒) 后再退出...")
-                                    await asyncio.sleep(long_sleep_duration)
-                                    print("长时间休眠结束，现在将安全退出。")
-                                    print("===================================================================")
-                                    stop_scraping = True
-                                    end_reason = "操作终止-结束原因：系统验证超时，未在60秒内完成验证"
-                                    break
+                                print("触发风控保护机制，任务将立即终止。")
+                                print("==================================================")
+                                stop_scraping = True
+                                end_reason = "RISK_CONTROL:FAIL_SYS_USER_VALIDATE"
+                                await detail_page.close()
+                                await browser.close()
+                                return processed_item_count, recommended_item_count, end_reason
+
 
                             # 解析商品详情数据并更新 item_data
                             item_do = await safe_get(detail_json, 'data', 'itemDO', default={})
