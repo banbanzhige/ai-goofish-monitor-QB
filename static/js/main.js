@@ -1,8 +1,78 @@
 document.addEventListener('DOMContentLoaded', function () {
+    // 下拉菜单交互逻辑
+    document.addEventListener('click', function(event) {
+        const dropdownBtn = event.target.closest('.dropdown-btn');
+        
+        // 点击下拉按钮
+        if (dropdownBtn) {
+            event.stopPropagation();
+            
+            const dropdownContainer = dropdownBtn.closest('.dropdown-container');
+            const dropdownMenu = dropdownContainer.querySelector('.dropdown-menu');
+            
+            // 切换当前下拉菜单的显示/隐藏
+            dropdownMenu.classList.toggle('show');
+            
+            // 关闭其他所有下拉菜单
+            document.querySelectorAll('.dropdown-container').forEach(container => {
+                if (container !== dropdownContainer) {
+                    const menu = container.querySelector('.dropdown-menu');
+                    menu.classList.remove('show');
+                }
+            });
+        } else {
+            // 点击外部区域，关闭所有下拉菜单
+            document.querySelectorAll('.dropdown-menu').forEach(menu => {
+                menu.classList.remove('show');
+            });
+        }
+    });
+
+    // 为下拉菜单项添加点击事件，点击后关闭菜单
+    document.addEventListener('click', function(event) {
+        const dropdownItem = event.target.closest('.dropdown-item');
+        
+        if (dropdownItem) {
+            const dropdownMenu = dropdownItem.closest('.dropdown-menu');
+            dropdownMenu.classList.remove('show');
+        }
+    });
+
     const mainContent = document.getElementById('main-content');
     const navLinks = document.querySelectorAll('.nav-link');
     let logRefreshInterval = null;
     let taskRefreshInterval = null;
+
+    // Mobile Menu Logic
+    const mobileMenuBtn = document.getElementById('mobile-menu-toggle');
+    const sidebar = document.querySelector('aside');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    if (mobileMenuBtn && sidebar && sidebarOverlay) {
+        function toggleMobileMenu() {
+            sidebar.classList.toggle('active');
+            sidebarOverlay.classList.toggle('active');
+        }
+
+        mobileMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMobileMenu();
+        });
+
+        sidebarOverlay.addEventListener('click', () => {
+            toggleMobileMenu();
+        });
+
+        // Close sidebar when clicking a nav link on mobile
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('active');
+                    sidebarOverlay.classList.remove('active');
+                }
+            });
+        });
+    }
 
     // --- 各部分的模板 ---
     const templates = {
@@ -105,6 +175,14 @@ document.addEventListener('DOMContentLoaded', function () {
                             </select>
                         </div>
                         <div class="filter-group">
+                            <select id="log-display-limit">
+                                <option value="100" selected>100条</option>
+                                <option value="200">200条</option>
+                                <option value="500">500条</option>
+                                <option value="1000">1000条</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
                             <button id="refresh-logs-btn" class="control-button">🔄 刷新</button>
                         </div>
                         <div class="filter-group">
@@ -154,6 +232,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
                 <div id="scheduled-table-container">
                     <p>正在加载定时任务...</p>
+                </div>
+            </section>`,
+        accounts: () => `
+            <section id="accounts-section" class="content-section">
+                <div class="section-header">
+                    <h2>闲鱼账号管理</h2>
+                    <div class="header-buttons" style="justify-content: flex-end;">
+                        <button id="import-from-login-btn" class="control-button" style="background-color: #52c41a; border-color: #52c41a; color: white;">🚀 自动获取账号</button>
+                        <button id="add-account-btn" class="control-button primary-btn">✏️ 手动添加账号</button>
+                    </div>
+                </div>
+                <div id="accounts-table-container">
+                    <p>正在加载账号列表...</p>
                 </div>
             </section>`
     };
@@ -370,8 +461,16 @@ document.addEventListener('DOMContentLoaded', function () {
             return await response.json();
         } catch (error) {
             console.error(`无法更新任务 ${taskId}:`, error);
-            // TODO: 使用更优雅的通知系统
-            alert(`错误: ${error.message}`);
+            // Handle various error formats
+            let errorMessage = '更新任务失败';
+            if (error && error.message) {
+                errorMessage = error.message;
+            } else if (typeof error === 'string') {
+                errorMessage = error;
+            } else if (typeof error === 'object') {
+                errorMessage = JSON.stringify(error);
+            }
+            alert(`错误: ${errorMessage}`);
             return null;
         }
     }
@@ -504,10 +603,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function fetchLogs(fromPos = 0, taskName = '') {
+    async function fetchLogs(fromPos = 0, taskName = '', limit = 100) {
         try {
             const params = new URLSearchParams({
-                from_pos: fromPos
+                from_pos: fromPos,
+                limit: limit
             });
             if (taskName) {
                 params.append('task_name', taskName);
@@ -599,123 +699,212 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // --- 账号管理 API ---
+    async function fetchAccounts() {
+        try {
+            const response = await fetch('/api/accounts');
+            if (!response.ok) throw new Error('无法获取账号列表');
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    }
+
+    async function createAccount(data) {
+        try {
+            const response = await fetch('/api/accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '创建账号失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function updateAccount(name, data) {
+        try {
+            const response = await fetch(`/api/accounts/${name}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '更新账号失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function deleteAccount(name) {
+        try {
+            const response = await fetch(`/api/accounts/${name}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '删除账号失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function activateAccount(name) {
+        try {
+            const response = await fetch(`/api/accounts/${name}/activate`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '激活账号失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function fetchAccountDetail(name) {
+        try {
+            const response = await fetch(`/api/accounts/${name}`);
+            if (!response.ok) throw new Error('无法获取账号详情');
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            return null;
+        }
+    }
+
     // --- 渲染函数 ---
     function renderLoginStatusWidget(status) {
         const container = document.getElementById('login-status-widget-container');
         if (!container) return;
 
         const loginState = status.login_state_file;
-        let content = '';
+        const hasCookie = loginState && loginState.exists;
 
-        // 创建手动登录按钮HTML，包含"已获取cookie"状态的下拉菜单
-        let manualLoginBtnHtml = '';
-        if (loginState && loginState.exists) {
-            manualLoginBtnHtml = `
-                <div class="login-status-widget">
-                <div style="position: relative; display: inline-block; vertical-align: middle; margin-right: 15px;">
-                        <button class="control-button primary-btn" style="background-color: #fff533; color: black; padding: 8px 12px; border: 1px solid #fff533;">
-                            ✓ 已获取cookie
-                        </button>
-                        <div class="dropdown-menu">
-                            <a href="#" class="dropdown-item" id="update-login-state-btn-widget">自动更新</a>
-                            <a href="#" class="dropdown-item delete" id="delete-login-state-btn-widget">删除凭证</a>
-                        </div>
-                    </div>
-                    <div style="position: relative; display: inline-block; vertical-align: middle;">
-                        <button class="control-button primary-btn status-ok" style="background-color: #fff533; color: black; border: 1px solid #fff533;">✓ 已登录</button>
-                        <div class="dropdown-menu">
-                            <a href="#" class="dropdown-item" id="update-login-state-btn-widget">手动更新</a>
-                            <a href="#" class="dropdown-item delete" id="delete-login-state-btn-widget">删除凭证</a>
-                        </div>
+        // 固定按钮样式，无论登录状态如何都显示相同的按钮
+        const content = `
+            <div class="login-status-widget">
+                <div class="login-dropdown-container" style="position: relative; display: inline-block;">
+                    <button class="login-status-btn control-button primary-btn" 
+                        style="background-color: #1890ff; border: 1px solid #1890ff; color: white; padding: 8px 16px;">
+                        👤 账号
+                    </button>
+                    <div class="login-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; min-width: 150px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; margin-top: 5px; overflow: hidden;">
+                        <a href="#accounts" class="login-menu-item" style="display: block; padding: 12px 15px; color: #333; text-decoration: none; font-size: 14px;">
+                            ➕ 添加闲鱼账号
+                        </a>
+                        <a href="/logout" class="login-menu-item" style="display: block; padding: 12px 15px; color: #333; text-decoration: none; font-size: 14px;">
+                            🚪 退出登录
+                        </a>
                     </div>
                 </div>
-            `;
-            content = manualLoginBtnHtml;
-        } else {
-            const loginBtnColor = '#dc3545';
-            const loginBtnText = '点击自动获取cookie登录';
-            manualLoginBtnHtml = `
-                <button id="manual-login-btn-header" class="control-button primary-btn" style="background-color: ${loginBtnColor}; border: 1px solid ${loginBtnColor}; color: white; padding: 8px 12px; margin-right: 15px; display: inline-block; vertical-align: middle;">
-                    ${loginBtnText}
-                </button>
-            `;
-            content = `
-                <div class="login-status-widget">
-                    ${manualLoginBtnHtml}
-                    <button id="update-login-state-btn-widget" class="control-button primary-btn status-error" style="background-color: #dc3545; border: 1px solid #dc3545; color: white; display: inline-block; vertical-align: middle;">! 闲鱼未登录 (手动登录)</button>
-                </div>
-            `;
-        }
+            </div>
+        `;
+
         container.innerHTML = content;
 
-        // 为手动登录按钮添加点击事件（需要在设置innerHTML之后添加）
-        const manualLoginBtn = document.getElementById('manual-login-btn-header');
-        if (manualLoginBtn) {
-            manualLoginBtn.addEventListener('click', async () => {
-                // 显示自定义模态框而不是浏览器确认对话框
+        // 下拉菜单交互
+        const dropdownBtn = container.querySelector('.login-status-btn');
+        const dropdownMenu = container.querySelector('.login-dropdown-menu');
+
+        if (dropdownBtn && dropdownMenu) {
+            dropdownBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isVisible = dropdownMenu.style.display === 'block';
+                dropdownMenu.style.display = isVisible ? 'none' : 'block';
+            });
+
+            // 点击外部关闭
+            document.addEventListener('click', () => {
+                dropdownMenu.style.display = 'none';
+            });
+
+            // 菜单项hover效果
+            dropdownMenu.querySelectorAll('.login-menu-item').forEach(item => {
+                item.addEventListener('mouseenter', () => {
+                    if (!item.classList.contains('delete-item')) {
+                        item.style.backgroundColor = '#f5f5f5';
+                    } else {
+                        item.style.backgroundColor = '#fff2f0';
+                    }
+                });
+                item.addEventListener('mouseleave', () => {
+                    item.style.backgroundColor = 'transparent';
+                });
+            });
+        }
+
+        // 自动获取/更新Cookie按钮事件
+        const autoGetBtn = container.querySelector('#auto-get-cookie-btn') || container.querySelector('#auto-update-cookie-btn');
+        if (autoGetBtn) {
+            autoGetBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                dropdownMenu.style.display = 'none';
+
+                // 显示自动登录确认模态框
                 const confirmModal = document.getElementById('manual-login-confirm-modal');
                 if (!confirmModal) return;
 
-                // 显示模态框
                 confirmModal.style.display = 'flex';
                 setTimeout(() => confirmModal.classList.add('visible'), 10);
 
-                // 获取模态框元素
                 const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
                 const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
                 const closeBtn = document.getElementById('close-manual-login-confirm-modal');
 
-                // 关闭模态框的函数
                 const closeModal = () => {
                     confirmModal.classList.remove('visible');
-                    setTimeout(() => {
-                        confirmModal.style.display = 'none';
-                    }, 300); // 与模态框过渡持续时间匹配
+                    setTimeout(() => { confirmModal.style.display = 'none'; }, 300);
                 };
 
-                // 处理确认操作的函数
                 const handleConfirmation = async () => {
                     try {
-                        const response = await fetch('/api/manual-login', {
-                            method: 'POST'
-                        });
-
+                        const response = await fetch('/api/manual-login', { method: 'POST' });
                         if (!response.ok) {
                             const errorData = await response.json();
                             alert('启动失败: ' + (errorData.detail || '未知错误'));
                         } else {
-                            // 开始轮询检查登录状态
-                            const pollInterval = 2000; // 每 2 秒检查一次
-                            const pollTimeout = 300000; // 300 秒后超时
+                            // 轮询检查登录状态
+                            const pollInterval = 2000;
+                            const pollTimeout = 300000;
                             let pollAttempts = 0;
                             const maxAttempts = pollTimeout / pollInterval;
 
-                            // 开始轮询检查登录状态
                             const intervalId = setInterval(async () => {
                                 pollAttempts++;
-
                                 try {
                                     const status = await fetchSystemStatus();
                                     if (status && status.login_state_file && status.login_state_file.exists) {
-                                        // 登录状态已更新，刷新登录状态 widget
                                         await refreshLoginStatusWidget();
-                                        // 停止轮询
                                         clearInterval(intervalId);
                                         return;
                                     }
                                 } catch (error) {
                                     console.error('轮询检查登录状态时出错:', error);
                                 }
-
-                                // 检查是否超时
                                 if (pollAttempts >= maxAttempts) {
                                     console.log('轮询检查登录状态超时');
                                     clearInterval(intervalId);
-                                    return;
                                 }
                             }, pollInterval);
                         }
-                        // 成功时不显示提示 - 直接关闭模态框
                     } catch (error) {
                         alert('启动失败: ' + error.message);
                     } finally {
@@ -723,15 +912,46 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 };
 
-                // 添加事件监听器，使用once: true来避免内存泄漏
                 confirmBtn.addEventListener('click', handleConfirmation, { once: true });
                 cancelBtn.addEventListener('click', closeModal, { once: true });
                 closeBtn.addEventListener('click', closeModal, { once: true });
-
-                // 添加点击外部关闭的功能
                 confirmModal.addEventListener('click', (e) => {
                     if (e.target === confirmModal) closeModal();
                 }, { once: true });
+            });
+        }
+
+        // 手动输入Cookie按钮事件
+        const manualInputBtn = container.querySelector('#manual-input-cookie-btn') || container.querySelector('#manual-update-cookie-btn');
+        if (manualInputBtn) {
+            manualInputBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                dropdownMenu.style.display = 'none';
+                // 跳转到系统设置页面（或显示Cookie输入模态框）
+                const settingsLink = document.querySelector('.nav-link[data-section="settings"]');
+                if (settingsLink) settingsLink.click();
+            });
+        }
+
+        // 删除Cookie按钮事件
+        const deleteCookieBtn = container.querySelector('#delete-cookie-btn');
+        if (deleteCookieBtn) {
+            deleteCookieBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                dropdownMenu.style.display = 'none';
+
+                if (confirm('确定要删除当前Cookie吗？删除后需要重新登录获取。')) {
+                    try {
+                        const response = await fetch('/api/login-state', { method: 'DELETE' });
+                        if (response.ok) {
+                            await refreshLoginStatusWidget();
+                        } else {
+                            alert('删除失败');
+                        }
+                    } catch (error) {
+                        alert('删除失败: ' + error.message);
+                    }
+                }
             });
         }
     }
@@ -766,6 +986,147 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <p class="form-hint" style="margin: 2px 0;">当监控任务完成时发送通知提醒</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+                
+                <div class="notification-channel-card">
+                    <h4>企业微信应用通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="wx-app-enabled" name="WX_APP_ENABLED" ${settings.WX_APP_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用企业微信应用通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="wx-corp-id">企业 ID</label>
+                        <input type="text" id="wx-corp-id" name="WX_CORP_ID" value="${settings.WX_CORP_ID || ''}" placeholder="例如: wwxxxxxxxxx">
+                        <p class="form-hint">企业微信管理后台获取</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wx-agent-id">应用 ID</label>
+                        <input type="text" id="wx-agent-id" name="WX_AGENT_ID" value="${settings.WX_AGENT_ID || ''}" placeholder="例如: 1000001">
+                        <p class="form-hint">企业微信管理后台获取</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wx-secret">应用密钥</label>
+                        <div style="position: relative;">
+                            <input type="password" id="wx-secret" name="WX_SECRET" value="${settings.WX_SECRET || ''}" placeholder="例如: your_app_secret">
+                        <button type="button" id="toggle-wx-secret-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                        </div>
+                        <p class="form-hint">企业微信管理后台获取</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wx-to-user">通知用户 (可选)</label>
+                        <input type="text" id="wx-to-user" name="WX_TO_USER" value="${settings.WX_TO_USER || ''}" placeholder="例如: UserID1|UserID2 或 @all">
+                        <p class="form-hint">接收通知的用户ID列表，用|分隔，或@all通知所有用户</p>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="test-notification-btn" data-channel="wx_app" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="wx_app" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
+                    </div>
+                </div>
+                
+                <div class="notification-channel-card">
+                    <h4>企业微信机器人通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="wx-bot-enabled" name="WX_BOT_ENABLED" ${settings.WX_BOT_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用企业微信机器人通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="wx-bot-url">Webhook URL</label>
+                        <input type="text" id="wx-bot-url" name="WX_BOT_URL" value="${settings.WX_BOT_URL || ''}" placeholder="例如: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your_key">
+                        <p class="form-hint">企业微信机器人的 Webhook 地址</p>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="test-notification-btn" data-channel="wx_bot" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="wx_bot" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
+                    </div>
+                </div>
+                
+                <div class="notification-channel-card">
+                    <h4>钉钉机器人通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="dingtalk-enabled" name="DINGTALK_ENABLED" ${settings.DINGTALK_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用钉钉机器人通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="dingtalk-webhook">Webhook 地址</label>
+                        <input type="text" id="dingtalk-webhook" name="DINGTALK_WEBHOOK" value="${settings.DINGTALK_WEBHOOK || ''}" placeholder="例如: https://oapi.dingtalk.com/robot/send?access_token=xxx">
+                        <p class="form-hint">钉钉机器人的 Webhook 地址，从钉钉群机器人设置获取</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="dingtalk-secret">加签密钥 (可选)</label>
+                        <div style="position: relative;">
+                            <input type="password" id="dingtalk-secret" name="DINGTALK_SECRET" value="${settings.DINGTALK_SECRET || ''}" placeholder="例如: SECxxxxxxx">
+                        <button type="button" id="toggle-dingtalk-secret-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                        </div>
+                        <p class="form-hint">钉钉机器人的加签密钥，如果启用了安全设置中的"加签"功能则必填</p>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="test-notification-btn" data-channel="dingtalk" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="dingtalk" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
+                    </div>
+                </div>
+                
+                <div class="notification-channel-card">
+                    <h4>Telegram 机器人通知</h4>
+                    <div class="form-group">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" id="telegram-enabled" name="TELEGRAM_ENABLED" ${settings.TELEGRAM_ENABLED ? 'checked' : ''}>
+                                <span class="slider round"></span>
+                            </label>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">启用 Telegram 机器人通知</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="telegram-bot-token">Bot Token</label>
+                        <input type="text" id="telegram-bot-token" name="TELEGRAM_BOT_TOKEN" value="${settings.TELEGRAM_BOT_TOKEN || ''}" placeholder="例如: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz123456789">
+                        <p class="form-hint">Telegram 机器人的 Token，从 @BotFather 获取</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telegram-chat-id">Chat ID</label>
+                        <input type="text" id="telegram-chat-id" name="TELEGRAM_CHAT_ID" value="${settings.TELEGRAM_CHAT_ID || ''}" placeholder="例如: 123456789">
+                        <p class="form-hint">Telegram Chat ID，从 @userinfobot 获取</p>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="test-notification-btn" data-channel="telegram" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
+                        <button type="button" class="test-task-completion-btn" data-channel="telegram" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
                     </div>
                 </div>
                 
@@ -848,102 +1209,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
                 
                 <div class="notification-channel-card">
-                    <h4>企业微信机器人通知</h4>
-                    <div class="form-group">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label class="switch">
-                                <input type="checkbox" id="wx-bot-enabled" name="WX_BOT_ENABLED" ${settings.WX_BOT_ENABLED ? 'checked' : ''}>
-                                <span class="slider round"></span>
-                            </label>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500;">启用企业微信机器人通知</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="wx-bot-url">Webhook URL</label>
-                        <input type="text" id="wx-bot-url" name="WX_BOT_URL" value="${settings.WX_BOT_URL || ''}" placeholder="例如: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=your_key">
-                        <p class="form-hint">企业微信机器人的 Webhook 地址</p>
-                    </div>
-                    <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="wx_bot" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
-                        <button type="button" class="test-task-completion-btn" data-channel="wx_bot" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
-                    </div>
-                </div>
-                
-                <div class="notification-channel-card">
-                    <h4>企业微信应用通知</h4>
-                    <div class="form-group">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label class="switch">
-                                <input type="checkbox" id="wx-app-enabled" name="WX_APP_ENABLED" ${settings.WX_APP_ENABLED ? 'checked' : ''}>
-                                <span class="slider round"></span>
-                            </label>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500;">启用企业微信应用通知</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="wx-corp-id">企业 ID</label>
-                        <input type="text" id="wx-corp-id" name="WX_CORP_ID" value="${settings.WX_CORP_ID || ''}" placeholder="例如: wwxxxxxxxxx">
-                        <p class="form-hint">企业微信管理后台获取</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="wx-agent-id">应用 ID</label>
-                        <input type="text" id="wx-agent-id" name="WX_AGENT_ID" value="${settings.WX_AGENT_ID || ''}" placeholder="例如: 1000001">
-                        <p class="form-hint">企业微信管理后台获取</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="wx-secret">应用密钥</label>
-                        <input type="text" id="wx-secret" name="WX_SECRET" value="${settings.WX_SECRET || ''}" placeholder="例如: your_app_secret">
-                        <p class="form-hint">企业微信管理后台获取</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="wx-to-user">通知用户 (可选)</label>
-                        <input type="text" id="wx-to-user" name="WX_TO_USER" value="${settings.WX_TO_USER || ''}" placeholder="例如: UserID1|UserID2 或 @all">
-                        <p class="form-hint">接收通知的用户ID列表，用|分隔，或@all通知所有用户</p>
-                    </div>
-                    <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="wx_app" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
-                        <button type="button" class="test-task-completion-btn" data-channel="wx_app" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
-                    </div>
-                </div>
-                
-                <div class="notification-channel-card">
-                    <h4>Telegram 机器人通知</h4>
-                    <div class="form-group">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label class="switch">
-                                <input type="checkbox" id="telegram-enabled" name="TELEGRAM_ENABLED" ${settings.TELEGRAM_ENABLED ? 'checked' : ''}>
-                                <span class="slider round"></span>
-                            </label>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500;">启用 Telegram 机器人通知</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="telegram-bot-token">Bot Token</label>
-                        <input type="text" id="telegram-bot-token" name="TELEGRAM_BOT_TOKEN" value="${settings.TELEGRAM_BOT_TOKEN || ''}" placeholder="例如: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz123456789">
-                        <p class="form-hint">Telegram 机器人的 Token，从 @BotFather 获取</p>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="telegram-chat-id">Chat ID</label>
-                        <input type="text" id="telegram-chat-id" name="TELEGRAM_CHAT_ID" value="${settings.TELEGRAM_CHAT_ID || ''}" placeholder="例如: 123456789">
-                        <p class="form-hint">Telegram Chat ID，从 @userinfobot 获取</p>
-                    </div>
-                    <div class="form-group">
-                        <button type="button" class="test-notification-btn" data-channel="telegram" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
-                        <button type="button" class="test-task-completion-btn" data-channel="telegram" style="background-color: #17a2b8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">测试任务完成通知</button>
-                    </div>
-                </div>
-                
-                <div class="notification-channel-card">
                     <h4>通用 Webhook 通知</h4>
                     <div class="form-group">
                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -1013,7 +1278,15 @@ document.addEventListener('DOMContentLoaded', function () {
             <form id="ai-settings-form">
                 <div class="form-group">
                     <label for="openai-api-key">API Key *</label>
-                    <input type="password" id="openai-api-key" name="OPENAI_API_KEY" value="${settings.OPENAI_API_KEY || ''}" placeholder="例如: sk-..." required>
+                    <div style="position: relative;">
+                        <input type="password" id="openai-api-key" name="OPENAI_API_KEY" value="${settings.OPENAI_API_KEY || ''}" placeholder="例如: sk-..." required>
+                        <button type="button" id="toggle-openai-api-key-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
                     <p class="form-hint">你的AI模型服务商提供的API Key</p>
                 </div>
                 
@@ -1252,6 +1525,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <th>任务名称</th>
                     <th>运行状态</th>
                     <th>关键词</th>
+                    <th>绑定账号</th>
                     <th>价格范围</th>
                     <th>筛选条件</th>
                     <th>最大页数</th>
@@ -1310,56 +1584,584 @@ document.addEventListener('DOMContentLoaded', function () {
                 : `<button class="action-btn run-task-btn" data-task-id="${task.id}" ${!task.enabled || (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) || isGeneratingAI ? 'disabled ' : ''} ${!task.enabled ? 'title="任务已禁用"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'title="请先点击生成"' : (isGeneratingAI ? 'title="正在生成AI标准"' : '')} ${isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : (criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement')) ? 'style="background-color: #ccc; color: white;"' : ''}>运行</button>`;
 
             // 确定按钮是否应该禁用
-            const buttonDisabledAttr = isGeneratingAI ? 'disabled' : '';
-            const buttonDisabledTitle = isGeneratingAI ? 'title="等待AI标准生成"' : '';
-            const buttonDisabledStyle = isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : '';
+            const buttonDisabledAttr = isRunning || isGeneratingAI ? 'disabled' : '';
+            const buttonDisabledTitle = isGeneratingAI ? 'title="等待AI标准生成"' : (isRunning ? 'title="任务运行中"' : '');
+            const buttonDisabledStyle = isRunning || isGeneratingAI ? 'style="background-color: #ccc; cursor: not-allowed;"' : '';
+
+            // 检查是否禁止编辑
+            const isEditDisabled = isRunning || isGeneratingAI;
 
             return `
             <tr data-task-id="${task.id}" data-task='${JSON.stringify(task)}'>
                 <td style="text-align: center;">
                     <label class="switch">
-                        <input type="checkbox" ${task.enabled ? 'checked' : ''} ${isGeneratingAI ? 'disabled' : ''}>
+                        <input type="checkbox" ${task.enabled ? 'checked' : ''} ${isEditDisabled ? 'disabled' : ''}>
                         <span class="slider round"></span>
                     </label>
                 </td>
-                <td style="text-align: center;">${task.task_name}</td>
+                <td style="text-align: center;">
+                    <div class="editable-cell" data-task-id="${task.id}" data-field="task_name" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display">${task.task_name}</span>
+                        <input type="text" class="editable-input" value="${task.task_name}" style="display:none;">
+                    </div>
+                </td>
                 <td style="text-align: center;">${statusBadge}</td>
-                <td style="text-align: center;"><span class="tag">${task.keyword}</span></td>
-                <td style="text-align: center;">${task.min_price || '不限'} - ${task.max_price || '不限'}</td>
-                <td style="text-align: center;">${task.personal_only ? '<span class="tag personal">个人闲置</span>' : ''}</td>
-                <td style="text-align: center;">${task.max_pages || 3}</td>
+                <td style="text-align: center;">
+                    <div class="editable-cell" data-task-id="${task.id}" data-field="keyword" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display tag">${task.keyword}</span>
+                        <input type="text" class="editable-input" value="${task.keyword}" style="display:none;">
+                    </div>
+                </td>
+                <td style="text-align: center;">
+                    <div class="account-cell" data-task-id="${task.id}" data-bound-account="${task.bound_account || ''}" data-display-name="" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="account-display ${task.bound_account ? 'has-account' : 'no-account'}" style="${task.bound_account ? 'background-color:' + getAccountColorByName(task.bound_account) + ';color:#fff;' : ''}">
+                            ${task.bound_account ? '加载中...' : '未绑定'}
+                        </span>
+                        <div class="editable-account-select">
+                            <select class="account-select" style="display:none;">
+                                <option value="">未绑定</option>
+                            </select>
+                        </div>
+                    </div>
+                    ${task.auto_switch_on_risk ? '<span class="auto-switch-icon" title="风控自动切换">🔄</span>' : ''}
+                </td>
+                <td style="text-align: center;">
+                    <div class="editable-cell" data-task-id="${task.id}" data-field="price_range" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display">${task.min_price || '不限'} - ${task.max_price || '不限'}</span>
+                        <div class="editable-price-inputs" style="display:none;">
+                            <input type="number" class="editable-input price-min" value="${task.min_price || ''}" placeholder="最低价" style="width:60px;">
+                            <span>-</span>
+                            <input type="number" class="editable-input price-max" value="${task.max_price || ''}" placeholder="最高价" style="width:60px;">
+                        </div>
+                    </div>
+                </td>
+                <td style="text-align: center;">
+                    <div class="editable-cell editable-toggle" data-task-id="${task.id}" data-field="personal_only" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display ${task.personal_only ? 'tag personal' : ''}">${task.personal_only ? '个人闲置' : '不限'}</span>
+                    </div>
+                </td>
+                <td style="text-align: center;">
+                    <div class="editable-cell" data-task-id="${task.id}" data-field="max_pages" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display">${task.max_pages || 3}</span>
+                        <input type="number" class="editable-input" value="${task.max_pages || 3}" min="1" style="display:none; width:50px;">
+                    </div>
+                </td>
                 <td style="text-align: left !important;">
                     <div class="criteria" style="display: inline-block; text-align: left;">
 ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement') ? `
                             <div class="red-dot-container">
-                                <button class="refresh-criteria success-btn" title="新生成AI标准" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>待生成</button>
+                                <button class="refresh-criteria success-btn" title="新生成AI标准" data-task-id="${task.id}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>待生成</button>
                                 <span class="red-dot"></span>
                             </div>
-                            <button class="criteria-btn danger-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
+                            <button class="criteria-btn danger-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
                                 ${criteriaBtnText}
                             </button>
                         ` : `
-                            <button class="refresh-criteria danger-btn" title="新生成AI标准" data-task-id="${task.id}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>重生成</button>
+                            <button class="refresh-criteria danger-btn" title="新生成AI标准" data-task-id="${task.id}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>重生成</button>
                             ${criteriaFile !== 'N/A' ? `
-                                <button class="criteria-btn success-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isGeneratingAI ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
+                                <button class="criteria-btn success-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
                                     ${criteriaBtnText}
                                 </button>
                             ` : 'N/A'}
                         `}
                     </div>
                 </td>
-                <td style="text-align: center;">${task.cron || '未设置'}</td>
                 <td style="text-align: center;">
-                    ${actionButton}
-                    <button class="action-btn edit-btn" ${buttonDisabledAttr} ${buttonDisabledTitle} ${buttonDisabledStyle}>编辑</button>
-                    <button class="action-btn copy-btn" ${buttonDisabledAttr} ${buttonDisabledTitle} ${buttonDisabledStyle}>复制</button>
-                    <button class="action-btn delete-btn" ${buttonDisabledAttr} ${buttonDisabledTitle} ${buttonDisabledStyle}>删除</button>
+                    <div class="editable-cell" data-task-id="${task.id}" data-field="cron" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display">${task.cron || '未设置'}</span>
+                        <input type="text" class="editable-input" value="${task.cron || ''}" placeholder="分 时 日 月 周" style="display:none; width:100px;">
+                    </div>
+                </td>
+                <td style="text-align: center;">
+                    <div class="action-buttons">
+                        ${actionButton}
+                        <div class="dropdown-container">
+                            <button class="dropdown-btn" ${buttonDisabledAttr} ${buttonDisabledTitle} ${buttonDisabledStyle}>操作 ▾</button>
+                            <div class="dropdown-menu">
+                                <button class="dropdown-item edit-btn" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>✏️ 编辑</button>
+                                <button class="dropdown-item copy-btn" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>📋 复制</button>
+                                <button class="dropdown-item delete-btn" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>🗑️ 删除</button>
+                            </div>
+                        </div>
+                    </div>
                 </td>
             </tr>`
         }).join('');
 
         return `<table class="tasks-table">${tableHeader}<tbody>${tableBody}</tbody></table>`;
     }
+
+    // 填充任务表格中的账号选择器（新版：点击显示下拉框）
+    async function populateTaskAccountSelectors(tasks) {
+        try {
+            const accounts = await fetchAccounts();
+            const cells = document.querySelectorAll('.account-cell');
+
+            // 创建accounts的name到display_name的映射
+            const accountMap = {};
+            if (accounts && accounts.length > 0) {
+                accounts.forEach(acc => {
+                    accountMap[acc.name] = acc.display_name;
+                });
+            }
+
+            cells.forEach(cell => {
+                const currentAccount = cell.dataset.boundAccount || '';
+                const select = cell.querySelector('.account-select');
+                const display = cell.querySelector('.account-display');
+
+                if (!select) return;
+
+                select.innerHTML = '<option value="">未绑定</option>';
+
+                if (accounts && accounts.length > 0) {
+                    accounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.name;
+                        option.textContent = account.display_name;
+                        if (account.name === currentAccount) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                }
+
+                // 更新显示标签的文本为display_name
+                if (display && currentAccount) {
+                    const displayName = accountMap[currentAccount] || currentAccount;
+                    display.textContent = displayName;
+                    cell.dataset.displayName = displayName;
+                } else if (display && !currentAccount) {
+                    display.textContent = '未绑定';
+                }
+            });
+        } catch (error) {
+            console.error('填充任务账号选择器失败:', error);
+        }
+    }
+
+    // 设置任务账号选择器点击切换事件
+    function setupTaskAccountCellEvents() {
+        // 点击显示标签时显示下拉框（浮动样式）
+        document.addEventListener('click', async (event) => {
+            const display = event.target.closest('.account-display');
+            if (display) {
+                const cell = display.closest('.account-cell');
+                if (!cell) return;
+
+                const select = cell.querySelector('.account-select');
+                if (!select) return;
+
+                // 暂停定时刷新，防止编辑时被刷新打断
+                if (taskRefreshInterval) {
+                    clearInterval(taskRefreshInterval);
+                    taskRefreshInterval = null;
+                }
+
+                // 先填充选项
+                const accounts = await fetchAccounts();
+                const currentAccount = cell.dataset.boundAccount || '';
+
+                select.innerHTML = '<option value="">未绑定</option>';
+                if (accounts && accounts.length > 0) {
+                    accounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.name;
+                        option.textContent = account.display_name;
+                        if (account.name === currentAccount) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                }
+
+                // 显示浮动下拉框（不隐藏标签，让它浮在上方）
+                const selectContainer = cell.querySelector('.editable-account-select');
+                selectContainer.style.display = 'block';
+                select.style.display = 'block';
+                select.focus();
+            }
+        });
+
+        // 下拉框选择变更时保存并隐藏下拉框
+        document.addEventListener('change', async (event) => {
+            if (event.target.matches('.account-select')) {
+                const select = event.target;
+                const cell = select.closest('.account-cell');
+                if (!cell) return;
+
+                const taskId = cell.dataset.taskId;
+                const newAccount = select.value;
+                const display = cell.querySelector('.account-display');
+
+                try {
+                    const result = await updateTask(taskId, { bound_account: newAccount || null });
+                    if (result) {
+                        // 更新数据属性
+                        cell.dataset.boundAccount = newAccount;
+
+                        // 更新显示标签
+                        if (newAccount) {
+                            const selectedOption = select.options[select.selectedIndex];
+                            display.textContent = selectedOption.textContent;
+                            display.className = 'account-display has-account';
+                            display.style.backgroundColor = getAccountColor(newAccount);
+                            display.style.color = '#fff';
+                        } else {
+                            display.textContent = '未绑定';
+                            display.className = 'account-display no-account';
+                            display.style.backgroundColor = '';
+                            display.style.color = '';
+                        }
+                    }
+                } catch (error) {
+                    console.error('更新任务账号失败:', error);
+                    alert('更新账号绑定失败，请重试');
+                }
+
+                // 隐藏下拉框
+                const selectContainer = cell.querySelector('.editable-account-select');
+                selectContainer.style.display = 'none';
+                select.style.display = 'none';
+
+                // 刷新任务列表并重新开启定时刷新
+                await refreshTasksAndRestartInterval();
+            }
+        });
+
+        // 下拉框失去焦点时也隐藏下拉框
+        document.addEventListener('blur', (event) => {
+            if (event.target.matches('.account-select')) {
+                const select = event.target;
+                const cell = select.closest('.account-cell');
+                if (cell) {
+                    const selectContainer = cell.querySelector('.editable-account-select');
+                    setTimeout(() => {
+                        selectContainer.style.display = 'none';
+                        select.style.display = 'none';
+                        // 重新开启定时刷新
+                        refreshTasksAndRestartInterval();
+                    }, 150);
+                }
+            }
+        }, true);
+    }
+
+    // 刷新任务列表并重新开启定时刷新的函数
+    async function refreshTasksAndRestartInterval() {
+        const container = document.getElementById('tasks-table-container');
+        const tasks = await fetchTasks();
+        container.innerHTML = renderTasksTable(tasks);
+        // 重新开启定时刷新
+        if (!taskRefreshInterval) {
+            taskRefreshInterval = setInterval(async () => {
+                const tasks = await fetchTasks();
+                if (container && !container.querySelector('tr.editing') && !document.querySelector('.editable-input:focus') && !document.querySelector('.account-select:focus')) {
+                    container.innerHTML = renderTasksTable(tasks);
+                }
+            }, 5000);
+        }
+    }
+
+    // 输入框宽度自适应内容
+    function autoResizeInput(input) {
+        // 创建一个临时的span元素来测量文本尺寸
+        const tempSpan = document.createElement('span');
+        tempSpan.style.visibility = 'hidden';
+        tempSpan.style.position = 'absolute';
+        tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
+        tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
+        tempSpan.style.padding = window.getComputedStyle(input).padding;
+        
+        // 设置最小和最大宽度
+        const field = input.closest('.editable-cell')?.dataset.field;
+        let minWidth = 80;
+        let maxWidth = 200; // 增加最大宽度，允许更长的文本
+        
+        // 测量文本宽度（不换行）
+        tempSpan.style.whiteSpace = 'nowrap';
+        tempSpan.textContent = input.value;
+        document.body.appendChild(tempSpan);
+        const textWidth = tempSpan.offsetWidth;
+        document.body.removeChild(tempSpan);
+        
+        // 计算所需宽度
+        const newWidth = Math.max(minWidth, Math.min(textWidth + 20, maxWidth));
+        input.style.width = `${newWidth}px`;
+        
+        // 对于任务名称和关键词输入框，高度自适应以贴合文案
+        if (field === 'task_name' || field === 'keyword') {
+            input.style.height = 'auto'; // 高度自适应
+            input.style.whiteSpace = 'nowrap'; // 禁止换行
+            input.style.overflow = 'hidden';
+            input.style.textOverflow = 'ellipsis';
+        }
+    }
+
+    // 设置任务字段点击编辑事件
+    function setupTaskInlineEditEvents() {
+        let isSelectingText = false;
+
+        // Track text selection state globally
+        document.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.editable-cell')) {
+                isSelectingText = true;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            setTimeout(() => {
+                isSelectingText = false;
+            }, 50);
+        });
+
+        // Click on editable display to show input
+        document.addEventListener('click', async (event) => {
+            const display = event.target.closest('.editable-display');
+            if (!display) return;
+
+            const cell = display.closest('.editable-cell');
+            if (!cell) return;
+
+            const field = cell.dataset.field;
+            const taskId = cell.dataset.taskId;
+
+            // 停止定时刷新，防止编辑时被刷新打断
+            if (taskRefreshInterval) {
+                clearInterval(taskRefreshInterval);
+                taskRefreshInterval = null;
+            }
+
+            // Handle toggle fields (personal_only) - click toggles immediately
+            if (cell.classList.contains('editable-toggle')) {
+                const row = cell.closest('tr');
+                const taskData = JSON.parse(row.dataset.task);
+                const newValue = !taskData.personal_only;
+
+                try {
+                    const result = await updateTask(taskId, { personal_only: newValue });
+                    if (result) {
+                        // Update display
+                        display.textContent = newValue ? '个人闲置' : '不限';
+                        display.className = 'editable-display ' + (newValue ? 'tag personal' : '');
+                        // Update row data
+                        taskData.personal_only = newValue;
+                        row.dataset.task = JSON.stringify(taskData);
+                        // 刷新任务列表并重新开启定时刷新
+                        await refreshTasksAndRestartInterval();
+                    }
+                } catch (error) {
+                    console.error('更新筛选条件失败:', error);
+                    alert('更新失败，请重试');
+                    // 即使失败也重新开启定时刷新
+                    await refreshTasksAndRestartInterval();
+                }
+                return;
+            }
+
+            // Handle price_range field
+            if (field === 'price_range') {
+                const priceInputs = cell.querySelector('.editable-price-inputs');
+                if (priceInputs) {
+                    display.style.display = 'none';
+                    priceInputs.style.display = 'inline-flex';
+                    priceInputs.style.alignItems = 'center';
+                    priceInputs.style.gap = '5px';
+                    priceInputs.querySelector('.price-min').focus();
+                }
+                return;
+            }
+
+            // Handle regular text/number inputs
+            const input = cell.querySelector('.editable-input');
+            if (input) {
+                display.style.display = 'none';
+                input.style.display = 'inline-block';
+                // 自动调整输入框宽度
+                autoResizeInput(input);
+                input.focus();
+                input.select();
+                // 添加输入事件监听，实时调整宽度
+                input.addEventListener('input', function() {
+                    autoResizeInput(input);
+                });
+            }
+        });
+
+        // 刷新任务列表并重新开启定时刷新的函数
+        async function refreshTasksAndRestartInterval() {
+            const container = document.getElementById('tasks-table-container');
+            const tasks = await fetchTasks();
+            container.innerHTML = renderTasksTable(tasks);
+            // 重新开启定时刷新
+            if (!taskRefreshInterval) {
+                taskRefreshInterval = setInterval(async () => {
+                    const tasks = await fetchTasks();
+                    if (container && !container.querySelector('tr.editing') && !document.querySelector('.editable-input:focus')) {
+                        container.innerHTML = renderTasksTable(tasks);
+                    }
+                }, 5000);
+            }
+        }
+
+        // Handle blur for regular inputs - save and switch back
+        document.addEventListener('blur', async (event) => {
+            const input = event.target;
+            if (!input.classList.contains('editable-input')) return;
+
+            // If selecting text, refocus instead of saving
+            if (isSelectingText) {
+                setTimeout(() => {
+                    input.focus();
+                }, 10);
+                return;
+            }
+
+            const cell = input.closest('.editable-cell');
+            if (!cell) return;
+
+            const field = cell.dataset.field;
+            const taskId = cell.dataset.taskId;
+            const display = cell.querySelector('.editable-display');
+            const row = cell.closest('tr');
+            const taskData = JSON.parse(row.dataset.task);
+
+            // Handle price_range inputs
+            if (field === 'price_range') {
+                const priceInputs = cell.querySelector('.editable-price-inputs');
+                // Check if focus is still within price inputs
+                setTimeout(async () => {
+                    const activeElement = document.activeElement;
+                    if (priceInputs.contains(activeElement)) return; // Still editing price
+
+                    const minInput = cell.querySelector('.price-min');
+                    const maxInput = cell.querySelector('.price-max');
+                    const minPrice = minInput.value ? minInput.value : null;
+                    const maxPrice = maxInput.value ? maxInput.value : null;
+
+                    try {
+                        const result = await updateTask(taskId, { min_price: minPrice, max_price: maxPrice });
+                        if (result) {
+                            const minDisplay = minPrice !== null ? minPrice : '不限';
+                            const maxDisplay = maxPrice !== null ? maxPrice : '不限';
+                            display.textContent = `${minDisplay} - ${maxDisplay}`;
+                        }
+                        // 刷新任务列表并重新开启定时刷新
+                        await refreshTasksAndRestartInterval();
+                    } catch (error) {
+                        console.error('更新价格范围失败:', error);
+                        alert('更新失败，请重试');
+                        // 即使失败也重新开启定时刷新
+                        await refreshTasksAndRestartInterval();
+                    }
+
+                    priceInputs.style.display = 'none';
+                    display.style.display = 'inline-block';
+                }, 100);
+                return;
+            }
+
+            // Handle other fields
+            const newValue = input.value.trim();
+            let updateData = {};
+
+            if (field === 'task_name') {
+                if (!newValue) {
+                    alert('任务名称不能为空');
+                    // 恢复原始值并切换到显示模式
+                    input.value = taskData.task_name;
+                    input.style.display = 'none';
+                    if (field === 'keyword') {
+                        display.className = 'editable-display tag';
+                    } else {
+                        display.className = 'editable-display';
+                    }
+                    display.textContent = taskData.task_name;
+                    display.style.display = 'inline-block';
+                    // 重新开启定时刷新
+                    await refreshTasksAndRestartInterval();
+                    return;
+                }
+                updateData = { task_name: newValue };
+            } else if (field === 'keyword') {
+                if (!newValue) {
+                    alert('关键词不能为空');
+                    // 恢复原始值并切换到显示模式
+                    input.value = taskData.keyword;
+                    input.style.display = 'none';
+                    display.className = 'editable-display tag';
+                    display.textContent = taskData.keyword;
+                    display.style.display = 'inline-block';
+                    // 重新开启定时刷新
+                    await refreshTasksAndRestartInterval();
+                    return;
+                }
+                updateData = { keyword: newValue };
+            } else if (field === 'max_pages') {
+                const pages = parseInt(newValue) || 3;
+                updateData = { max_pages: Math.max(1, pages) };
+            } else if (field === 'cron') {
+                updateData = { cron: newValue || null };
+            }
+
+            try {
+                const result = await updateTask(taskId, updateData);
+                if (result) {
+                    // Update display based on field
+                    if (field === 'cron') {
+                        display.textContent = newValue || '未设置';
+                    } else if (field === 'max_pages') {
+                        display.textContent = updateData.max_pages;
+                        input.value = updateData.max_pages;
+                    } else {
+                        display.textContent = newValue;
+                    }
+                    // 刷新任务列表并重新开启定时刷新
+                    await refreshTasksAndRestartInterval();
+                }
+            } catch (error) {
+                console.error(`更新${field}失败:`, error);
+                alert('更新失败，请重试');
+                // 即使失败也重新开启定时刷新
+                await refreshTasksAndRestartInterval();
+            }
+
+            input.style.display = 'none';
+            display.style.display = 'inline-block';
+        }, true);
+
+        // Enter key to save
+        document.addEventListener('keypress', (event) => {
+            if (event.key !== 'Enter') return;
+            const input = event.target;
+            if (!input.classList.contains('editable-input')) return;
+
+            isSelectingText = false;
+            input.blur();
+        });
+
+        // Escape key to cancel
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            const input = event.target;
+            if (!input.classList.contains('editable-input')) return;
+
+            const cell = input.closest('.editable-cell');
+            if (!cell) return;
+
+            const display = cell.querySelector('.editable-display');
+            const field = cell.dataset.field;
+
+            if (field === 'price_range') {
+                const priceInputs = cell.querySelector('.editable-price-inputs');
+                if (priceInputs) priceInputs.style.display = 'none';
+            } else {
+                input.style.display = 'none';
+            }
+            if (display) display.style.display = 'inline-block';
+        });
+    }
+
 
     function renderScheduledJobsTable(data) {
         if (!data || !data.jobs || data.jobs.length === 0) {
@@ -1455,6 +2257,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 await initializeSettingsView();
             } else if (sectionId === 'scheduled') {
                 await initializeScheduledView();
+            } else if (sectionId === 'accounts') {
+                await initializeAccountsView();
             }
 
         } else {
@@ -1477,7 +2281,35 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const attachScheduledEventListeners = () => {
             // Cron 输入框失去焦点时保存
             container.querySelectorAll('.cron-input').forEach(input => {
+                let isSelectingText = false;
+                let originalValue = input.value;
+
+                // Track when text selection starts
+                input.addEventListener('mousedown', () => {
+                    isSelectingText = true;
+                    originalValue = input.value;
+                });
+
+                // Track when text selection ends (on document to catch edge cases)
+                const handleMouseUp = () => {
+                    // Delay reset to allow blur to check the flag first
+                    setTimeout(() => {
+                        isSelectingText = false;
+                    }, 50);
+                };
+                document.addEventListener('mouseup', handleMouseUp);
+
                 input.addEventListener('blur', async (e) => {
+                    // If user was selecting text and mouse went outside, refocus
+                    if (isSelectingText) {
+                        e.preventDefault();
+                        // Refocus the input to restore editing state
+                        setTimeout(() => {
+                            input.focus();
+                        }, 10);
+                        return;
+                    }
+
                     const row = e.target.closest('tr');
                     const taskId = row.dataset.taskId;
                     const newCron = e.target.value.trim();
@@ -1491,6 +2323,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 // 按回车键也保存
                 input.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
+                        isSelectingText = false; // Allow blur to save
                         e.target.blur();
                     }
                 });
@@ -1540,12 +2373,609 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         await refreshScheduledJobs();
     }
 
+    // --- 账号管理视图 ---
+    async function initializeAccountsView() {
+        const container = document.getElementById('accounts-table-container');
+        const addBtn = document.getElementById('add-account-btn');
+
+        const refreshAccounts = async () => {
+            const accounts = await fetchAccounts();
+            if (container) {
+                container.innerHTML = renderAccountsTable(accounts);
+                attachAccountEventListeners();
+            }
+        };
+
+        const attachAccountEventListeners = () => {
+            // 激活账号按钮
+            container.querySelectorAll('.activate-account-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = btn.dataset.name;
+                    if (confirm(`确定要激活账号 "${name}" 吗？`)) {
+                        const result = await activateAccount(name);
+                        if (result) {
+                            await refreshAccounts();
+                        }
+                    }
+                });
+            });
+
+            // 编辑账号按钮
+            container.querySelectorAll('.edit-account-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = btn.dataset.name;
+                    const account = await fetchAccountDetail(name);
+                    if (account) {
+                        openEditAccountModal(account);
+                    }
+                });
+            });
+
+            // 删除账号按钮
+            container.querySelectorAll('.delete-account-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = btn.dataset.name;
+                    const displayName = btn.dataset.displayName;
+                    if (confirm(`确定要删除账号 "${displayName}" 吗？此操作不可恢复！`)) {
+                        const result = await deleteAccount(name);
+                        if (result) {
+                            await refreshAccounts();
+                        }
+                    }
+                });
+            });
+
+            // 查看风控历史按钮
+            container.querySelectorAll('.view-history-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = btn.dataset.name;
+                    const account = await fetchAccountDetail(name);
+                    if (account) {
+                        openAccountHistoryModal(account);
+                    }
+                });
+            });
+
+            // 测试Cookie按钮
+            container.querySelectorAll('.test-account-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = btn.dataset.name;
+                    btn.disabled = true;
+                    btn.textContent = '测试中...';
+
+                    // 更新状态列为检测中
+                    const statusCell = container.querySelector(`.cookie-status-cell[data-name="${name}"]`);
+                    if (statusCell) {
+                        statusCell.innerHTML = '<span class="status-badge" style="background:#faad14;">检测中</span>';
+                    }
+
+                    try {
+                        const response = await fetch(`/api/accounts/${name}/test`, { method: 'POST' });
+                        const result = await response.json();
+
+                        // 更新状态列
+                        if (statusCell) {
+                            if (response.ok && result.valid) {
+                                statusCell.innerHTML = '<span class="status-badge status-ok" style="background:#52c41a;">有效</span>';
+                                alert(`✓ Cookie有效！账号 "${name}" 可正常使用`);
+                            } else {
+                                statusCell.innerHTML = '<span class="status-badge status-error" style="background:#ff4d4f;">已过期</span>';
+                                alert(`✗ Cookie无效或已过期\n${result.message || '请更新Cookie'}`);
+                            }
+                        }
+                    } catch (error) {
+                        if (statusCell) {
+                            statusCell.innerHTML = '<span class="status-badge" style="background:#999;">检测失败</span>';
+                        }
+                        alert(`测试失败: ${error.message}`);
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = '测试';
+                    }
+                });
+            });
+
+            // 复制账号按钮（创建副本，自动命名）
+            container.querySelectorAll('.copy-account-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = btn.dataset.name;
+
+                    btn.disabled = true;
+                    btn.textContent = '复制中...';
+                    try {
+                        const response = await fetch(`/api/accounts/${name}/duplicate`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({})  // 不传new_name，后端自动生成
+                        });
+
+                        if (response.ok) {
+                            await refreshAccounts();
+                        } else {
+                            const result = await response.json();
+                            alert(`复制失败: ${result.detail || '未知错误'}`);
+                        }
+                    } catch (error) {
+                        alert(`复制失败: ${error.message}`);
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = '复制';
+                    }
+                });
+            });
+        };
+
+        // 打开手动添加账号模态框（复用login-state-modal）
+        if (addBtn) {
+            console.log('Account add button found, binding click event');
+            addBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Add account button clicked');
+
+                const modal = document.getElementById('login-state-modal');
+                const form = document.getElementById('login-state-form');
+                const saveBtn = document.getElementById('save-login-state-btn');
+                const cancelBtn = document.getElementById('cancel-login-state-btn');
+                const closeBtn = document.getElementById('close-login-state-modal-btn');
+                const accountNameInput = document.getElementById('account-name-input');
+                const stateContentTextarea = document.getElementById('login-state-content');
+
+                if (!modal) {
+                    alert('无法找到添加账号模态框');
+                    return;
+                }
+
+                // 清空表单
+                if (form) form.reset();
+
+                // 显示模态框
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('visible'), 10);
+
+                const closeModal = () => {
+                    modal.classList.remove('visible');
+                    setTimeout(() => { modal.style.display = 'none'; }, 300);
+                };
+
+                // 保存账号
+                const handleSave = async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const accountName = accountNameInput?.value?.trim();
+                    const stateContent = stateContentTextarea?.value?.trim();
+
+                    if (!accountName) {
+                        alert('请输入账号名称');
+                        accountNameInput?.focus();
+                        return;
+                    }
+
+                    if (!stateContent) {
+                        alert('请粘贴Cookie JSON内容');
+                        stateContentTextarea?.focus();
+                        return;
+                    }
+
+                    // 验证JSON格式
+                    try {
+                        JSON.parse(stateContent);
+                    } catch (e) {
+                        alert('Cookie内容不是有效的JSON格式');
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch('/api/accounts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: accountName,
+                                display_name: accountName,
+                                state_content: stateContent
+                            })
+                        });
+
+                        if (response.ok) {
+                            closeModal();
+                            await refreshAccounts();
+                        } else {
+                            const result = await response.json();
+                            alert(`添加失败: ${result.detail || '未知错误'}`);
+                        }
+                    } catch (error) {
+                        alert(`添加失败: ${error.message}`);
+                    }
+                };
+
+                saveBtn?.addEventListener('click', handleSave);
+                cancelBtn?.addEventListener('click', closeModal);
+                closeBtn?.addEventListener('click', closeModal);
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+
+                // 聚焦到账号名称输入框
+                accountNameInput?.focus();
+            });
+        } else {
+            console.error('Add account button not found');
+        }
+
+        // 自动获取账号按钮（原从当前登录导入）
+        const importBtn = document.getElementById('import-from-login-btn');
+        if (importBtn) {
+            importBtn.addEventListener('click', async () => {
+                // 显示自动登录确认模态框
+                const confirmModal = document.getElementById('manual-login-confirm-modal');
+                if (!confirmModal) {
+                    alert('无法找到登录确认模态框');
+                    return;
+                }
+
+                confirmModal.style.display = 'flex';
+                setTimeout(() => confirmModal.classList.add('visible'), 10);
+
+                const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
+                const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
+                const closeBtn = document.getElementById('close-manual-login-confirm-modal');
+
+                const closeModal = () => {
+                    confirmModal.classList.remove('visible');
+                    setTimeout(() => { confirmModal.style.display = 'none'; }, 300);
+                };
+
+                const handleConfirmation = async () => {
+                    try {
+                        // 启动自动登录
+                        const response = await fetch('/api/manual-login', { method: 'POST' });
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            alert('启动失败: ' + (errorData.detail || '未知错误'));
+                            closeModal();
+                            return;
+                        }
+
+                        // 轮询检查登录状态（检查 state 目录下是否有新生成的账号文件）
+                        const pollInterval = 2000;
+                        const pollTimeout = 300000;
+                        let pollAttempts = 0;
+                        const maxAttempts = pollTimeout / pollInterval;
+                        let initialAccountCount = 0;
+
+                        // 获取初始账号数量
+                        const initialAccounts = await fetchAccounts();
+                        initialAccountCount = initialAccounts.length;
+
+                        const intervalId = setInterval(async () => {
+                            pollAttempts++;
+                            try {
+                                // 检查账号数量是否增加
+                                const currentAccounts = await fetchAccounts();
+                                if (currentAccounts.length > initialAccountCount) {
+                                    clearInterval(intervalId);
+                                    console.log('检测到新账号生成，刷新账号列表');
+                                    await refreshAccounts();
+                                    await refreshLoginStatusWidget();
+                                    return;
+                                }
+                            } catch (error) {
+                                console.error('轮询检查登录状态时出错:', error);
+                            }
+                            if (pollAttempts >= maxAttempts) {
+                                console.log('轮询检查登录状态超时');
+                                clearInterval(intervalId);
+                            }
+                        }, pollInterval);
+
+                    } catch (error) {
+                        alert('启动失败: ' + error.message);
+                    } finally {
+                        closeModal();
+                    }
+                };
+
+                confirmBtn.addEventListener('click', handleConfirmation, { once: true });
+                cancelBtn.addEventListener('click', closeModal, { once: true });
+                closeBtn.addEventListener('click', closeModal, { once: true });
+                confirmModal.addEventListener('click', (e) => {
+                    if (e.target === confirmModal) closeModal();
+                }, { once: true });
+            });
+        }
+
+        await refreshAccounts();
+
+        // 定时自动检测Cookie状态（每5分钟）
+        const COOKIE_CHECK_INTERVAL = 5 * 60 * 1000; // 5分钟
+        let cookieCheckTimer = null;
+
+        const checkAllCookieStatus = async () => {
+            console.log('正在自动检测所有账号Cookie状态...');
+            const accounts = await fetchAccounts();
+            if (!accounts || accounts.length === 0) return;
+
+            for (const account of accounts) {
+                try {
+                    const response = await fetch(`/api/accounts/${account.name}/test`, { method: 'POST' });
+                    const result = await response.json();
+
+                    // 更新状态列显示
+                    const statusCell = container?.querySelector(`.cookie-status-cell[data-name="${account.name}"]`);
+                    if (statusCell) {
+                        if (response.ok && result.valid) {
+                            statusCell.innerHTML = '<span class="status-badge status-ok" style="background:#52c41a;">有效</span>';
+                        } else {
+                            statusCell.innerHTML = '<span class="status-badge status-error" style="background:#ff4d4f;">已过期</span>';
+                        }
+                    }
+                } catch (error) {
+                    console.error(`检测账号 ${account.name} Cookie状态失败:`, error);
+                }
+            }
+            console.log('Cookie状态检测完成');
+        };
+
+        // 页面加载时立即检测一次
+        checkAllCookieStatus();
+
+        // 启动定时检测
+        cookieCheckTimer = setInterval(checkAllCookieStatus, COOKIE_CHECK_INTERVAL);
+
+        // 页面卸载时清除定时器
+        window.addEventListener('beforeunload', () => {
+            if (cookieCheckTimer) clearInterval(cookieCheckTimer);
+        });
+
+        // 设置模态框事件监听
+        setupAccountModals(refreshAccounts);
+    }
+
+    // 账号颜色生成 - 基于账号名生成固定颜色
+    const ACCOUNT_COLORS = [
+        '#1890ff', '#52c41a', '#722ed1', '#eb2f96', '#fa8c16',
+        '#13c2c2', '#2f54eb', '#a0d911', '#f5222d', '#faad14'
+    ];
+
+    function getAccountColor(accountName) {
+        if (!accountName) return '#999';
+        let hash = 0;
+        for (let i = 0; i < accountName.length; i++) {
+            hash = accountName.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return ACCOUNT_COLORS[Math.abs(hash) % ACCOUNT_COLORS.length];
+    }
+
+    // 别名函数，用于任务表格渲染
+    function getAccountColorByName(accountName) {
+        return getAccountColor(accountName);
+    }
+
+    function renderAccountColorTag(displayName, accountName) {
+        const color = getAccountColor(accountName);
+        return `<span class="account-color-tag" style="background-color: ${color};">${displayName}</span>`;
+    }
+
+    function renderAccountsTable(accounts) {
+        if (!accounts || accounts.length === 0) {
+            return `
+                <div class="empty-state">
+                    <p>暂无账号，请点击上方按钮添加新账号。</p>
+                    <p class="form-hint">账号Cookie可通过浏览器扩展获取，或使用自动获取功能。</p>
+                </div>`;
+        }
+
+        let html = `<table class="data-table accounts-table">
+            <thead>
+                <tr>
+                    <th>账号名称</th>
+                    <th>状态</th>
+                    <th>最后使用</th>
+                    <th>风控次数</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+        accounts.forEach(account => {
+            const lastUsed = account.last_used_at
+                ? new Date(account.last_used_at).toLocaleString('zh-CN')
+                : '未使用';
+            const riskClass = account.risk_control_count > 0 ? 'risk-warning' : '';
+            const colorTag = renderAccountColorTag(account.display_name, account.name);
+
+            // 状态显示
+            let statusHtml;
+            if (account.cookie_status === 'valid') {
+                statusHtml = '<span class="status-badge status-ok" style="background:#52c41a;">有效</span>';
+            } else if (account.cookie_status === 'expired') {
+                statusHtml = '<span class="status-badge status-error" style="background:#ff4d4f;">已过期</span>';
+            } else if (account.cookie_status === 'checking') {
+                statusHtml = '<span class="status-badge" style="background:#faad14;">检测中</span>';
+            } else {
+                statusHtml = '<span class="status-badge" style="background:#999;">未检测</span>';
+            }
+
+            html += `
+                <tr data-account-name="${account.name}">
+            <td class="account-name-cell" style="text-align: center; justify-content: center;">${colorTag}</td>
+            <td class="cookie-status-cell" data-name="${account.name}" style="text-align: center;">${statusHtml}</td>
+            <td style="text-align: center;">${lastUsed}</td>
+            <td class="${riskClass}" style="text-align: center;">
+                        ${account.risk_control_count > 0
+                    ? `<span class="risk-count">${account.risk_control_count}</span>
+                               <button class="control-button small-btn view-history-btn" data-name="${account.name}">查看</button>`
+                    : '<span class="no-risk">0</span>'
+                }
+                    </td>
+                    <td class="action-buttons">
+                        <button class="control-button small-btn test-account-btn" data-name="${account.name}" title="测试Cookie是否有效">测试</button>
+                        <div class="dropdown-container">
+                            <button class="dropdown-btn small-btn">操作 ▾</button>
+                            <div class="dropdown-menu">
+                                <button class="dropdown-item copy-account-btn" data-name="${account.name}">📋 复制</button>
+                                <button class="dropdown-item edit-account-btn" data-name="${account.name}">✏️ 编辑</button>
+                                <button class="dropdown-item delete-account-btn" data-name="${account.name}" data-display-name="${account.display_name}">🗑️ 删除</button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+
+        html += `</tbody></table>`;
+        return html;
+    }
+
+    function openAddAccountModal() {
+        console.log('openAddAccountModal called');
+        const modal = document.getElementById('add-account-modal');
+        const form = document.getElementById('add-account-form');
+        console.log('Modal element:', modal);
+        if (form) form.reset();
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+            modal.style.visibility = 'visible';
+            console.log('Modal display set to flex with opacity and visibility');
+        } else {
+            console.error('Add account modal not found in DOM');
+        }
+    }
+
+    function openEditAccountModal(account) {
+        const modal = document.getElementById('edit-account-modal');
+        document.getElementById('edit-account-name').value = account.name;
+        document.getElementById('edit-account-display-name').value = account.display_name;
+        document.getElementById('edit-account-state-content').value = '';
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+            modal.style.visibility = 'visible';
+        }
+    }
+
+    function openAccountHistoryModal(account) {
+        const modal = document.getElementById('account-history-modal');
+        const content = document.getElementById('account-history-content');
+
+        if (!account.risk_control_history || account.risk_control_history.length === 0) {
+            content.innerHTML = '<p>暂无风控记录</p>';
+        } else {
+            let html = `<div class="history-list">`;
+            account.risk_control_history.slice().reverse().forEach(record => {
+                const time = new Date(record.timestamp).toLocaleString('zh-CN');
+                html += `
+                    <div class="history-item">
+                        <div class="history-time">${time}</div>
+                        <div class="history-reason">${record.reason}</div>
+                        ${record.task_name ? `<div class="history-task">任务: ${record.task_name}</div>` : ''}
+                    </div>`;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+        }
+
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.opacity = '1';
+            modal.style.visibility = 'visible';
+        }
+    }
+
+    function setupAccountModals(refreshCallback) {
+        // 添加账号模态框
+        const addModal = document.getElementById('add-account-modal');
+        const closeAddBtn = document.getElementById('close-add-account-modal-btn');
+        const cancelAddBtn = document.getElementById('cancel-add-account-btn');
+        const saveNewBtn = document.getElementById('save-new-account-btn');
+
+        const closeAddModal = () => { if (addModal) addModal.style.display = 'none'; };
+
+        if (closeAddBtn) closeAddBtn.addEventListener('click', closeAddModal);
+        if (cancelAddBtn) cancelAddBtn.addEventListener('click', closeAddModal);
+
+        if (saveNewBtn) {
+            saveNewBtn.addEventListener('click', async () => {
+                const displayName = document.getElementById('account-display-name').value.trim();
+                const stateContent = document.getElementById('account-state-content').value.trim();
+
+                if (!displayName || !stateContent) {
+                    alert('请填写所有必填字段');
+                    return;
+                }
+
+                // 自动从显示名称生成账号标识名（去除特殊字符，添加时间戳确保唯一）
+                const timestamp = Date.now().toString(36);
+                const safeName = displayName.replace(/[^\w\u4e00-\u9fa5]/g, '_').substring(0, 20);
+                const name = `${safeName}_${timestamp}`;
+
+                saveNewBtn.disabled = true;
+                const result = await createAccount({ name, display_name: displayName, state_content: stateContent });
+                saveNewBtn.disabled = false;
+
+                if (result) {
+                    closeAddModal();
+                    await refreshCallback();
+                }
+            });
+        }
+
+        // 编辑账号模态框
+        const editModal = document.getElementById('edit-account-modal');
+        const closeEditBtn = document.getElementById('close-edit-account-modal-btn');
+        const cancelEditBtn = document.getElementById('cancel-edit-account-btn');
+        const saveEditBtn = document.getElementById('save-edit-account-btn');
+
+        const closeEditModal = () => { if (editModal) editModal.style.display = 'none'; };
+
+        if (closeEditBtn) closeEditBtn.addEventListener('click', closeEditModal);
+        if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditModal);
+
+        if (saveEditBtn) {
+            saveEditBtn.addEventListener('click', async () => {
+                const name = document.getElementById('edit-account-name').value;
+                const displayName = document.getElementById('edit-account-display-name').value.trim();
+                const stateContent = document.getElementById('edit-account-state-content').value.trim();
+
+                if (!displayName) {
+                    alert('显示名称不能为空');
+                    return;
+                }
+
+                const updateData = { display_name: displayName };
+                if (stateContent) {
+                    updateData.state_content = stateContent;
+                }
+
+                saveEditBtn.disabled = true;
+                const result = await updateAccount(name, updateData);
+                saveEditBtn.disabled = false;
+
+                if (result) {
+                    closeEditModal();
+                    await refreshCallback();
+                }
+            });
+        }
+
+        // 风控历史模态框
+        const historyModal = document.getElementById('account-history-modal');
+        const closeHistoryBtn = document.getElementById('close-account-history-modal-btn');
+
+        if (closeHistoryBtn) {
+            closeHistoryBtn.addEventListener('click', () => {
+                if (historyModal) historyModal.style.display = 'none';
+            });
+        }
+    }
+
     async function initializeLogsView() {
         const logContainer = document.getElementById('log-content-container');
         const refreshBtn = document.getElementById('refresh-logs-btn');
         const autoRefreshCheckbox = document.getElementById('auto-refresh-logs-checkbox');
         const clearBtn = document.getElementById('clear-logs-btn');
         const taskFilter = document.getElementById('log-task-filter');
+        const limitFilter = document.getElementById('log-display-limit');
         let currentLogSize = 0;
 
         const updateLogs = async (isFullRefresh = false) => {
@@ -1558,7 +2988,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 logContainer.textContent = '正在加载...';
             }
 
-            const logData = await fetchLogs(currentLogSize, selectedTaskName);
+            const logData = await fetchLogs(currentLogSize, selectedTaskName, parseInt(limitFilter ? limitFilter.value : 100));
 
             if (isFullRefresh) {
                 // 如果日志为空，显示消息而不是空白屏幕。
@@ -1580,6 +3010,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         };
 
         refreshBtn.addEventListener('click', () => updateLogs(true));
+
+        // 条数筛选器change事件
+        if (limitFilter) {
+            limitFilter.addEventListener('change', () => updateLogs(true));
+        }
 
         clearBtn.addEventListener('click', async () => {
             if (confirm('你确定要清空所有运行日志吗？此操作不可恢复。')) {
@@ -1836,6 +3271,55 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const notificationSettings = await fetchNotificationSettings();
         if (notificationSettings !== null) {
             notificationContainer.innerHTML = renderNotificationSettings(notificationSettings);
+            
+            // Add event listener for show password buttons in notification settings
+            const toggleWxSecretButton = document.getElementById('toggle-wx-secret-visibility');
+            const wxSecretInput = document.getElementById('wx-secret');
+            if (toggleWxSecretButton && wxSecretInput) {
+                toggleWxSecretButton.addEventListener('click', () => {
+                    if (wxSecretInput.type === 'password') {
+                        wxSecretInput.type = 'text';
+                        toggleWxSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
+                    } else {
+                        wxSecretInput.type = 'password';
+                        toggleWxSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
+                    }
+                });
+            }
+
+            const toggleDingtalkSecretButton = document.getElementById('toggle-dingtalk-secret-visibility');
+            const dingtalkSecretInput = document.getElementById('dingtalk-secret');
+            if (toggleDingtalkSecretButton && dingtalkSecretInput) {
+                toggleDingtalkSecretButton.addEventListener('click', () => {
+                    if (dingtalkSecretInput.type === 'password') {
+                        dingtalkSecretInput.type = 'text';
+                        toggleDingtalkSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
+                    } else {
+                        dingtalkSecretInput.type = 'password';
+                        toggleDingtalkSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
+                    }
+                });
+            }
         } else {
             notificationContainer.innerHTML = '<p>加载通知配置失败。请检查服务器是否正常运行。</p>';
         }
@@ -2172,7 +3656,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     <label for="web-password">Web服务密码</label>
                     <div style="position: relative;">
                         <input type="password" id="web-password" name="WEB_PASSWORD" value="${genericSettings.WEB_PASSWORD || 'admin123'}">
-                        <button type="button" id="toggle-web-password-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">👁️</button>
+                        <button type="button" id="toggle-web-password-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
                     </div>
                     <p class="form-hint">用于登录Web管理界面</p>
                 </div>
@@ -2276,17 +3765,99 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 checkbox.addEventListener('change', saveGenericSettingsNow);
             });
 
-            // Add event listener for show password button
-            const toggleButton = document.getElementById('toggle-web-password-visibility');
-            const passwordInput = document.getElementById('web-password');
-            if (toggleButton && passwordInput) {
-                toggleButton.addEventListener('click', () => {
-                    if (passwordInput.type === 'password') {
-                        passwordInput.type = 'text';
-                        toggleButton.textContent = '🔒';
+            // Add event listener for show password buttons
+            const toggleWebPasswordButton = document.getElementById('toggle-web-password-visibility');
+            const webPasswordInput = document.getElementById('web-password');
+            if (toggleWebPasswordButton && webPasswordInput) {
+                toggleWebPasswordButton.addEventListener('click', () => {
+                    if (webPasswordInput.type === 'password') {
+                        webPasswordInput.type = 'text';
+                        toggleWebPasswordButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
                     } else {
-                        passwordInput.type = 'password';
-                        toggleButton.textContent = '👁️';
+                        webPasswordInput.type = 'password';
+                        toggleWebPasswordButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
+                    }
+                });
+            }
+
+            const toggleWxSecretButton = document.getElementById('toggle-wx-secret-visibility');
+            const wxSecretInput = document.getElementById('wx-secret');
+            if (toggleWxSecretButton && wxSecretInput) {
+                toggleWxSecretButton.addEventListener('click', () => {
+                    if (wxSecretInput.type === 'password') {
+                        wxSecretInput.type = 'text';
+                        toggleWxSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
+                    } else {
+                        wxSecretInput.type = 'password';
+                        toggleWxSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
+                    }
+                });
+            }
+
+            const toggleDingtalkSecretButton = document.getElementById('toggle-dingtalk-secret-visibility');
+            const dingtalkSecretInput = document.getElementById('dingtalk-secret');
+            if (toggleDingtalkSecretButton && dingtalkSecretInput) {
+                toggleDingtalkSecretButton.addEventListener('click', () => {
+                    if (dingtalkSecretInput.type === 'password') {
+                        dingtalkSecretInput.type = 'text';
+                        toggleDingtalkSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
+                    } else {
+                        dingtalkSecretInput.type = 'password';
+                        toggleDingtalkSecretButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
+                    }
+                });
+            }
+
+            const toggleOpenaiApiKeyButton = document.getElementById('toggle-openai-api-key-visibility');
+            const openaiApiKeyInput = document.getElementById('openai-api-key');
+            if (toggleOpenaiApiKeyButton && openaiApiKeyInput) {
+                toggleOpenaiApiKeyButton.addEventListener('click', () => {
+                    if (openaiApiKeyInput.type === 'password') {
+                        openaiApiKeyInput.type = 'text';
+                        toggleOpenaiApiKeyButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
+                    } else {
+                        openaiApiKeyInput.type = 'password';
+                        toggleOpenaiApiKeyButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
                     }
                 });
             }
@@ -2310,6 +3881,31 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const aiSettings = await fetchAISettings();
         if (aiSettings !== null) {
             aiSettingsContainer.innerHTML = renderAISettings(aiSettings);
+            
+            // Add event listener for show password button in AI settings
+            const toggleOpenaiApiKeyButton = document.getElementById('toggle-openai-api-key-visibility');
+            const openaiApiKeyInput = document.getElementById('openai-api-key');
+            if (toggleOpenaiApiKeyButton && openaiApiKeyInput) {
+                toggleOpenaiApiKeyButton.addEventListener('click', () => {
+                    if (openaiApiKeyInput.type === 'password') {
+                        openaiApiKeyInput.type = 'text';
+                        toggleOpenaiApiKeyButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                        `;
+                    } else {
+                        openaiApiKeyInput.type = 'password';
+                        toggleOpenaiApiKeyButton.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        `;
+                    }
+                });
+            }
         } else {
             aiSettingsContainer.innerHTML = '<p>加载AI配置失败。请检查服务器是否正常运行。</p>';
         }
@@ -2776,42 +4372,9 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
         } else if (button.matches('.edit-btn')) {
             const taskData = JSON.parse(row.dataset.task);
-            const isRunning = taskData.is_running === true;
-            const statusBadge = isRunning
-                ? `<span class="status-badge status-running">运行中</span>`
-                : `<span class="status-badge status-stopped">已停止</span>`;
-
-            row.classList.add('editing');
-            row.innerHTML = `
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" ${taskData.enabled ? 'checked' : ''} data-field="enabled">
-                        <span class="slider round"></span>
-                    </label>
-                </td>
-                <td><input type="text" value="${taskData.task_name}" data-field="task_name"></td>
-                <td>${statusBadge}</td>
-                <td><input type="text" value="${taskData.keyword}" data-field="keyword"></td>
-                <td>
-                    <input type="text" value="${taskData.min_price || ''}" placeholder="不限" data-field="min_price" style="width: 60px;"> -
-                    <input type="text" value="${taskData.max_price || ''}" placeholder="不限" data-field="max_price" style="width: 60px;">
-                </td>
-                <td>
-                    <label>
-                        <input type="checkbox" ${taskData.personal_only ? 'checked' : ''} data-field="personal_only"> 个人闲置
-                    </label>
-                </td>
-                <td><input type="number" value="${taskData.max_pages || 3}" data-field="max_pages" style="width: 60px;" min="1"></td>
-                <td>${(taskData.ai_prompt_criteria_file || 'N/A').replace('prompts/', '')}</td>
-                <td><input type="text" value="${taskData.cron || ''}" placeholder="* * * * *" data-field="cron"></td>
-                <td>
-                    <button class="action-btn save-btn">保存</button>
-                    <button class="action-btn cancel-btn">取消</button>
-                </td>
-            `;
-
+            openEditTaskModal(taskData, taskId);
         } else if (button.matches('.delete-btn')) {
-            const taskName = row.querySelector('td:nth-child(2)').textContent;
+            const taskName = row.querySelector('td:nth-child(2)').innerText.trim();
             if (confirm(`你确定要删除任务 "${taskName}" 吗?`)) {
                 const result = await deleteTask(taskId);
                 if (result) {
@@ -3123,6 +4686,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         modal.addEventListener('transitionend', () => {
             if (modal.style.display === 'flex' && modal.classList.contains('visible')) {
                 loadReferenceFiles();
+                loadAccountSelector(); // 加载账号选择器
             }
         });
 
@@ -3183,6 +4747,30 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }
         }
 
+        // Function to load account selector options
+        async function loadAccountSelector() {
+            try {
+                const selector = document.getElementById('bound-account');
+                if (!selector) return;
+
+                const accounts = await fetchAccounts();
+
+                // Clear existing options except the first default option
+                selector.innerHTML = '<option value="">不限（使用默认登录状态）</option>';
+
+                if (accounts && accounts.length > 0) {
+                    accounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.name;
+                        option.textContent = account.display_name;
+                        selector.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('无法加载账号列表:', error);
+            }
+        }
+
         // Function to load reference file preview
         async function loadReferenceFilePreview(filePath) {
             if (!filePath) {
@@ -3215,6 +4803,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
             const formData = new FormData(form);
             const referenceSelector = document.getElementById('reference-file-selector');
+            const boundAccountSelector = document.getElementById('bound-account');
+            const autoSwitchCheckbox = document.getElementById('auto-switch-on-risk');
             const data = {
                 task_name: formData.get('task_name'),
                 keyword: formData.get('keyword'),
@@ -3225,6 +4815,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 max_pages: parseInt(formData.get('max_pages'), 10) || 3,
                 cron: formData.get('cron') || null,
                 reference_file: referenceSelector.value,
+                bound_account: boundAccountSelector ? boundAccountSelector.value : null,
+                auto_switch_on_risk: autoSwitchCheckbox ? autoSwitchCheckbox.checked : false,
             };
 
             // Show loading state
@@ -3603,10 +5195,17 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         // Close modal event handlers
         closeBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
+
+        // Track mousedown origin to prevent modal close when text selection ends on overlay
+        let mouseDownOnOverlay = false;
+        criteriaEditorModal.addEventListener('mousedown', (event) => {
+            mouseDownOnOverlay = (event.target === criteriaEditorModal);
+        });
         criteriaEditorModal.addEventListener('click', (event) => {
-            if (event.target === criteriaEditorModal) {
+            if (event.target === criteriaEditorModal && mouseDownOnOverlay) {
                 closeModal();
             }
+            mouseDownOnOverlay = false;
         });
 
         // Back button event handler (navigates back to task management)
@@ -3674,6 +5273,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const saveBtn = document.getElementById('save-login-state-btn');
         const form = document.getElementById('login-state-form');
         const contentTextarea = document.getElementById('login-state-content');
+        const accountNameInput = document.getElementById('account-name-input');
 
         const closeModal = () => {
             loginStateModal.classList.remove('visible');
@@ -3722,13 +5322,407 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
         saveBtn.addEventListener('click', async (e) => {
             e.preventDefault();
-            const content = contentTextarea.value.trim();
-            if (!content) {
+            e.stopPropagation();
+            
+            // 判断当前模态框的用途：如果账号名称输入框可见且有值，则是添加账号，否则是更新登录状态
+            const accountName = accountNameInput?.value?.trim();
+            const stateContent = contentTextarea?.value?.trim();
+            
+            // 检查账号名称输入框是否可见（通过CSS display属性判断）
+            const isAccountNameVisible = accountNameInput && accountNameInput.offsetParent !== null;
+            
+            if (isAccountNameVisible) {
+                // 作为添加账号使用，不执行此处的逻辑，因为已经在 initializeAccountsView 中处理
+                return;
+            }
+            
+            // 作为更新登录状态使用
+            if (!stateContent) {
                 alert('请粘贴从浏览器获取的JSON内容。');
                 return;
             }
-            await updateLoginState(content);
+            
+            await updateLoginState(stateContent);
         });
 
+    }
+
+    // --- 编辑任务模态框逻辑 ---
+    const editTaskModal = document.getElementById('edit-task-modal');
+    if (editTaskModal) {
+        const closeBtn = document.getElementById('close-edit-task-modal-btn');
+        const cancelBtn = document.getElementById('cancel-edit-task-btn');
+        const saveBtn = document.getElementById('save-edit-task-btn');
+        const form = document.getElementById('edit-task-form');
+
+        const closeEditTaskModal = () => {
+            editTaskModal.classList.remove('visible');
+            setTimeout(() => {
+                editTaskModal.style.display = 'none';
+                form.reset();
+            }, 300);
+        };
+
+        closeBtn.addEventListener('click', closeEditTaskModal);
+        cancelBtn.addEventListener('click', closeEditTaskModal);
+
+        // Track mousedown origin to prevent modal close when text selection ends on overlay
+        let mouseDownOnOverlay = false;
+        editTaskModal.addEventListener('mousedown', (event) => {
+            mouseDownOnOverlay = (event.target === editTaskModal);
+        });
+        editTaskModal.addEventListener('click', (event) => {
+            // Only close if both mousedown AND click happened on the overlay
+            if (event.target === editTaskModal && mouseDownOnOverlay) {
+                closeEditTaskModal();
+            }
+            mouseDownOnOverlay = false;
+        });
+
+        // 加载账号选择器
+        async function loadEditAccountSelector(selectedAccount = '') {
+            try {
+                const selector = document.getElementById('edit-bound-account');
+                if (!selector) return;
+
+                const accounts = await fetchAccounts();
+
+                selector.innerHTML = '<option value="">不限（使用默认登录状态）</option>';
+
+                if (accounts && accounts.length > 0) {
+                    accounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.name;
+                        option.textContent = account.display_name;
+                        if (account.name === selectedAccount) {
+                            option.selected = true;
+                        }
+                        selector.appendChild(option);
+                    });
+                }
+
+                // 更新颜色
+                updateEditAccountColor(selectedAccount);
+
+                // 添加change事件监听
+                selector.onchange = function () {
+                    updateEditAccountColor(this.value);
+                };
+            } catch (error) {
+                console.error('无法加载账号列表:', error);
+            }
+        }
+
+        // 更新账号选择器边框颜色 - 复用现有的getAccountColorByName函数
+        function updateEditAccountColor(accountName) {
+            const selector = document.getElementById('edit-bound-account');
+            if (!selector) return;
+
+            if (accountName) {
+                selector.style.borderColor = getAccountColorByName(accountName);
+            } else {
+                selector.style.borderColor = '#ccc';
+            }
+        }
+
+        // 保存编辑
+        saveBtn.addEventListener('click', async () => {
+            const taskId = document.getElementById('edit-task-id').value;
+            const btnText = saveBtn.querySelector('.btn-text');
+            const spinner = saveBtn.querySelector('.spinner');
+
+            const data = {
+                enabled: document.getElementById('edit-task-enabled').checked,
+                task_name: document.getElementById('edit-task-name').value,
+                keyword: document.getElementById('edit-keyword').value,
+                min_price: document.getElementById('edit-min-price').value || null,
+                max_price: document.getElementById('edit-max-price').value || null,
+                max_pages: parseInt(document.getElementById('edit-max-pages').value, 10) || 3,
+                bound_account: document.getElementById('edit-bound-account').value || null,
+                auto_switch_on_risk: document.getElementById('edit-auto-switch-on-risk').checked,
+                cron: document.getElementById('edit-task-cron').value || null,
+                personal_only: document.getElementById('edit-personal-only').checked,
+            };
+
+            // 保存更改不发送description字段，避免触发AI生成
+            // AI生成由"新生成并保存/重新生成并保存"按钮单独处理
+
+            // 只有当选择了参考文件时才添加到数据中（不触发生成）
+            const referenceFile = document.getElementById('edit-reference-file-selector').value;
+            if (referenceFile) {
+                data.ai_prompt_criteria_file = referenceFile;
+            }
+
+            saveBtn.disabled = true;
+            if (btnText) btnText.textContent = '保存中...';
+            if (spinner) spinner.style.display = 'inline-block';
+
+            try {
+                const result = await updateTask(taskId, data);
+                if (result) {
+                    closeEditTaskModal();
+                    // 刷新任务列表
+                    const tasks = await fetchTasks();
+                    document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
+                }
+            } catch (error) {
+                console.error('保存任务失败:', error);
+                alert(`保存失败: ${error.message}`);
+            } finally {
+                saveBtn.disabled = false;
+                if (btnText) btnText.textContent = '保存更改';
+                if (spinner) spinner.style.display = 'none';
+            }
+        });
+
+        // 全局函数：打开编辑任务模态框
+        window.openEditTaskModal = async function (taskData, taskId) {
+            // 填充表单
+            document.getElementById('edit-task-id').value = taskId;
+            document.getElementById('edit-task-enabled').checked = taskData.enabled || false;
+            document.getElementById('edit-task-name').value = taskData.task_name || '';
+            document.getElementById('edit-keyword').value = taskData.keyword || '';
+            document.getElementById('edit-min-price').value = taskData.min_price || '';
+            document.getElementById('edit-max-price').value = taskData.max_price || '';
+            document.getElementById('edit-max-pages').value = taskData.max_pages || 3;
+            document.getElementById('edit-auto-switch-on-risk').checked = taskData.auto_switch_on_risk || false;
+            document.getElementById('edit-task-cron').value = taskData.cron || '';
+            document.getElementById('edit-personal-only').checked = taskData.personal_only || false;
+
+            // 加载账号选择器并选中当前绑定的账号
+            await loadEditAccountSelector(taskData.bound_account || '');
+
+            // 加载参考文件选择器
+            await loadEditReferenceFileSelector(taskData.ai_prompt_criteria_file || '');
+
+            // 加载当前AI标准信息
+            await loadEditCriteriaInfo(taskData);
+
+            // 显示模态框
+            editTaskModal.style.display = 'flex';
+            editTaskModal.style.opacity = '1';
+            editTaskModal.style.visibility = 'visible';
+            setTimeout(() => editTaskModal.classList.add('visible'), 10);
+        };
+
+        // 加载编辑模态框参考文件选择器
+        async function loadEditReferenceFileSelector(currentFile = '') {
+            const selector = document.getElementById('edit-reference-file-selector');
+            if (!selector) return;
+
+            try {
+                // 获取参考文件列表 - API返回数组格式
+                const response = await fetch('/api/prompts');
+                if (!response.ok) throw new Error('无法获取参考文件列表');
+                const files = await response.json(); // API直接返回数组
+
+                selector.innerHTML = '<option value="">保持现有模板</option>';
+
+                if (Array.isArray(files) && files.length > 0) {
+                    files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file;
+                        option.textContent = file;
+                        selector.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载参考文件列表失败:', error);
+                selector.innerHTML = '<option value="">加载失败</option>';
+            }
+        }
+
+        // 加载当前AI标准信息
+        async function loadEditCriteriaInfo(taskData) {
+            const statusText = document.getElementById('edit-criteria-status-text');
+            const descTextarea = document.getElementById('edit-task-description');
+            const criteriaTextarea = document.getElementById('edit-criteria-content');
+            const regenerateBtn = document.getElementById('edit-regenerate-criteria-btn');
+
+            const criteriaFile = taskData.ai_prompt_criteria_file || '';
+
+            if (criteriaFile) {
+                const isRequirement = criteriaFile.includes('requirement');
+                if (isRequirement) {
+                    statusText.textContent = '待生成';
+                    statusText.style.backgroundColor = '#007bff';
+                    // 待生成时按钮文案和颜色（绿色）
+                    if (regenerateBtn) {
+                        regenerateBtn.textContent = '新生成并保存';
+                        regenerateBtn.style.backgroundColor = '#52c41a';
+                        regenerateBtn.style.borderColor = '#52c41a';
+                    }
+                } else {
+                    statusText.textContent = '已生成';
+                    statusText.style.backgroundColor = '#52c41a';
+                    // 已生成时按钮文案和颜色（橙色）
+                    if (regenerateBtn) {
+                        regenerateBtn.textContent = '重新生成并保存';
+                        regenerateBtn.style.backgroundColor = '#fa8c16';
+                        regenerateBtn.style.borderColor = '#fa8c16';
+                    }
+                }
+            } else {
+                statusText.textContent = '未设置';
+                statusText.style.backgroundColor = '#999';
+                if (regenerateBtn) {
+                    regenerateBtn.textContent = '新生成并保存';
+                    regenerateBtn.style.backgroundColor = '#52c41a';
+                    regenerateBtn.style.borderColor = '#52c41a';
+                }
+            }
+
+            // 加载当前需求描述
+            descTextarea.value = taskData.description || '';
+
+            // 尝试加载criteria内容
+            // criteria文件路径类似 "criteria/xxx_criteria.txt"，需要提取文件名
+            if (criteriaFile && !criteriaFile.includes('requirement')) {
+                try {
+                    // 提取文件名部分（去掉目录前缀）
+                    const filename = criteriaFile.includes('/')
+                        ? criteriaFile.split('/').pop()
+                        : criteriaFile;
+
+                    // 使用 /api/criteria/{filename} 获取criteria内容
+                    const response = await fetch(`/api/criteria/${encodeURIComponent(filename)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        criteriaTextarea.value = data.content || '(暂无内容)';
+                    } else {
+                        criteriaTextarea.value = '(无法加载)';
+                    }
+                } catch (error) {
+                    console.error('加载criteria失败:', error);
+                    criteriaTextarea.value = '(加载失败)';
+                }
+            } else {
+                criteriaTextarea.value = '(尚未生成AI标准)';
+            }
+        }
+
+        // Tab切换事件
+        document.querySelectorAll('.edit-criteria-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+
+                // 更新Tab按钮样式
+                document.querySelectorAll('.edit-criteria-tab').forEach(t => {
+                    t.classList.remove('active');
+                    t.style.borderBottom = 'none';
+                    t.style.color = '#666';
+                });
+                tab.classList.add('active');
+                tab.style.borderBottom = '2px solid #1890ff';
+                tab.style.color = '#1890ff';
+
+                // 切换内容显示
+                document.querySelectorAll('.edit-criteria-tab-content').forEach(content => {
+                    content.style.display = 'none';
+                });
+                document.getElementById(`edit-tab-${targetTab}`).style.display = 'block';
+            });
+        });
+
+        // 预览参考文件按钮事件
+        const editPreviewBtn = document.getElementById('edit-preview-reference-btn');
+        if (editPreviewBtn) {
+            editPreviewBtn.addEventListener('click', async () => {
+                const selector = document.getElementById('edit-reference-file-selector');
+                const previewContainer = document.getElementById('edit-reference-preview-container');
+                const previewPre = document.getElementById('edit-reference-file-preview');
+
+                const selectedFile = selector.value;
+                if (!selectedFile || selectedFile === '保持现有模板') { // Check for default option
+                    alert('请先选择一个参考文件');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/prompts/${encodeURIComponent(selectedFile)}`);
+                    if (!response.ok) throw new Error('无法获取文件内容');
+                    const data = await response.json();
+
+                    previewPre.textContent = data.content || '(空文件)';
+                    previewContainer.style.display = 'block';
+                } catch (error) {
+                    console.error('预览失败:', error);
+                    previewPre.textContent = '加载失败: ' + error.message;
+                    previewContainer.style.display = 'block';
+                }
+            });
+        }
+
+        // 重新生成AI标准按钮事件
+        const editRegenerateBtn = document.getElementById('edit-regenerate-criteria-btn');
+        if (editRegenerateBtn) {
+            editRegenerateBtn.addEventListener('click', async () => {
+                const taskId = document.getElementById('edit-task-id').value;
+                if (!taskId) {
+                    alert('无法获取任务ID');
+                    return;
+                }
+
+                const descriptionTextarea = document.getElementById('edit-task-description');
+                const description = descriptionTextarea.value.trim();
+
+                if (!description) {
+                    alert('请先填写需求描述');
+                    return;
+                }
+
+                const originalBtnText = editRegenerateBtn.textContent;
+                editRegenerateBtn.disabled = true;
+                editRegenerateBtn.textContent = '生成中...';
+
+                try {
+                    // 使用updateTask API，携带description字段触发AI生成
+                    const result = await updateTask(taskId, { description: description });
+
+                    if (result) {
+                        alert('AI标准生成已启动，请稍后刷新查看结果');
+
+                        // 关闭模态框并刷新任务列表
+                        closeEditTaskModal();
+                        const tasks = await fetchTasks();
+                        document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
+                    } else {
+                        throw new Error('更新请求失败');
+                    }
+                } catch (error) {
+                    console.error('生成失败:', error);
+                    alert('生成失败: ' + error.message);
+                } finally {
+                    editRegenerateBtn.disabled = false;
+                    editRegenerateBtn.textContent = originalBtnText;
+                }
+            });
+        }
+    }
+
+    // 初始化任务表格账号单元格点击事件
+    setupTaskAccountCellEvents();
+
+    // 初始化任务字段行内编辑事件
+    setupTaskInlineEditEvents();
+
+    // 使用MutationObserver监控DOM变化，自动填充账号display_name
+    const accountCellObserver = new MutationObserver(async (mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                // 检查是否有新添加的account-cell
+                const cells = document.querySelectorAll('.account-cell');
+                if (cells.length > 0) {
+                    // 异步填充账号显示名称
+                    populateTaskAccountSelectors();
+                    break;
+                }
+            }
+        }
+    });
+
+    // 开始观察mainContent的变化
+    if (mainContent) {
+        accountCellObserver.observe(mainContent, { childList: true, subtree: true });
     }
 });
