@@ -32,6 +32,11 @@ class NotificationConfig:
             "WEBHOOK_URL": get_env_value("WEBHOOK_URL", ""),
             "WEBHOOK_ENABLED": get_bool_env_value("WEBHOOK_ENABLED", False),
             
+            # 钉钉配置
+            "DINGTALK_WEBHOOK": get_env_value("DINGTALK_WEBHOOK", ""),
+            "DINGTALK_SECRET": get_env_value("DINGTALK_SECRET", ""),
+            "DINGTALK_ENABLED": get_bool_env_value("DINGTALK_ENABLED", False),
+            
             # Webhook配置
             "WEBHOOK_METHOD": get_env_value("WEBHOOK_METHOD", "POST").upper(),
             "WEBHOOK_HEADERS": self._parse_webhook_headers(),
