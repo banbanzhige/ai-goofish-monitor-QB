@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Union
 
 
 class Task(BaseModel):
@@ -9,13 +9,15 @@ class Task(BaseModel):
     description: str
     max_pages: int
     personal_only: bool
-    min_price: Optional[str] = None
-    max_price: Optional[str] = None
+    min_price: Optional[Union[str, int, float]] = None
+    max_price: Optional[Union[str, int, float]] = None
     cron: Optional[str] = None
     ai_prompt_base_file: str
     ai_prompt_criteria_file: str
     is_running: Optional[bool] = False
     generating_ai_criteria: Optional[bool] = False
+    bound_account: Optional[str] = None  # 绑定的咸鱼账号名
+    auto_switch_on_risk: Optional[bool] = False  # 风控时自动切换账号
 
 
 class TaskUpdate(BaseModel):
@@ -25,13 +27,15 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     max_pages: Optional[int] = None
     personal_only: Optional[bool] = None
-    min_price: Optional[str] = None
-    max_price: Optional[str] = None
+    min_price: Optional[Union[str, int, float]] = None
+    max_price: Optional[Union[str, int, float]] = None
     cron: Optional[str] = None
     ai_prompt_base_file: Optional[str] = None
     ai_prompt_criteria_file: Optional[str] = None
     is_running: Optional[bool] = None
     generating_ai_criteria: Optional[bool] = None
+    bound_account: Optional[str] = None
+    auto_switch_on_risk: Optional[bool] = None
 
 
 class TaskGenerateRequest(BaseModel):
@@ -90,6 +94,9 @@ class NotificationSettings(BaseModel):
     WEBHOOK_CONTENT_TYPE: Optional[str] = "JSON"
     WEBHOOK_QUERY_PARAMETERS: Optional[str] = None
     WEBHOOK_BODY: Optional[str] = None
+    DINGTALK_WEBHOOK: Optional[str] = None
+    DINGTALK_SECRET: Optional[str] = None
+    DINGTALK_ENABLED: Optional[bool] = False
     PCURL_TO_MOBILE: Optional[bool] = True
     NOTIFY_AFTER_TASK_COMPLETE: Optional[bool] = True
 
