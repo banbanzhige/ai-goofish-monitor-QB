@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from src.config import client, BASE_URL, MODEL_NAME, get_ai_request_params
+import src.config  # 直接导入模块，而不是导入特定符号
 from openai import OpenAI
 import httpx
 
@@ -27,7 +27,7 @@ async def test_ai_settings(settings: dict):
         client = OpenAI(**client_params)
 
         response = client.chat.completions.create(
-            **get_ai_request_params(
+            **src.config.get_ai_request_params(
                 model=mode_name,
                 messages=[
                     {"role": "user", "content": "Hello, this is a test message to verify the connection."}
@@ -52,16 +52,20 @@ async def test_ai_settings(settings: dict):
 async def test_ai_settings_backend():
     """测试AI模型设置是否有效（从后端容器内发起）。"""
     try:
-        if not client:
-            return {
-                "success": False,
-                "message": "后端AI客户端未初始化，请检查.env配置文件中的AI设置。"
-            }
+        # 直接访问 src.config 模块中的 client 变量
+        if not src.config.client:
+            # print("DEBUG: 后端AI客户端未初始化，尝试重新初始化...")
+            success = src.config.reload_config()
+            if not success or not src.config.client:
+                return {
+                    "success": False,
+                    "message": "后端AI客户端未初始化，请检查.env配置文件中的AI设置。"
+                }
 
-        print(f"LOG: 后端容器AI测试 BASE_URL: {BASE_URL()}, MODEL_NAME: {MODEL_NAME()}")
-        response = await client.chat.completions.create(
-            **get_ai_request_params(
-                model=MODEL_NAME(),
+        # print(f"LOG: 后端容器AI测试 BASE_URL: {src.config.BASE_URL()}, MODEL_NAME: {src.config.MODEL_NAME()}")
+        response = await src.config.client.chat.completions.create(
+            **src.config.get_ai_request_params(
+                model=src.config.MODEL_NAME(),
                 messages=[
                     {"role": "user", "content": "Hello, this is a test message from backend container to verify connection."}
                 ],
