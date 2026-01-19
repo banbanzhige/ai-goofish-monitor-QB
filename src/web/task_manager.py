@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from src.web.models import Task, TaskUpdate, TaskGenerateRequestWithReference
 from src.utils import write_log
 from src.web.scheduler import reload_scheduler_jobs
+from src.web.log_manager import sys_log
 from src.prompt_utils import generate_criteria
 from src.task import add_task, get_task, update_task
 from src.notifier import notifier
@@ -59,14 +60,14 @@ async def start_task_process(task_id: int, task_name: str, fetcher_processes):
             env=child_env
         )
         fetcher_processes[task_id] = process
-        print(f"启动任务 '{task_name}' (PID: {process.pid})，日志输出到 {log_file_path}")
+        sys_log(f"启动任务 '{task_name}' (PID: {process.pid})，日志输出到 {log_file_path}")
 
         await update_task_running_status(task_id, True)
 
         async def monitor_process():
             try:
                 await process.wait()
-                print(f"任务 '{task_name}' (ID: {task_id}) 进程已结束，返回码: {process.returncode}")
+                sys_log(f"任务 '{task_name}' (ID: {task_id}) 进程已结束，返回码: {process.returncode}")
             finally:
                 await update_task_running_status(task_id, False)
                 if task_id in fetcher_processes:
@@ -81,7 +82,7 @@ async def stop_task_process(task_id: int, fetcher_processes):
     """内部函数：停止一个指定的任务进程。"""
     process = fetcher_processes.get(task_id)
     if not process or process.returncode is not None:
-        print(f"任务ID {task_id} 没有正在运行的进程。")
+        sys_log(f"任务ID {task_id} 没有正在运行的进程。")
         await update_task_running_status(task_id, False)
         if task_id in fetcher_processes:
             del fetcher_processes[task_id]
@@ -102,7 +103,7 @@ async def stop_task_process(task_id: int, fetcher_processes):
             process.terminate()
 
         await process.wait()
-        print(f"任务进程 {process.pid} (ID: {task_id}) 已终止。")
+        sys_log(f"任务进程 {process.pid} (ID: {task_id}) 已终止。")
 
         try:
             processed_count, recommended_count = get_task_stats(task_name)
@@ -113,9 +114,9 @@ async def stop_task_process(task_id: int, fetcher_processes):
         except Exception as e:
             print(f"发送任务停止通知失败: {e}")
     except ProcessLookupError:
-        print(f"试图终止的任务进程 (ID: {task_id}) 已不存在。")
+        sys_log(f"试图终止的任务进程 (ID: {task_id}) 已不存在。")
     except Exception as e:
-        print(f"停止任务进程 (ID: {task_id}) 时出错: {e}")
+        sys_log(f"停止任务进程 (ID: {task_id}) 时出错: {e}", "ERROR")
     finally:
         await update_task_running_status(task_id, False)
 
@@ -350,6 +351,10 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
     if not task:
         raise HTTPException(status_code=404, detail="任务未找到。")
 
+    # 检查任务是否正在运行或正在生成AI标准
+    if task.is_running or task.generating_ai_criteria:
+        raise HTTPException(status_code=400, detail="运行中或生成中的任务禁止编辑")
+
     update_data = task_update.model_dump(exclude_unset=True)
 
     if not update_data:
@@ -382,6 +387,10 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
                     task['generating_ai_criteria'] = False
 
                     await update_task(task_id, task)
+                    
+                    # 刷新定时任务调度器，确保新生成的AI标准的任务被正确添加到定时任务列表中
+                    from src.web.main import scheduler, fetcher_processes
+                    await reload_scheduler_jobs(scheduler, fetcher_processes, update_task_running_status)
             except Exception as e:
                 print(f"调用AI生成标准时出错: {e}")
                 task['generating_ai_criteria'] = False
@@ -645,5 +654,3 @@ async def cancel_scheduled_task(task_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取消任务时出错: {e}")
-
-
