@@ -38,9 +38,6 @@ async def main():
     parser.add_argument("--start-reason", type=str, default="手动开始", help="任务开始原因（可选值：manual 手动开始，scheduled 定时开始）")
     args = parser.parse_args()
 
-    if not os.path.exists(STATE_FILE):
-        sys.exit(log_message("系统", "error", f"登录状态文件 '{STATE_FILE}' 不存在。请先运行 login.py 生成。"))
-
     if not os.path.exists(args.config):
         sys.exit(log_message("系统", "error", f"配置文件 '{args.config}' 不存在。"))
 
@@ -141,7 +138,11 @@ async def main():
         except Exception as e:
             print(log_message(task_conf['task_name'], "error", f"发送任务开始通知失败: {e}"))
         
-        coroutines.append(fetch_xianyu(task_config=task_conf, debug_limit=args.debug_limit))
+        coroutines.append(fetch_xianyu(
+            task_config=task_conf, 
+            debug_limit=args.debug_limit,
+            bound_account=task_conf.get('bound_account')
+        ))
 
     # 并发执行所有任务
     results = await asyncio.gather(*coroutines, return_exceptions=True)
