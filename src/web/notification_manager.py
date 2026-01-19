@@ -41,7 +41,8 @@ async def send_test_notification_api(request: TestNotificationRequest):
             "wx_bot": "企业微信机器人",
             "wx_app": "企业微信应用",
             "telegram": "Telegram",
-            "webhook": "Webhook"
+            "webhook": "Webhook",
+            "dingtalk": "钉钉机器人"
         }
         channel_display_name = channel_name_map.get(request.channel, request.channel)
 
@@ -65,7 +66,8 @@ async def send_test_task_completion_notification_api(request: TestTaskCompletion
             "wx_bot": "企业微信机器人",
             "wx_app": "企业微信应用",
             "telegram": "Telegram",
-            "webhook": "Webhook"
+            "webhook": "Webhook",
+            "dingtalk": "钉钉机器人"
         }
         channel_display_name = channel_name_map.get(request.channel, request.channel)
 
@@ -89,7 +91,8 @@ async def send_test_product_notification_api(request: TestProductNotificationReq
             "wx_bot": "企业微信机器人",
             "wx_app": "企业微信应用",
             "telegram": "Telegram",
-            "webhook": "Webhook"
+            "webhook": "Webhook",
+            "dingtalk": "钉钉机器人"
         }
         channel_display_name = channel_name_map.get(request.channel, request.channel)
 
