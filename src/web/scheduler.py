@@ -103,8 +103,12 @@ async def reload_scheduler_jobs(scheduler, fetcher_processes, update_task_runnin
             task_name = task.get("task_name")
             cron_str = task.get("cron")
             is_enabled = task.get("enabled", False)
+            ai_prompt_criteria_file = task.get("ai_prompt_criteria_file", "")
 
-            if task_name and cron_str and is_enabled:
+            # 判断任务是否已生成标准（ai_prompt_criteria_file 应该是 criteria/ 目录下的文件，而不是 requirement/ 目录下的）
+            has_generated_criteria = ai_prompt_criteria_file and not ai_prompt_criteria_file.startswith("requirement/")
+
+            if task_name and cron_str and is_enabled and has_generated_criteria:
                 try:
                     trigger = CronTrigger.from_crontab(cron_str)
                     scheduler.add_job(
@@ -118,6 +122,8 @@ async def reload_scheduler_jobs(scheduler, fetcher_processes, update_task_runnin
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO]   -> 已为任务 '{task_name}' 添加定时规则: '{cron_str}'")
                 except ValueError as e:
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [WARNING] 任务 '{task_name}' 的 Cron 表达式 '{cron_str}' 无效，已跳过: {e}")
+            elif task_name and cron_str and is_enabled and not has_generated_criteria:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO]   -> 任务 '{task_name}' 尚未生成标准，已跳过定时任务调度")
 
     except FileNotFoundError:
         pass
@@ -190,5 +196,3 @@ def get_scheduled_jobs(scheduler):
         del job["_next_run_dt"]
     
     return jobs
-
-
