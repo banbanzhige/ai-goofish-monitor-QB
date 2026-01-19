@@ -29,12 +29,12 @@ old/
 start_web_server.bat
 .env
 config.json
+docs/
 
 #.md
 docker-build-guide.md
 
 #.使用产生的文件
-images/
 chrome-extension/
 requirement/
 logs/
