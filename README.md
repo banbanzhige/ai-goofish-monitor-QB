@@ -1,5 +1,5 @@
 <a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" title="ai-goofish-monitor-QB">
-  <img src="/logo/banner.png" alt="ai-goofish-monitor-QB Banner" width="100%">
+  <img src="/images/logo/banner.png" alt="ai-goofish-monitor-QB Banner" width="100%">
 </a>
 
 
@@ -18,15 +18,16 @@
 - **定时商品监控**：定时监控咸鱼平台上的商品信息与新上
 - **高度可定制**: 每个监控任务均可配置独立的关键词、价格范围、个性需求，筛选条件和AI分析指令 (Prompt)。
 - **AI智能分析**：利用AI自动分析商品信息，结合商品图文和卖家画像进行深度分析，精准筛选符合条件的商品，并且给出个性化建议
-- **多种通知方式**：企业微信群机器人、企业微信应用通知、支持Ntfy、Gotify、Bark、Telegram等多种通知渠道
+- **多种通知方式**：企业微信群机器人、企业微信应用通知、钉钉机器人、支持Ntfy、Gotify、Bark、Telegram等多种通知渠道
 - **多任务管理**：支持配置多个监控任务，每个任务可以设置不同的关键词、价格范围等、支持并发运行
+- **多账号管理**：支持多咸鱼账号管理界面，支持任务绑定账号，风控自动切换账号保证任务续航
 - **灵活的调度**：支持定时任务配置，可自定义监控频率
 - **Docker 一键部署**: 提供 `docker-compose` 配置，实现开箱即用
 
 
-# 📸 截图展示
+# 📸 界面展示
 <div align="center" style="margin: 2em 0;">
-  <img src="Example/0.9.0/任务管理1.png" 
+  <img src="images/Example/0.9.7/任务管理.png" 
        style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
        alt="新任务管理界面">
   <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
@@ -35,18 +36,25 @@
 </div>
 
 <div align="center" style="margin: 2em 0;">
-  <img src="Example/0.9.0/结果查看1.png" 
+  <img src="images/Example/0.9.7/结果查看.png" 
        style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
        alt="新结果管理界面">
   <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
     新结果管理界面
   </p>
+
 </div>
 
+| 账号管理界面 | 定时任务界面 |
+|:---:|:---:|
+| ![账号管理界面](images/Example/0.9.7/账号管理.png) | ![定时任务界面](images/Example/0.9.7/定时任务.png) |
 
-| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 | Telegram通知渠道效果 |
-|:---:|:---:|:---:|
-| ![微信应用通知渠道效果](Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](Example/0.9.2/微信群机器人通知渠道0101.jpg) | ![Telegram通知渠道效果](Example/0.9.2/Telegram通知渠道0101.jpg) |
+
+
+
+| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 | Telegram通知渠道效果 |钉钉通知渠道效果 |
+|:---:|:---:|:---:|:---:|
+| ![微信应用通知渠道效果](images/Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](images/Example/0.9.2/微信群机器人通知渠道0101.jpg) | ![Telegram通知渠道效果](images/Example/0.9.2/Telegram通知渠道0101.jpg) |![Telegram通知渠道效果](images/Example/0.9.7/钉钉.jpg) |
 
 
 # token消耗
@@ -70,12 +78,30 @@
 ![豆包1.8定价](Example/0.9.5/doubao1.8模型定价测算.png)
 根据测算可得出20个产品分析预估模型调用费用约0.2元人民币，成本消耗控制十分可观
 
-0
+
 </details>
 
 # 🆕 新特性
 **近期更新：**
 <details open>
+<summary>v0.9.7 更新日志 - 2026-01-18</summary>
+
+  <ul>
+    <li><strong>任务管理界面优化改版</strong>：整合了操作按钮，优化了最小边距，各个列表下添加可编辑容器，点击即可直接修改参数，给web界面多端配适打底</li>
+    <li><strong>新增多账号管理系统</strong>：支持添加、编辑、删除多个咸鱼账号，支持从当前登录状态一键导入。</li>
+    <li><strong>新增加定时任务界面</strong>：对定时任务掌控更加全面与精确，可立刻执行或跳过一轮任务
+    <li><strong>任务绑定账号</strong>：任务创建时支持选择使用的账号，支持风控时自动切换账号功能。</li>
+    <li><strong>自定义登录页面</strong>：替代浏览器Basic Auth弹窗，登录认证改用签名Cookie Session方案，支持7天免登录。</li>
+    <li><strong>账号状态管理</strong>：新增Cookie有效性检测、复制账号、定期自动检测状态（每5分钟）。</li>
+    <li><strong>新增钉钉机器人通知</strong>：支持加签验证和ActionCard图文卡片格式。</li>
+    <li><strong>运行日志优化</strong>：默认限制100条避免内存消耗，支持选择展示条数(100/200/500/1000)。迁移了部分cmd的系统通知到运行日志内</li>
+    <li><strong>任务编辑优化</strong>：新增AI标准Tab切换、参考文件模板选择和预览。</li>
+    <li><strong>多项Bug修复</strong>：修复模态框可见性、账号创建、AI标准生成、表单回车刷新等问题，优化系统稳定性。</li>
+
+</details>
+
+
+<details>
 <summary>v0.9.6 更新日志 - 2026-01-16</summary>
 
   <ul>
@@ -128,9 +154,9 @@
 
   <p></p> 
 
-  <img src="Example/0.9.2/Telegram通知渠道0101.jpg" alt="Telegram通知渠道">
-  <img src="Example/0.9.2/微信群机器人通知渠道0101.jpg" alt="微信群机器人通知渠道">
-  <img src="Example/0.9.2/删除与更新凭证.png" alt="删除与更新凭证">
+  <img src="images/Example/0.9.2/Telegram通知渠道0101.jpg" alt="Telegram通知渠道">
+  <img src="images/Example/0.9.2/微信群机器人通知渠道0101.jpg" alt="微信群机器人通知渠道">
+  <img src="images/Example/0.9.2/删除与更新凭证.png" alt="删除与更新凭证">
 </details>
 
 
@@ -151,45 +177,46 @@
 
   <p></p> <!-- 加一个空行，让列表和图片之间有间隔 -->
 
-  <img src="Example/0.9.0/删除与更新凭证.png" alt="删除与更新凭证">
-  <img src="Example/0.9.0/手动筛选.png" alt="手动筛选">
-  <img src="Example/0.9.0/删除与更新凭证.png" alt="删除与更新凭证">
+  <img src="images/Example/0.9.0/删除与更新凭证.png" alt="删除与更新凭证">
+  <img src="images/Example/0.9.0/手动筛选.png" alt="手动筛选">
+  <img src="images/Example/0.9.0/删除与更新凭证.png" alt="删除与更新凭证">
 </details>
 
 **归档日志**
 
 我针对了原版goofish代码做出了一些优化，对我个人而言使用上更加顺畅，逻辑上更加清晰
 <details>
+<details>
 <summary>📋任务管理界面：优化了整体ui排版，拆分了运行逻辑，增加了更多的任务状态指示与操作，减少了任务阻塞。现在可以复制任务，详细定制每条任务的ai筛选标准了</summary>
 
-![任务管理1.png](Example/old/任务管理1.png)
-![任务管理2.png](Example/old/任务管理2.png)
-![任务管理3.png](Example/old/任务管理3.png)
+![任务管理1.png](images/Example/old/任务管理1.png)
+![任务管理2.png](images/Example/old/任务管理2.png)
+![任务管理3.png](images/Example/old/任务管理3.png)
 </details>
 <details>
 <summary>🎯结果查看界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
 
-![结果查看1.png](Example/old/结果查看1.png)
-![结果查看2.png](Example/old/结果查看2.png)
-![结果查看3.png](Example/old/结果查看3.png)
+![结果查看1.png](images/Example/old/结果查看1.png)
+![结果查看2.png](images/Example/old/结果查看2.png)
+![结果查看3.png](images/Example/old/结果查看3.png)
 
 </details>
 
 <details>
 <summary>📊运行日志界面：添加了更多结果可选筛选项，添加了手动发送通知到通知渠道，现在可以更详细的管理所有商品结果了</summary>
 
-![运行日志.png](Example/old/运行日志.png)
-![运行日志2.png](Example/old/运行日志2.png)
+![运行日志.png](images/Example/old/运行日志.png)
+![运行日志2.png](images/Example/old/运行日志2.png)
 
 </details>
 
 <details>
 <summary>📱通知配置界面：拆分优化了通知模块，把通知配置界面也单独拎到导航栏，添加在通知中手机版5H链接，方便在通信软件如微信中直接打开移动版咸鱼，并且添加了企业微信应用渠道支持，添加了测试通知</summary>
 
-![通知配置.png](Example/old/通知配置.png)
-![通知配置2.png](Example/old/通知配置2.png)
-![企业微信群机器人2.jpg](Example/old/企业微信群机器人2.jpg)
-![企业微信应用渠道2.jpg](Example/old/企业微信应用渠道2.jpg)
+![通知配置.png](images/Example/old/通知配置.png)
+![通知配置2.png](images/Example/old/通知配置2.png)
+![企业微信群机器人2.jpg](images/Example/old/企业微信群机器人2.jpg)
+![企业微信应用渠道2.jpg](images/Example/old/企业微信应用渠道2.jpg)
 
 
 </details>
@@ -198,17 +225,17 @@
 <details>
 <summary>🖥️系统设置界面：优化了.env与系统同步逻辑，web里添加了更多可选的环境设置，并且双向保存同步了，对docker用户更加友好。现在可以直接在系统管理里管理Prompt实现了核心ai标准的增删改查工作，能更方便配置自定义个性化ai需求了。</summary>
 
-![系统设置1.png](Example/old/系统设置1.png)
-![系统设置2.png](Example/old/系统设置2.png)
+![系统设置1.png](images/Example/old/系统设置1.png)
+![系统设置2.png](images/Example/old/系统设置2.png)
+
+</details>
 
 </details>
 
 
-
-
 ## 🚀核心流程
 
--  **自然语言定制推荐**：每个任务都可以单独给 ai 分析配备独立的判断逻辑和分析思路，可以单独制定一条纯自然语言的推荐逻辑，可以通过编辑prompt列本来定制。**例如**：从卖家曾经的评论和出售的商品**判断**是否是二手贩子还是个人卖家，我要个人卖家的推荐
+-  **自然语言定制推荐**：每个任务都可以单独给 ai 分析配备独立的判断逻辑和分析思路，可以单独制定一条纯自然语言的推荐逻辑，可以通过编辑`prompt`列本来定制。**例如**：从卖家曾经的评论和出售的商品**判断**是否是二手贩子还是个人卖家，我要个人卖家的推荐
 -  **多线程**：下图描述了单个监控任务从启动到完成的核心处理逻辑。在实际使用中，`web_server.py` 会作为主服务，根据用户操作或定时调度来启动一个或多个这样的任务进程。
 
 
@@ -238,8 +265,14 @@ graph TD
     %% 5. 所有流程最终都汇总到这里，再开始下一轮循环
     I --> B
     J --> B
+    %% 6.风控逻辑
+    B --> L{触发风控/异常?};
+    L -- 是 --> M[账号轮换并重试];
+    M --> B;
 ```
-**多维度**：ai会根据collector.py获取回来的数据进行分类分析，再加上定制化需求判断后得出推荐/不推荐结论，最后所有数据存储入jsonl里，并且条件满足就会触发通知渠道。
+
+
+**多维度**：ai会根据`collector.py`获取回来的数据进行分类分析，再加上定制化需求判断后得出推荐/不推荐结论，最后所有数据存储入jsonl里，并且条件满足就会触发通知渠道。
 
 ```mermaid
 mindmap
@@ -284,16 +317,14 @@ mindmap
 
 docker项目地址
   - https://hub.docker.com/r/banbanzhige/ai-goofish-monitor-qb
-
-
-
+  
 
 **方式一：使用docker compose开箱即用**:
 
   - 提前下载`.env.example`并改名成`.env`放在`/工作文件夹根目录`下或者手动填入`.env.example`内的参数到你自己创建的`.env`文件内
   - 提前在`/工作文件夹根目录/config/`内创建空的`config.json`文件，以持久化管理你的监控任务
   - 推荐下载`/prompts/base_prompt.txt`，并挂载`/app/prompts`卷，提前创建好`/工作目录文件夹/prompts`文件夹并且复制一份`base_prompt.txt`在你的`/prompts`内，不挂载不影响正常使用，但是每次更新自定义的prompt内容会消失，如无需求可以不需要挂载。
-
+  - `/state`是储存咸鱼cookie文件的文件夹，一般情况下不需要挂载
 ```yaml
 services:
  app:
@@ -307,26 +338,58 @@ services:
      - ./config/config.json:/app/config.json
      - ./logs:/app/logs
      - ./jsonl:/app/jsonl
-     - ./images:/app/images
      - ./criteria:/app/criteria
      - ./requirement:/app/requirement
    # - ./prompts:/app/prompts 
+   # - ./state:/app/state 
    restart: unless-stopped
 
 ```
 
 **方式二**:  
 ```
-docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.6-beta
+docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.7-beta
 ```
   
 
-
 ## 💻 Windows部署
 
-### 1. 拉取项目代码
+### 环境准备
 
-  - **需要自行准备 ：python 3.8+的环境，并且配置好path变量**
+
+
+
+- python 3.10+
+- Node.js + npm
+
+
+### 方式一：1.使用start_web_server.bat启动(推荐)
+
+   #### 拉取项目代码
+
+
+  方式1：直接点击code→[download ZIP](https://github.com/banbanzhige/ai-goofish-monitor-QB/archive/refs/heads/master.zip)下载
+
+
+  - 解压后双击打开`start_web_server.bat`启动
+
+  方式2：git拉取
+  ```PowerShell
+  git clone https://github.com/banbanzhige/ai-goofish-monitor-QB.git
+  cd banbanzhige/ai-goofish-monitor-QB
+  ```
+
+ -  双击打开`start_web_server.bat`启动
+
+  ![start_web_server启动样式](images/Example/0.9.7/启动样式.png)
+
+  - `start_web_server.bat`会自行创建虚拟环境，安装依赖，检测端口，并且自行启动`web_server.py`
+
+### 方式二：用PowerShell终端打开
+
+
+   - 拉取项目代码
+
 
   - 方式1：直接点击code-[download ZIP](https://github.com/banbanzhige/ai-goofish-monitor-QB/archive/refs/heads/master.zip)下载
 
@@ -336,14 +399,6 @@ docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.6-beta
   cd banbanzhige/ai-goofish-monitor-QB
   ```
 
-  
-
-
-
-### 2. 启动Web管理界面与后端代码
-
-- 方式1：解压后双击打开`start_web_server.bat`启动(推荐)
-- 方式2：在根目录用PowerShell终端打开
 
 ```PowerShell
 # 1. 获取PowerShell执行权限（首次执行即可，后续跳过）
@@ -362,41 +417,42 @@ python web_server.py
 ```
 
 
-  - `start_web_server.bat`会自行创建虚拟环境，安装依赖，检测端口，并且自行启动`web_server.py`
 
-  ![start_web_server启动样式](Example/0.9.5/start_web_server启动样式.png)
-
-### 3. 使用前需要提前准备好的内容
-
-- 需要在web界面中系统设置中直接配置环境的变量
-  · 视觉大模型的ai API调用token
-  · 通知渠道token
-  · 闲鱼账号
 
 
 
 # 📋 快速开始
+你需要提前准备的内容：
+| 变量 | 说明 | 必需 |
+|------|------|------|
+| `OPENAI_API_KEY` | AI 模型 API Key | 是 |
+| `OPENAI_BASE_URL` | API 接口地址（兼容 OpenAI 格式） | 是 |
+| `OPENAI_MODEL_NAME` | 多模态模型名称（如 `gpt-4o``doubao-seed-1-8-251228`） | 是 |
+| `闲鱼账号` | 需要手机扫码或者[Chrome插件](https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa)获取登录 | 是 |
+| `通知渠道token` | 企业微信机器人，Telegram，钉钉等 | 否|
 
 ### 1. 打开Web管理界面
 部署完成后
-在浏览器中访问：http://localhost:8000 （若端口冲突可以在`.env`配置端口号）
+在浏览器中访问：http://localhost:8000( `.env`里可以修改你的端口号)
 
 - 默认登录用户名：**admin**
 - 默认登录密码：**admin123**
 
-### 2. 登录咸鱼账号
+### 2. 获取咸鱼账号
+<details open>
+<summary>方式一：在WEB管理界面右上角使用自动登录（推荐）</summary>
+  <ul>
+  <li><strong>**注意：docker用户可能无法使用此功能，建议使用方法二获取**</strong></li>
+  <li>  1.程序自动打开咸鱼首页</li>
+  <li>  2.在咸鱼首页扫码登录</li>
+  <li>  3.登录完成后会自动刷新获取cookie，请不要手动关闭网页</li>
+  <li>  4.获取登录信息完成后网页会自动关->登录成功->填写好账号名称即可</li>
+ <img src="images/Example/0.9.7/自动获取账号.png" alt="自动登录按钮">
+ <img src="images/Example/0.9.7/账号管理.png" alt="账号管理界面.png">
+</details>
 
-- 方式一：在WEB管理界面右上角使用自动登录（推荐）
-**注意：docker用户无法使用此功能，建议使用方式二获取**
-  - 程序自动打开咸鱼首页
-  - 在咸鱼首页扫码登录
-  - 登录完成后会自动刷新获取cookie，请不要手动关闭网页
-  - 获取登录信息完成后网页会自动关->登录成功
-![自动登录按钮.png](Example/0.9.0/自动登录按钮.png)
 
-
-
-<details>
+<details open>
 <summary>方式二：在线获取Chrome插件获取登录信息</summary>
 
 -    1.在您的个人电脑上，使用Chrome浏览器安装[闲鱼登录状态提取扩展](https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa)
@@ -404,23 +460,27 @@ python web_server.py
 -    3.登录成功后，点击浏览器工具栏中的扩展图标
 -    4.点击"提取登录状态"按钮获取登录信息
 -    5.点击"复制到剪贴板"按钮
--    6.将复制的内容粘贴到Web UI中保存即可
+-    6.将复制的内容粘贴到Web UI中并填好账号名称保存即可
+
+
 </details>
 
 <details>
 <summary>方式三：本地安装Chrome插件获取登录信息</summary>
 
--    1. 打开Chrome浏览器
--    2. 访问chrome://extensions/
--    3. 开启"开发者模式"
--    4. 点击"加载已解压的扩展程序"
--    5. 选择chrome-extension/目录
+-    1.打开Chrome浏览器
+-    2.访问chrome://extensions/
+-    3.开启"开发者模式"
+-    4.点击"加载已解压的扩展程序"
+-    5.选择chrome-extension/目录
+-    6.重复方式二步骤
 </details>
 
 
 
 
 ### 3. 配置系统配置
+  推荐进入WEB界面直接填写保存配置
   默认配置存储在工作路径下的`.env`文件内，可以直接配置，前后端保存同步
   #### AI模型配置 
   - API Key *：你的AI模型服务商提供的API Key
@@ -440,21 +500,12 @@ python web_server.py
 - 默认登录用户名：**admin**
 - 默认登录密码：**admin123**
 
-### 4. 🔔配置通知
-支持以下通知渠道：
-1. **Ntfy**
-2. **Gotify**
-3. **Bark**
-4. **企业微信机器人**
-5. **企业微信应用**
-6. **Telegram**
-7. **Webhook**
-
-- 按web指提交引渠道的配置URL或密钥保存即可，这部分设置也保存在`.env`内编辑
+### 4. 配置通知
+- 按web指提交引渠道的配置URL或密钥保存即可，这部分设置也保存在`.env`内
 ### 5. 配置监控任务
 
 在Web界面中：
--这部分设置保存在`config.json`中
+-这部分设置会自动生成并保存在`config.json`中
 1. 点击"任务管理"
 2. 点击"创建新任务"
 3. 填写任务信息：
@@ -489,11 +540,26 @@ Cron表达式用于配置任务的执行频率，格式：
 - `0 18 * * 1-5`：每周一至周五下午6点执行一次
 - `0 0 */2 * *`:每两小时执行一次
 
+## 🔔 通知配置
+
+支持以下通知渠道：
+
+1. **Ntfy**
+2. **Gotify**
+3. **Bark**
+4. **企业微信机器人**
+5. **企业微信应用**
+6. **Telegram**
+7. **钉钉机器人**
+8. **Webhook**
+
+可以根据Web界面的"系统设置"中提供的示例配置通知渠道
+
 ## 📝 日志管理
 
-日志文件存储在`logs/`目录下：
-- `scraper.log`：Web服务器日志
-- `日期_随机编号.log`：产品信息发送ai请求文件
+日志文件存储在logs/目录下：
+- scraper.log：Web服务器日志
+- 日期_随机编号.log：产品信息发送ai请求文件
 
 可以在Web界面中查看和清空日志。
 
@@ -539,12 +605,26 @@ Cron表达式用于配置任务的执行频率，格式：
 
 1. **登录模块 (login.py)**：处理咸鱼账号登录，生成登录状态文件（可选，大部分情况下浏览器插件即可满足）
 2. **数据收集模块 (collector.py)**：执行商品监控任务，采集商品数据
-3. **Web服务器 (web_server.py)**：提供Web管理界面和API
+3. **Web服务器核心 (src/web/)**：提供Web管理界面和API，包含以下模块：
+   - **main.py**：FastAPI应用入口
+   - **auth.py**：认证模块（替代浏览器Basic Auth的Cookie Session方案）
+   - **scheduler.py**：定时任务调度器
+   - **task_manager.py**：任务管理接口
+   - **log_manager.py**：日志管理
+   - **result_manager.py**：结果管理
+   - **settings_manager.py**：设置管理
+   - **notification_manager.py**：通知管理
+   - **ai_manager.py**：AI管理接口
+   - **account_manager.py**：账号管理接口
+   - **models.py**：数据模型
 4. **AI分析模块 (src/ai_handler.py)**：利用AI分析商品信息
-5. **通知模块 (src/notifier/)**：处理各种通知渠道
-6. **配置模块 (src/config.py)**：管理系统配置
+5. **通知模块 (src/notifier/)**：处理各种通知渠道（企业微信、钉钉、Telegram等）
+6. **配置模块 (src/config.py)**：统一管理系统配置
 7. **任务管理模块 (src/task.py)**：处理任务的增删改查
 8. **文件操作模块 (src/file_operator.py)**：处理文件的读写操作
+9. **数据解析模块 (src/parsers.py)**：解析采集到的商品数据
+10. **工具函数模块 (src/utils.py)**：提供通用工具函数
+11. **版本管理模块 (src/version.py)**：管理项目版本信息
 
 </details>
 
@@ -558,8 +638,10 @@ Cron表达式用于配置任务的执行频率，格式：
 .
 ├── ai-goofish-monitor-QB/
 │   ├── .env                      # 环境变量配置文件
+│   ├── .env.example              # 环境变量配置示例文件
 │   ├── config.json               # 任务配置文件
 │   ├── Dockerfile                # Docker配置文件
+│   ├── .dockerignore             # Docker忽略文件配置
 │   ├── login.py                  # 登录模块
 │   ├── prompt_generator.py       # AI Prompt生成工具
 │   ├── requirements.txt          # 项目依赖
@@ -567,10 +649,13 @@ Cron表达式用于配置任务的执行频率，格式：
 │   ├── web_server.py             # Web服务器入口
 │   ├── check_env.py              # 环境检查脚本
 │   ├── start_web_server.bat      # Windows一键启动脚本
-│   ├── 项目规范.md                # 项目开发规范文档
-│   ├── 升级.txt                   # 版本升级说明
+│   ├── README.md                 # 项目说明文档
+│   ├── LICENSE                   # 许可证文件
+│   ├── DISCLAIMER.md             # 免责声明
+│   ├── gitattributes             # Git属性配置
+│   ├── .gitignore                # Git忽略文件配置
 │   ├── chrome-extension/         # Chrome扩展
-│   ├── logo/                     # 项目Logo
+│   ├── images/                   # 项目图片资源
 │   ├── prompts/                  # AI Prompt模板
 │   ├── src/                      # 核心源代码
 │   │   ├── __init__.py
@@ -584,6 +669,10 @@ Cron表达式用于配置任务的执行频率，格式：
 │   │   ├── utils.py              # 工具函数
 │   │   ├── version.py            # 版本信息
 │   │   ├── notifier/             # 通知模块
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py           # 通知基类
+│   │   │   ├── channels.py       # 通知渠道实现
+│   │   │   └── config.py         # 通知配置
 │   │   └── web/                  # Web服务器核心模块（重构后）
 │   │       ├── main.py           # FastAPI应用入口
 │   │       ├── auth.py           # 认证模块
@@ -594,14 +683,24 @@ Cron表达式用于配置任务的执行频率，格式：
 │   │       ├── settings_manager.py # 设置管理
 │   │       ├── notification_manager.py # 通知管理
 │   │       ├── ai_manager.py     # AI管理接口
+│   │       ├── account_manager.py # 账号管理接口
 │   │       └── models.py         # 数据模型
 │   ├── static/                   # 静态文件
+│   │   ├── css/                  # 样式文件
+│   │   │   └── style.css
+│   │   └── js/                   # JavaScript文件
+│   │       └── main.js
 │   ├── templates/                # HTML模板
+│   │   ├── index.html
+│   │   └── login.html
 │   ├── requirement/              # 用户需求文件
 │   ├── criteria/                 # AI分析标准
 │   ├── logs/                     # 日志文件
 │   ├── jsonl/                    # 结果存储
-│   └── xianyu_state.json         # 登录状态文件
+│   ├── state/                    # 状态文件存储
+│   ├── task_stats/               # 任务统计信息
+│   ├── archive/                  # 归档文件
+│   └── venv/                     # Python虚拟环境（可选）
 ```
 </details>
 
@@ -613,22 +712,23 @@ Cron表达式用于配置任务的执行频率，格式：
 <summary>点击展开项目依赖</summary>
 
 ```
-aiofiles==25.1.0
-apscheduler==3.11.2
-beautifulsoup4==4.14.3
-fastapi==0.128.0
-httpx==0.28.1
-jinja2==3.1.6
-lxml==6.0.2
-openai==2.14.0
-playwright==1.57.0
-pydantic==2.12.5
-python-dotenv==1.2.1
-python-telegram-bot==22.5
-requests==2.32.5
-selenium==4.39.0
-uvicorn==0.40.0
-webdriver-manager==4.0.2
+uvicorn
+fastapi
+pydantic
+python-dotenv
+aiofiles
+apscheduler
+openai
+httpx
+beautifulsoup4
+lxml
+requests
+selenium
+webdriver-manager
+python-telegram-bot
+playwright
+jinja2
+python-multipart
 ```
 </details>
 
