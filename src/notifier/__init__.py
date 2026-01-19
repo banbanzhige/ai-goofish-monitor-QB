@@ -8,7 +8,8 @@ from src.notifier.channels import (
     WeChatBotNotifier,
     WeChatAppNotifier,
     TelegramNotifier,
-    WebhookNotifier
+    WebhookNotifier,
+    DingTalkNotifier
 )
 from src.notifier.config import config
 
@@ -25,7 +26,8 @@ class Notifier:
             "wx_bot": WeChatBotNotifier(),
             "wx_app": WeChatAppNotifier(),
             "telegram": TelegramNotifier(),
-            "webhook": WebhookNotifier()
+            "webhook": WebhookNotifier(),
+            "dingtalk": DingTalkNotifier()
         }
         
         # 渠道名称映射，用于统一显示
@@ -36,7 +38,8 @@ class Notifier:
             "wx_bot": "企业微信机器人",
             "wx_app": "企业微信应用",
             "telegram": "Telegram",
-            "webhook": "Webhook"
+            "webhook": "Webhook",
+            "dingtalk": "钉钉机器人"
         }
     
     async def send_test_notification(self, channel: str) -> bool:
