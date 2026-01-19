@@ -14,3 +14,4 @@ webdriver-manager
 python-telegram-bot
 playwright
 jinja2
+python-multipart
