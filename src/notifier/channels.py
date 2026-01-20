@@ -425,7 +425,12 @@ class WeChatBotNotifier(BaseNotifier):
         super().__init__("wx_bot")
     
     async def send_test_notification(self) -> bool:
-        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
+        # 直接从环境变量获取最新配置，避免单例模式的缓存问题
+        from src.config import WX_BOT_URL, get_bool_env_value
+        wx_bot_url = WX_BOT_URL()
+        wx_bot_enabled = get_bool_env_value("WX_BOT_ENABLED", False)
+        
+        if not wx_bot_url or not wx_bot_enabled:
             return False
             
         try:
@@ -446,7 +451,7 @@ class WeChatBotNotifier(BaseNotifier):
             response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["WX_BOT_URL"],
+                    wx_bot_url,
                     json=payload,
                     headers=headers,
                     timeout=10
@@ -467,7 +472,12 @@ class WeChatBotNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
+        # 直接从环境变量获取最新配置，避免单例模式的缓存问题
+        from src.config import WX_BOT_URL, get_bool_env_value
+        wx_bot_url = WX_BOT_URL()
+        wx_bot_enabled = get_bool_env_value("WX_BOT_ENABLED", False)
+        
+        if not wx_bot_url or not wx_bot_enabled:
             return False
             
         try:
@@ -488,7 +498,7 @@ class WeChatBotNotifier(BaseNotifier):
             response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["WX_BOT_URL"],
+                    wx_bot_url,
                     json=text_payload,
                     headers=headers,
                     timeout=10
@@ -530,7 +540,7 @@ class WeChatBotNotifier(BaseNotifier):
                     img_response = await asyncio.get_running_loop().run_in_executor(
                         None,
                         lambda: requests.post(
-                            config["WX_BOT_URL"],
+                            wx_bot_url,
                             json=news_payload,
                             headers=headers,
                             timeout=10
@@ -553,7 +563,12 @@ class WeChatBotNotifier(BaseNotifier):
             return False
     
     async def send_task_start_notification(self, task_name: str, reason: str) -> bool:
-        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
+        # 直接从环境变量获取最新配置，避免单例模式的缓存问题
+        from src.config import WX_BOT_URL, get_bool_env_value
+        wx_bot_url = WX_BOT_URL()
+        wx_bot_enabled = get_bool_env_value("WX_BOT_ENABLED", False)
+        
+        if not wx_bot_url or not wx_bot_enabled:
             return False
         try:
             notification_title = "🚀 任务开始"
@@ -571,7 +586,7 @@ class WeChatBotNotifier(BaseNotifier):
             response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["WX_BOT_URL"],
+                    wx_bot_url,
                     json=payload,
                     headers=headers,
                     timeout=10
@@ -592,7 +607,12 @@ class WeChatBotNotifier(BaseNotifier):
             return False
     
     async def send_task_completion_notification(self, task_name: str, reason: str, processed_count: int = 0, recommended_count: int = 0) -> bool:
-        if not config["WX_BOT_URL"] or not config["WX_BOT_ENABLED"]:
+        # 直接从环境变量获取最新配置，避免单例模式的缓存问题
+        from src.config import WX_BOT_URL, get_bool_env_value
+        wx_bot_url = WX_BOT_URL()
+        wx_bot_enabled = get_bool_env_value("WX_BOT_ENABLED", False)
+        
+        if not wx_bot_url or not wx_bot_enabled:
             return False
         try:
             notification_title = "✅ 任务完成"
@@ -612,7 +632,7 @@ class WeChatBotNotifier(BaseNotifier):
             response = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["WX_BOT_URL"],
+                    wx_bot_url,
                     json=payload,
                     headers=headers,
                     timeout=10
