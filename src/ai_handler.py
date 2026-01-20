@@ -254,6 +254,13 @@ def validate_ai_response_format(parsed_response):
     return True
 
 
+# 自定义异常类，用于表示AI调用失败需要停止任务
+class AICallFailureException(Exception):
+    """当AI调用多次失败需要停止任务时抛出的异常"""
+    def __init__(self, message="AI调用多次失败，任务需要停止"):
+        self.message = message
+        super().__init__(self.message)
+
 from src.notifier import notifier
 
 async def send_all_notifications(product_data, reason):
@@ -265,12 +272,18 @@ async def send_all_notifications(product_data, reason):
     """
     return await notifier.send_product_notification(product_data, reason)
 
+# 全局AI调用失败计数器
+ai_call_failure_count = 0
+# AI调用失败阈值，达到此次数时停止任务
+AI_CALL_FAILURE_THRESHOLD = 3
 
 
 
 @retry_on_failure(retries=3, delay=5)
 async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
     """将完整的商品JSON数据和所有图片发送给 AI 进行分析（异步）。"""
+    global ai_call_failure_count
+    
     if not client:
         safe_print("   [AI分析] 错误：AI客户端未初始化，跳过分析。")
         return None
@@ -465,6 +478,13 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
 
         except Exception as e:
             safe_print(f"   [AI分析] 第{attempt + 1}次尝试AI调用失败: {e}")
+            ai_call_failure_count += 1
+            safe_print(f"   [AI分析] AI调用失败计数: {ai_call_failure_count}/{AI_CALL_FAILURE_THRESHOLD}")
+            
+            if ai_call_failure_count >= AI_CALL_FAILURE_THRESHOLD:
+                safe_print(f"   [AI分析] AI调用失败次数已达到阈值 ({AI_CALL_FAILURE_THRESHOLD})，任务将停止")
+                raise AICallFailureException(f"AI调用连续失败 {AI_CALL_FAILURE_THRESHOLD} 次，任务需要停止。失败原因: {str(e)}")
+            
             if attempt < max_retries - 1:
                 safe_print(f"   [AI分析] 准备第{attempt + 2}次重试...")
                 continue
