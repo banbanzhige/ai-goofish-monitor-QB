@@ -205,50 +205,6 @@ async def delete_prompt(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"删除 Prompt 文件时出错: {e}")
 
-@router.get("/api/login-state")
-async def get_login_state():
-    """读取 xianyu_state.json 文件内容。"""
-    state_file = "xianyu_state.json"
-    if not os.path.exists(state_file):
-        raise HTTPException(status_code=404, detail="登录状态文件不存在")
-    
-    try:
-        async with aiofiles.open(state_file, 'r', encoding='utf-8') as f:
-            content = await f.read()
-        return {"content": content}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"读取登录状态文件时出错: {e}")
-
-
-@router.post("/api/login-state")
-async def update_login_state(data: LoginStateUpdate):
-    """接收前端发送的登录状态JSON字符串，并保存到 xianyu_state.json。"""
-    state_file = "xianyu_state.json"
-    try:
-        json.loads(data.content)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="提供的内容不是有效的JSON格式。")
-
-    try:
-        async with aiofiles.open(state_file, 'w', encoding='utf-8') as f:
-            await f.write(data.content)
-        return {"message": f"登录状态文件 '{state_file}' 已成功更新。"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"写入登录状态文件时出错: {e}")
-
-
-@router.delete("/api/login-state")
-async def delete_login_state():
-    """删除 xianyu_state.json 文件。"""
-    state_file = "xianyu_state.json"
-    if os.path.exists(state_file):
-        try:
-            os.remove(state_file)
-            return {"message": "登录状态文件已成功删除。"}
-        except OSError as e:
-            raise HTTPException(status_code=500, detail=f"删除登录状态文件时出错: {e}")
-    return {"message": "登录状态文件不存在，无需删除。"}
-
 
 async def _cleanup_login_process(process):
     """清理登录进程的后台任务"""

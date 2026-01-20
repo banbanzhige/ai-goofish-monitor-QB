@@ -7,7 +7,6 @@ from openai import AsyncOpenAI
 load_dotenv(override=True)
 
 # --- File Paths & Directories ---
-STATE_FILE = "xianyu_state.json"
 IMAGE_SAVE_DIR = "images"
 CONFIG_FILE = "config.json"
 os.makedirs(IMAGE_SAVE_DIR, exist_ok=True)

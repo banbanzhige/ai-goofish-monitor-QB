@@ -5,7 +5,6 @@ import argparse
 import json
 from datetime import datetime
 
-from src.config import STATE_FILE
 from src.scraper import fetch_xianyu
 
 # 统一日志格式化函数

@@ -27,7 +27,6 @@ from src.config import (
     RUN_HEADLESS,
     RUNNING_IN_DOCKER,
     SEND_URL_FORMAT_IMAGE,
-    STATE_FILE,
 )
 from src.parsers import (
     _parse_search_results_json,
@@ -432,7 +431,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
         if isinstance(snapshot_data, dict):
             # 新版扩展导出的增强快照，包含环境和Header
             if any(key in snapshot_data for key in ("env", "headers", "page", "storage")):
-                print(f"检测到增强浏览器快照，应用环境参数: {STATE_FILE}")
+                print(f"检测到增强浏览器快照，应用环境参数: {state_file_path}")
                 storage_state_arg = {"cookies": snapshot_data.get("cookies", [])}
                 context_kwargs.update(_build_context_overrides(snapshot_data))
                 extra_headers = _build_extra_headers(snapshot_data.get("headers"))
