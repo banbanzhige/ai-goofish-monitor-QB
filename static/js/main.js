@@ -566,21 +566,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function deleteLoginState() {
-        try {
-            const response = await fetch('/api/login-state', { method: 'DELETE' });
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || '删除登录凭证失败');
-            }
-            return await response.json();
-        } catch (error) {
-            console.error("无法删除登录凭证:", error);
-            alert(`错误: ${error.message}`);
-            return null;
-        }
-    }
-
     async function sendNotification(itemData) {
         try {
             const response = await fetch('/api/notifications/send', {
@@ -2458,17 +2443,17 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         if (statusCell) {
                             if (response.ok && result.valid) {
                                 statusCell.innerHTML = '<span class="status-badge status-ok" style="background:#52c41a;">有效</span>';
-                                alert(`✓ Cookie有效！账号 "${name}" 可正常使用`);
+                                alert(`✓ ${result.message}`);
                             } else {
                                 statusCell.innerHTML = '<span class="status-badge status-error" style="background:#ff4d4f;">已过期</span>';
-                                alert(`✗ Cookie无效或已过期\n${result.message || '请更新Cookie'}`);
+                                alert(`✗ ${result.message}`);
                             }
                         }
                     } catch (error) {
                         if (statusCell) {
                             statusCell.innerHTML = '<span class="status-badge" style="background:#999;">检测失败</span>';
                         }
-                        alert(`测试失败: ${error.message}`);
+                        alert(`测试账号 '${name}' 失败: ${error.message}`);
                     } finally {
                         btn.disabled = false;
                         btn.textContent = '测试';
@@ -5134,23 +5119,6 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             const modal = document.getElementById('login-state-modal');
             modal.style.display = 'flex';
             setTimeout(() => modal.classList.add('visible'), 10);
-        } else if (widgetDeleteBtn) {
-            event.preventDefault();
-            if (confirm('你确定要删除登录凭证 (xianyu_state.json) 吗？删除后需要重新设置才能运行任务。')) {
-                const result = await deleteLoginState();
-                if (result) {
-                    alert(result.message);
-                    await refreshLoginStatusWidget(); // Refresh the widget UI
-                    // Also refresh settings view if it's currently active
-                    if (window.location.hash === '#settings' || window.location.hash === '') {
-                        const statusContainer = document.getElementById('system-status-container');
-                        if (statusContainer) {
-                            const status = await fetchSystemStatus();
-                            statusContainer.innerHTML = renderSystemStatus(status);
-                        }
-                    }
-                }
-            }
         }
     });
 
@@ -5284,66 +5252,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }, 300);
         };
 
-        async function updateLoginState(content) {
-            saveBtn.disabled = true;
-            saveBtn.textContent = '保存中...';
-            try {
-                const response = await fetch('/api/login-state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: content }),
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || '更新登录状态失败');
-                }
-                alert('登录状态更新成功！');
-                closeModal();
-                await refreshLoginStatusWidget(); // Refresh the widget UI
-                // Also refresh settings view if it's currently active
-                if (window.location.hash === '#settings') {
-                    await initializeSettingsView();
-                }
-            } catch (error) {
-                console.error('更新登录状态时出错:', error);
-                alert(`更新失败: ${error.message}`);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = '保存';
-            }
-        }
-
         closeBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
         loginStateModal.addEventListener('click', (event) => {
             if (event.target === loginStateModal) {
                 closeModal();
             }
-        });
-
-        saveBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // 判断当前模态框的用途：如果账号名称输入框可见且有值，则是添加账号，否则是更新登录状态
-            const accountName = accountNameInput?.value?.trim();
-            const stateContent = contentTextarea?.value?.trim();
-            
-            // 检查账号名称输入框是否可见（通过CSS display属性判断）
-            const isAccountNameVisible = accountNameInput && accountNameInput.offsetParent !== null;
-            
-            if (isAccountNameVisible) {
-                // 作为添加账号使用，不执行此处的逻辑，因为已经在 initializeAccountsView 中处理
-                return;
-            }
-            
-            // 作为更新登录状态使用
-            if (!stateContent) {
-                alert('请粘贴从浏览器获取的JSON内容。');
-                return;
-            }
-            
-            await updateLoginState(stateContent);
         });
 
     }

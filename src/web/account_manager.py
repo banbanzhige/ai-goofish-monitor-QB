@@ -239,7 +239,7 @@ async def test_account_cookie(name: str):
         cookies = data.get("cookies", [])
         
         if not cookies:
-            return {"valid": False, "message": "账号没有Cookie数据"}
+            return {"valid": False, "message": f"账号 '{name}' 没有Cookie数据"}
         
         # 检查关键Cookie是否存在且未过期
         import time
@@ -261,22 +261,22 @@ async def test_account_cookie(name: str):
         if expired_cookies:
             return {
                 "valid": False, 
-                "message": f"以下Cookie已过期: {', '.join(expired_cookies)}"
+                "message": f"账号 '{name}' 的以下Cookie已过期: {', '.join(expired_cookies)}"
             }
         
         missing = set(required_cookies) - found_cookies
         if missing:
             return {
                 "valid": False,
-                "message": f"缺少关键Cookie: {', '.join(missing)}"
+                "message": f"账号 '{name}' 缺少关键Cookie: {', '.join(missing)}"
             }
         
-        return {"valid": True, "message": "Cookie看起来有效"}
+        return {"valid": True, "message": f"账号 '{name}' 的Cookie看起来有效"}
         
     except HTTPException:
         raise
     except Exception as e:
-        return {"valid": False, "message": f"测试失败: {str(e)}"}
+        return {"valid": False, "message": f"测试账号 '{name}' 失败: {str(e)}"}
 
 
 class DuplicateAccountRequest(BaseModel):
