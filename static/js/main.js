@@ -1380,7 +1380,8 @@ document.addEventListener('DOMContentLoaded', function () {
             env.wx_bot_url_set ||
             (env.wx_corp_id_set && env.wx_agent_id_set && env.wx_secret_set) ||
             (env.telegram_bot_token_set && env.telegram_chat_id_set) ||
-            env.webhook_url_set;
+            env.webhook_url_set ||
+            env.dingtalk_webhook_set;
 
         return `
             <ul class="status-list">
