@@ -7,11 +7,6 @@ set "GREEN=[92m"
 set "YELLOW=[93m"
 set "RESET=[0m"
    
-set "SERVER_PORT=!SERVER_PORT!"
-if exist ".env" (
-    for /f "usebackq tokens=2 delims==" %%a in (`findstr /i "SERVER_PORT" ".env"`) do set "SERVER_PORT=%%a"
-    for /f "tokens=*" %%a in ("!SERVER_PORT!") do set "SERVER_PORT=%%a"
-)
 
 rem 获取版本号
 for /f "delims=" %%v in ('python -c "from src.version import VERSION; print(VERSION)"') do set "APP_VERSION=%%v"
@@ -132,12 +127,12 @@ exit /b 1
 echo 所有依赖安装完成 
 echo.
 
-rem [已弃用] xianyu_state.json检查 - 现使用多账号管理系统（state目录下的账号文件）
-rem if not exist "xianyu_state.json" (  
-rem     echo !RED![错误] 缺少咸鱼登录状态cookie配置文件:xianyu_state.json!RESET!  
-rem     echo 需要登录咸鱼后才能信息检索数据，可以在web管理界面获取和生成cookie文件!
-rem     echo.
-rem )
+set "SERVER_PORT=!SERVER_PORT!"
+if exist ".env" (
+    for /f "usebackq tokens=2 delims==" %%a in (`findstr /i "SERVER_PORT" ".env"`) do set "SERVER_PORT=%%a"
+    for /f "tokens=*" %%a in ("!SERVER_PORT!") do set "SERVER_PORT=%%a"
+)
+
 
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "127.0.0.1"') do (
     for /f "tokens=*" %%b in ("%%a") do set "LOCAL_IP=%%b"
