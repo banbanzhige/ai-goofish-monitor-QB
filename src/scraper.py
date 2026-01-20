@@ -17,6 +17,7 @@ from src.ai_handler import (
     get_ai_analysis,
     send_all_notifications,
     cleanup_task_images,
+    AICallFailureException,
 )
 from src.config import (
     AI_DEBUG_MODE,
@@ -739,6 +740,28 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                             log_time(f"AI分析完成。推荐状态: {ai_analysis_result.get('is_recommended')}", task_name=task_name)
                                         else:
                                             final_record['ai_analysis'] = {'error': 'AI分析经过多次重试后返回None。'}
+                                    except AICallFailureException as e:
+                                        print(f"\n==================== AI调用失败 ====================")
+                                        print(f"AI调用连续失败，任务 '{task_name}' 将停止。")
+                                        print(f"失败原因: {e}")
+                                        print("==================================================")
+                                        # 删除下载的图片文件
+                                        for img_path in downloaded_image_paths:
+                                            try:
+                                                if os.path.exists(img_path):
+                                                    os.remove(img_path)
+                                                    print(f"   [图片] 已删除临时图片文件: {img_path}")
+                                            except Exception as ex:
+                                                print(f"   [图片] 删除图片文件时出错: {ex}")
+                                        # 发送任务终止通知
+                                        from src.notifier import notifier
+                                        await notifier.send_task_completion_notification(task_name, f"AI调用失败-结束原因：{e}", processed_item_count, recommended_item_count)
+                                        # 停止任务
+                                        stop_scraping = True
+                                        end_reason = f"AI_CALL_FAILURE:{e}"
+                                        await detail_page.close()
+                                        await browser.close()
+                                        return processed_item_count, recommended_item_count, end_reason
                                     except Exception as e:
                                         print(f"   -> AI分析过程中发生严重错误: {e}")
                                         final_record['ai_analysis'] = {'error': str(e)}
