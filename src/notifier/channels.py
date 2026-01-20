@@ -89,7 +89,7 @@ class NtfyNotifier(BaseNotifier):
             
         try:
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             await asyncio.get_running_loop().run_in_executor(
                 None,
@@ -115,7 +115,7 @@ class NtfyNotifier(BaseNotifier):
             
         try:
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -216,7 +216,7 @@ class GotifyNotifier(BaseNotifier):
             
         try:
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             payload = {
                 'title': (None, notification_title),
@@ -245,7 +245,7 @@ class GotifyNotifier(BaseNotifier):
             
         try:
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -360,7 +360,7 @@ class BarkNotifier(BaseNotifier):
             return False
         try:
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             bark_payload = {
                 "title": notification_title,
@@ -390,7 +390,7 @@ class BarkNotifier(BaseNotifier):
             return False
         try:
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -572,7 +572,7 @@ class WeChatBotNotifier(BaseNotifier):
             return False
         try:
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             payload = {
                 "msgtype": "text",
@@ -616,7 +616,7 @@ class WeChatBotNotifier(BaseNotifier):
             return False
         try:
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -775,7 +775,7 @@ AI推荐商品，查看详情了解更多...
                 return False
             
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             message_data = {
                 "touser": config["WX_TO_USER"],
@@ -805,7 +805,7 @@ AI推荐商品，查看详情了解更多...
                 return False
             
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -1021,7 +1021,7 @@ class TelegramNotifier(BaseNotifier):
         try:
             telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage"
             notification_title = "🚀 任务开始"
-            message = f"<b>开始了 '{task_name}' 任务 - {reason}</b>"
+            message = f"<b>🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}</b>"
             
             telegram_payload = {
                 "chat_id": config["TELEGRAM_CHAT_ID"],
@@ -1052,7 +1052,7 @@ class TelegramNotifier(BaseNotifier):
         try:
             telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage"
             notification_title = "✅ 任务完成"
-            message = f"<b>结束了 '{task_name}' 任务 - {reason}</b>"
+            message = f"<b>🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}</b>"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -1125,7 +1125,7 @@ class WebhookNotifier(BaseNotifier):
             return False
         try:
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             await asyncio.get_running_loop().run_in_executor(
                 None,
@@ -1141,7 +1141,7 @@ class WebhookNotifier(BaseNotifier):
             return False
         try:
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
@@ -1344,7 +1344,7 @@ class DingTalkNotifier(BaseNotifier):
             return False
         try:
             notification_title = "🚀 任务开始"
-            message = f"开始了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
             # 使用Markdown格式
             payload = {
@@ -1384,7 +1384,7 @@ class DingTalkNotifier(BaseNotifier):
             return False
         try:
             notification_title = "✅ 任务完成"
-            message = f"结束了 '{task_name}' 任务 - {reason}"
+            message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
             
