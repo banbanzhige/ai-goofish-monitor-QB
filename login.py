@@ -176,6 +176,35 @@ async def main():
                                         }
                                     })();
 
+                                    // 过滤存储数据，只保留简单的数据类型，避免保存复杂的 JavaScript 代码
+                                    const filterStorageData = (storage) => {
+                                        const filtered = {};
+                                        for (let i = 0; i < storage.length; i += 1) {
+                                            const key = storage.key(i);
+                                            if (key !== null) {
+                                                try {
+                                                    const value = storage.getItem(key);
+                                                    // 过滤掉包含大量 JavaScript 代码的项
+                                                    if (value && typeof value === 'string') {
+                                                        // 检查值的大小，过滤掉过大的内容
+                                                        if (value.length > 1000) {
+                                                            continue;
+                                                        }
+                                                        // 检查是否包含 JavaScript 代码特征
+                                                        const hasJsCode = value.includes('function') || value.includes('{') && value.includes('}') && value.includes(';') || value.includes('return');
+                                                        if (hasJsCode) {
+                                                            continue;
+                                                        }
+                                                    }
+                                                    filtered[key] = value;
+                                                } catch (e) {
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        return filtered;
+                                    };
+
                                     return {
                                         navigator: {
                                             userAgent: navigator.userAgent,
@@ -203,28 +232,14 @@ async def main():
                                         storage: {
                                             local: (() => {
                                                 try {
-                                                    const obj = {};
-                                                    for (let i = 0; i < localStorage.length; i += 1) {
-                                                        const key = localStorage.key(i);
-                                                        if (key !== null) {
-                                                            obj[key] = localStorage.getItem(key);
-                                                        }
-                                                    }
-                                                    return obj;
+                                                    return filterStorageData(localStorage);
                                                 } catch (e) {
                                                     return {};
                                                 }
                                             })(),
                                             session: (() => {
                                                 try {
-                                                    const obj = {};
-                                                    for (let i = 0; i < sessionStorage.length; i += 1) {
-                                                        const key = sessionStorage.key(i);
-                                                        if (key !== null) {
-                                                            obj[key] = sessionStorage.getItem(key);
-                                                        }
-                                                    }
-                                                    return obj;
+                                                    return filterStorageData(sessionStorage);
                                                 } catch (e) {
                                                     return {};
                                                 }
