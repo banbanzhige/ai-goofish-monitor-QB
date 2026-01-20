@@ -464,6 +464,10 @@ class Notifier:
             "webhook": {
                 "configured": bool(config["WEBHOOK_URL"]),
                 "name": "Webhook"
+            },
+            "dingtalk": {
+                "configured": bool(config["DINGTALK_WEBHOOK"]),
+                "name": "钉钉机器人"
             }
         }
 
