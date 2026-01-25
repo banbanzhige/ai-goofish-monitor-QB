@@ -1,9 +1,34 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Union
+
+
+def _normalize_filter_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned == "" or cleaned == "__none__":
+            return None
+        return cleaned
+    return value
+
+
+def _normalize_region_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value
+    parts = [
+        part.strip().removesuffix("省").removesuffix("市")
+        for part in value.split("/")
+    ]
+    normalized = "/".join(part for part in parts if part)
+    return normalized or None
 
 
 class Task(BaseModel):
     task_name: str
+    order: Optional[int] = None
     enabled: bool
     keyword: str
     description: str
@@ -18,10 +43,26 @@ class Task(BaseModel):
     generating_ai_criteria: Optional[bool] = False
     bound_account: Optional[str] = None  # 绑定的咸鱼账号名
     auto_switch_on_risk: Optional[bool] = False  # 风控时自动切换账号
+    free_shipping: Optional[bool] = False
+    inspection_service: Optional[bool] = False
+    account_assurance: Optional[bool] = False
+    super_shop: Optional[bool] = False
+    brand_new: Optional[bool] = False
+    strict_selected: Optional[bool] = False
+    resale: Optional[bool] = False
+    new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
+    region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
+
+    @field_validator("new_publish_option", "region", mode="before")
+    def normalize_filters(cls, value, info):
+        if info.field_name == "region":
+            return _normalize_region_value(value)
+        return _normalize_filter_value(value)
 
 
 class TaskUpdate(BaseModel):
     task_name: Optional[str] = None
+    order: Optional[int] = None
     enabled: Optional[bool] = None
     keyword: Optional[str] = None
     description: Optional[str] = None
@@ -36,6 +77,21 @@ class TaskUpdate(BaseModel):
     generating_ai_criteria: Optional[bool] = None
     bound_account: Optional[str] = None
     auto_switch_on_risk: Optional[bool] = None
+    free_shipping: Optional[bool] = None
+    inspection_service: Optional[bool] = None
+    account_assurance: Optional[bool] = None
+    super_shop: Optional[bool] = None
+    brand_new: Optional[bool] = None
+    strict_selected: Optional[bool] = None
+    resale: Optional[bool] = None
+    new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
+    region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
+
+    @field_validator("new_publish_option", "region", mode="before")
+    def normalize_filters(cls, value, info):
+        if info.field_name == "region":
+            return _normalize_region_value(value)
+        return _normalize_filter_value(value)
 
 
 class TaskGenerateRequest(BaseModel):
@@ -47,6 +103,21 @@ class TaskGenerateRequest(BaseModel):
     max_price: Optional[str] = None
     max_pages: int = 3
     cron: Optional[str] = None
+    free_shipping: bool = False
+    inspection_service: bool = False
+    account_assurance: bool = False
+    super_shop: bool = False
+    brand_new: bool = False
+    strict_selected: bool = False
+    resale: bool = False
+    new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
+    region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
+
+    @field_validator("new_publish_option", "region", mode="before")
+    def normalize_filters(cls, value, info):
+        if info.field_name == "region":
+            return _normalize_region_value(value)
+        return _normalize_filter_value(value)
 
 
 class TaskGenerateRequestWithReference(BaseModel):
@@ -59,6 +130,25 @@ class TaskGenerateRequestWithReference(BaseModel):
     max_pages: int = 3
     cron: Optional[str] = None
     reference_file: Optional[str] = None
+    free_shipping: bool = False
+    inspection_service: bool = False
+    account_assurance: bool = False
+    super_shop: bool = False
+    brand_new: bool = False
+    strict_selected: bool = False
+    resale: bool = False
+    new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
+    region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
+
+    @field_validator("new_publish_option", "region", mode="before")
+    def normalize_filters(cls, value, info):
+        if info.field_name == "region":
+            return _normalize_region_value(value)
+        return _normalize_filter_value(value)
+
+
+class TaskOrderUpdate(BaseModel):
+    ordered_ids: List[int]
 
 
 class PromptUpdate(BaseModel):
@@ -109,6 +199,20 @@ class NewPromptRequest(BaseModel):
 class DeleteResultItemRequest(BaseModel):
     filename: str
     item: dict
+
+
+class ResultDeleteFilters(BaseModel):
+    recommended_only: Optional[bool] = False
+    task_name: Optional[str] = None
+    keyword: Optional[str] = None
+    ai_criteria: Optional[str] = None
+    manual_keyword: Optional[str] = None
+
+
+class DeleteResultsBatchRequest(BaseModel):
+    filename: str
+    filters: Optional[ResultDeleteFilters] = None
+    item_ids: Optional[List[str]] = None
 
 
 class GenericSettings(BaseModel):
