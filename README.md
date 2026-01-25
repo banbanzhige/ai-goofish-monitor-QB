@@ -45,17 +45,33 @@
 
 </div>
 
+<details>
+<summary>其他界面展示</summary>
+
 | 账号管理界面 | 定时任务界面 |
 |:---:|:---:|
 | ![账号管理界面](images/Example/0.9.8/账号管理.png) | ![定时任务界面](images/Example/0.9.8/定时任务.png) |
 
+</details>
 
 
+<details open>
+<summary>移动端界面展示</summary>
+
+| 账号管理-移动端 | 任务管理-移动端 | 结果查看-移动端 |定时任务-移动端 |
+|:---:|:---:|:---:|:---:|
+| ![账号管理-移动端效果](images\Example\0.9.8\账号管理-移动端.jpg) | ![任务管理-移动端效果](images\Example\0.9.8\任务管理-移动端.jpg) | ![结果查看-移动端效果](images\Example\0.9.8\结果查看-移动端.jpg) |![定时任务-移动端效果](images\Example\0.9.8\定时任务-移动端.jpg) |
+
+</details>
+
+<details open>
+<summary>通知渠道效果展示</summary>
 
 | 微信应用通知渠道效果 | 微信群机器人通知渠道效果 | Telegram通知渠道效果 |钉钉通知渠道效果 |
 |:---:|:---:|:---:|:---:|
 | ![微信应用通知渠道效果](images/Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](images/Example/0.9.2/微信群机器人通知渠道0101.jpg) | ![Telegram通知渠道效果](images/Example/0.9.2/Telegram通知渠道0101.jpg) |![Telegram通知渠道效果](images/Example/0.9.7/钉钉.jpg) |
 
+</details>
 
 # token消耗
 
@@ -341,6 +357,7 @@ docker项目地址
 services:
  app:
    image: banbanzhige/ai-goofish-monitor-qb:latest
+   #image: banbanzhige/ai-goofish-monitor-qb:latest-arm64
    container_name: ai-goofish-monitor-qb
    pull_policy: always
    ports:
@@ -359,11 +376,17 @@ services:
 ```
 
 **方式二**:  
+备用链接：amd64架构
 ```
-docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.8-beta
-```
-  
+docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.8-beta-amd64
 
+```
+备用链接：arm64架构
+```
+
+  docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.8-beta-arm64
+
+```
 ## 💻 Windows部署
 
 ### 环境准备
