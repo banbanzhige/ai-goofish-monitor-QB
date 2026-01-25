@@ -172,6 +172,22 @@ class Notifier:
         except Exception as e:
             print(f"   -> 发送 {channel_name} 任务开始通知失败: {e}")
             return (channel_name, False)
+
+    def _format_task_end_reason(self, reason: str) -> str:
+        if not reason:
+            return "未知原因"
+        mapping = {
+            "RISK_CONTROL:FAIL_SYS_USER_VALIDATE": "触发风控：系统验证（FAIL_SYS_USER_VALIDATE）",
+            "RISK_CONTROL:BAXIA_DIALOG": "触发风控：页面验证弹窗（baxia-dialog）",
+            "RISK_CONTROL:MIDDLEWARE_WIDGET": "触发风控：页面验证弹窗（J_MIDDLEWARE_FRAME_WIDGET）",
+        }
+        if reason in mapping:
+            return mapping[reason]
+        if reason.startswith("RISK_CONTROL:"):
+            return f"触发风控：{reason.replace('RISK_CONTROL:', '')}"
+        if reason.startswith("AI_CALL_FAILURE:"):
+            return f"AI调用失败：{reason.replace('AI_CALL_FAILURE:', '').strip()}"
+        return reason
     
     async def send_task_completion_notification(self, task_name: str, reason: str, processed_count: int = 0, recommended_count: int = 0) -> Dict[str, bool]:
         """
@@ -191,6 +207,7 @@ class Notifier:
             return {}
         
         tasks = []
+        reason = self._format_task_end_reason(reason)
         
         # 创建所有渠道的通知任务
         for channel_name, notifier in self.channels.items():
