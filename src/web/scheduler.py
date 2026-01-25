@@ -164,8 +164,10 @@ def get_scheduled_jobs(scheduler):
         
         # 从 config.json 获取真实 cron 表达式
         cron_str = ""
+        order_value = None
         if task_id < len(config_tasks):
             cron_str = config_tasks[task_id].get("cron", "")
+            order_value = config_tasks[task_id].get("order")
         
         # 获取下次执行时间
         next_run = None
@@ -184,11 +186,16 @@ def get_scheduled_jobs(scheduler):
             "task_name": task_name,
             "cron": cron_str,
             "next_run_time": next_run_str,
+            "order": order_value,
             "_next_run_dt": next_run  # 用于排序
         })
     
-    # 按下次执行时间排序
-    jobs.sort(key=lambda x: x["_next_run_dt"] or datetime.max.replace(tzinfo=timezone.utc))
+    # 优先按自定义顺序排序，其次按下次执行时间
+    has_custom_order = any(job.get("order") is not None for job in jobs)
+    if has_custom_order:
+        jobs.sort(key=lambda x: x.get("order") if x.get("order") is not None else float("inf"))
+    else:
+        jobs.sort(key=lambda x: x["_next_run_dt"] or datetime.max.replace(tzinfo=timezone.utc))
     
     # 添加执行顺序并移除临时字段
     for i, job in enumerate(jobs):
