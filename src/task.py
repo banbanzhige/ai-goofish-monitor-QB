@@ -9,6 +9,7 @@ from src.file_operator import FileOperator
 
 class Task(BaseModel):
     task_name: str
+    order: Optional[int] = None
     enabled: bool
     keyword: str
     description: str
@@ -21,10 +22,22 @@ class Task(BaseModel):
     ai_prompt_criteria_file: str
     is_running: Optional[bool] = False
     generating_ai_criteria: Optional[bool] = False  # New field for AI criteria generation status
+    bound_account: Optional[str] = None
+    auto_switch_on_risk: Optional[bool] = False
+    free_shipping: Optional[bool] = False
+    new_publish_option: Optional[str] = None
+    region: Optional[str] = None
+    inspection_service: Optional[bool] = False
+    account_assurance: Optional[bool] = False
+    super_shop: Optional[bool] = False
+    brand_new: Optional[bool] = False
+    strict_selected: Optional[bool] = False
+    resale: Optional[bool] = False
 
 
 class TaskUpdate(BaseModel):
     task_name: Optional[str] = None
+    order: Optional[int] = None
     enabled: Optional[bool] = None
     keyword: Optional[str] = None
     description: Optional[str] = None
@@ -37,6 +50,17 @@ class TaskUpdate(BaseModel):
     ai_prompt_criteria_file: Optional[str] = None
     is_running: Optional[bool] = None
     generating_ai_criteria: Optional[bool] = None  # New field for AI criteria generation status
+    bound_account: Optional[str] = None
+    auto_switch_on_risk: Optional[bool] = None
+    free_shipping: Optional[bool] = None
+    new_publish_option: Optional[str] = None
+    region: Optional[str] = None
+    inspection_service: Optional[bool] = None
+    account_assurance: Optional[bool] = None
+    super_shop: Optional[bool] = None
+    brand_new: Optional[bool] = None
+    strict_selected: Optional[bool] = None
+    resale: Optional[bool] = None
 
 
 async def add_task(task: Task) -> bool:
@@ -83,6 +107,8 @@ async def add_task(task: Task) -> bool:
         copy_count += 1
     
     # Convert to dictionary before appending to ensure JSON serializability
+    if task.order is None:
+        task.order = len(config_data)
     config_data.append(task.model_dump())
 
     return await config_file_op.write(json.dumps(config_data, ensure_ascii=False, indent=2))
@@ -129,8 +155,21 @@ async def get_task(task_id: int) -> Task | None:
     if len(config_data) <= task_id:
         return None
 
+    task_data = config_data[task_id]
+    task_data.setdefault("free_shipping", False)
+    task_data.setdefault("new_publish_option", None)
+    task_data.setdefault("region", None)
+    task_data.setdefault("inspection_service", False)
+    task_data.setdefault("account_assurance", False)
+    task_data.setdefault("super_shop", False)
+    task_data.setdefault("brand_new", False)
+    task_data.setdefault("strict_selected", False)
+    task_data.setdefault("resale", False)
+    task_data.setdefault("bound_account", None)
+    task_data.setdefault("auto_switch_on_risk", False)
+
     # Convert dictionary to Task object before returning
-    return Task(**config_data[task_id])
+    return Task(**task_data)
 
 
 async def remove_task(task_id: int) -> bool:
