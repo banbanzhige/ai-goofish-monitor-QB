@@ -1,0 +1,126 @@
+﻿[
+    {
+        "name":  "安徽省",
+        "file":  "安徽省.json"
+    },
+    {
+        "name":  "北京市",
+        "file":  "北京市.json"
+    },
+    {
+        "name":  "福建省",
+        "file":  "福建省.json"
+    },
+    {
+        "name":  "甘肃省",
+        "file":  "甘肃省.json"
+    },
+    {
+        "name":  "广东省",
+        "file":  "广东省.json"
+    },
+    {
+        "name":  "广西壮族自治区",
+        "file":  "广西壮族自治区.json"
+    },
+    {
+        "name":  "贵州省",
+        "file":  "贵州省.json"
+    },
+    {
+        "name":  "海南省",
+        "file":  "海南省.json"
+    },
+    {
+        "name":  "河北省",
+        "file":  "河北省.json"
+    },
+    {
+        "name":  "河南省",
+        "file":  "河南省.json"
+    },
+    {
+        "name":  "黑龙江省",
+        "file":  "黑龙江省.json"
+    },
+    {
+        "name":  "湖北省",
+        "file":  "湖北省.json"
+    },
+    {
+        "name":  "湖南省",
+        "file":  "湖南省.json"
+    },
+    {
+        "name":  "吉林省",
+        "file":  "吉林省.json"
+    },
+    {
+        "name":  "江苏省",
+        "file":  "江苏省.json"
+    },
+    {
+        "name":  "江西省",
+        "file":  "江西省.json"
+    },
+    {
+        "name":  "辽宁省",
+        "file":  "辽宁省.json"
+    },
+    {
+        "name":  "内蒙古自治区",
+        "file":  "内蒙古自治区.json"
+    },
+    {
+        "name":  "宁夏回族自治区",
+        "file":  "宁夏回族自治区.json"
+    },
+    {
+        "name":  "青海省",
+        "file":  "青海省.json"
+    },
+    {
+        "name":  "山东省",
+        "file":  "山东省.json"
+    },
+    {
+        "name":  "山西省",
+        "file":  "山西省.json"
+    },
+    {
+        "name":  "陕西省",
+        "file":  "陕西省.json"
+    },
+    {
+        "name":  "上海市",
+        "file":  "上海市.json"
+    },
+    {
+        "name":  "四川省",
+        "file":  "四川省.json"
+    },
+    {
+        "name":  "天津市",
+        "file":  "天津市.json"
+    },
+    {
+        "name":  "西藏自治区",
+        "file":  "西藏自治区.json"
+    },
+    {
+        "name":  "新疆维吾尔自治区",
+        "file":  "新疆维吾尔自治区.json"
+    },
+    {
+        "name":  "云南省",
+        "file":  "云南省.json"
+    },
+    {
+        "name":  "浙江省",
+        "file":  "浙江省.json"
+    },
+    {
+        "name":  "重庆市",
+        "file":  "重庆市.json"
+    }
+]
