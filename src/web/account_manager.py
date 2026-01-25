@@ -27,6 +27,7 @@ class AccountInfo(BaseModel):
     is_active: bool = False
     risk_control_count: int = 0
     cookie_status: Optional[str] = None  # valid, expired, unknown
+    order: Optional[int] = None
 
 
 class AccountCreate(BaseModel):
@@ -40,6 +41,11 @@ class AccountUpdate(BaseModel):
     """更新账号请求"""
     display_name: Optional[str] = None
     state_content: Optional[str] = None
+
+
+class AccountOrderUpdate(BaseModel):
+    """更新账号请求"""
+    ordered_names: List[str]
 
 
 class RiskControlRecord(BaseModel):
@@ -145,14 +151,50 @@ async def list_accounts() -> List[AccountInfo]:
                     last_used_at=data.get("last_used_at"),
                     is_active=(name == active_account),
                     risk_control_count=data.get("risk_control_count", 0),
-                    cookie_status=cookie_status
+                    cookie_status=cookie_status,
+                    order=data.get("order")
                 ))
             except Exception as e:
                 print(f"读取账号文件 {filename} 失败: {e}")
     
     # 按创建时间排序
-    accounts.sort(key=lambda x: x.created_at or "", reverse=True)
+
+    has_order = any(account.order is not None for account in accounts)
+    if has_order:
+        accounts.sort(key=lambda x: (x.order is None, x.order if x.order is not None else 0, x.created_at or ""))
+    else:
+        accounts.sort(key=lambda x: x.created_at or "", reverse=True)
     return accounts
+
+
+@router.post("/api/accounts/reorder")
+async def reorder_accounts(payload: AccountOrderUpdate):
+    """更新账号排序并写入 state 文件"""
+    ordered_names = payload.ordered_names
+    ensure_state_dir()
+
+    existing_names = [
+        filename[:-5]
+        for filename in os.listdir(STATE_DIR)
+        if filename.endswith(".json") and not filename.startswith("_")
+    ]
+
+    if len(ordered_names) != len(existing_names):
+        raise HTTPException(status_code=400, detail="排序账号数量不匹配")
+
+    if len(set(ordered_names)) != len(ordered_names):
+        raise HTTPException(status_code=400, detail="排序列表包含重复账号")
+
+    missing = [name for name in ordered_names if name not in existing_names]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"排序列表缺少账号: {missing}")
+
+    for idx, name in enumerate(ordered_names):
+        data = await read_account_file(name)
+        data["order"] = idx
+        await write_account_file(name, data)
+
+    return {"message": "账号排序更新成功"}
 
 
 @router.post("/api/accounts")
@@ -178,6 +220,20 @@ async def create_account(account: AccountCreate):
         "risk_control_count": 0,
         "risk_control_history": [],
     }
+
+    existing_orders = []
+    for filename in os.listdir(STATE_DIR):
+        if filename.endswith(".json") and not filename.startswith("_"):
+            name = filename[:-5]
+            try:
+                data = await read_account_file(name)
+                order_value = data.get("order")
+                if isinstance(order_value, int):
+                    existing_orders.append(order_value)
+            except Exception:
+                continue
+
+    account_data["order"] = (max(existing_orders) + 1) if existing_orders else 0
     
     # 根据state_data的类型处理：如果是对象则合并，如果是数组则作为cookies
     if isinstance(state_data, dict):
