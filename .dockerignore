@@ -30,6 +30,8 @@ start_web_server.bat
 .env
 config.json
 docs/
+AGENTS.md
+
 
 #.md
 docker-build-guide.md
@@ -50,3 +52,4 @@ dist/
 build/
 升级.txt
 upgrade.txt
+
