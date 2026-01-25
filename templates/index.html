@@ -40,6 +40,14 @@
             cursor: pointer;
             font-size: 14px;
             transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 32px;
+            line-height: 1;
+            white-space: nowrap;
+            min-width: 48px;
+            box-sizing: border-box;
         }
 
         .tasks-table .run-task-btn {
@@ -220,12 +228,26 @@
             color: white;
             border-color: #1890ff;
             height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            white-space: nowrap;
+            min-width: 56px;
             box-sizing: border-box;
         }
 
         .dropdown-btn:hover {
             background-color: #40a9ff;
             border-color: #40a9ff;
+        }
+
+        .dropdown-btn:disabled {
+            background-color: #cccccc;
+            border-color: #cccccc;
+            color: #ffffff;
+            cursor: not-allowed;
+            opacity: 0.65;
         }
 
         .tasks-table .run-task-btn,
@@ -248,6 +270,14 @@
             min-width: 120px;
             margin-top: 5px;
             z-index: 1000;
+        }
+
+        .dropdown-menu.open-up {
+            top: auto;
+            bottom: 100%;
+            margin-top: 0;
+            margin-bottom: 5px;
+            transform-origin: bottom right;
         }
 
         .dropdown-menu.show {
@@ -296,6 +326,7 @@
             align-items: center;
             gap: 8px;
             justify-content: center;
+            flex-wrap: nowrap;
         }
 
         .tasks-table .dropdown-container {
@@ -309,11 +340,26 @@
             justify-content: center;
             gap: 8px;
             min-height: 40px;
+            flex-wrap: nowrap;
         }
 
         /* 账号管理表格操作列样式 */
         .accounts-table .dropdown-container {
             vertical-align: middle;
+        }
+
+        @media (max-width: 1200px) {
+            .tasks-table .action-buttons {
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+            }
+
+            .tasks-table .action-buttons .action-btn,
+            .tasks-table .action-buttons .dropdown-btn {
+                width: 72px;
+                margin-right: 0;
+            }
         }
     </style>
 </head>
@@ -326,9 +372,6 @@
                 style="display: none; background: none; border: none; font-size: 24px; cursor: pointer; margin-right: 12px;">
                 ☰
             </button>
-            <div class="version-container" style="margin-right: 12px;">
-                <span id="version-info" style="font-size: 14px; color: #666; font-weight: bold;">{{ version }}</span>
-            </div>
         </div>
 
         <div class="logo-container"
@@ -343,13 +386,17 @@
     </header>
     <div class="container">
         <aside>
+            <div class="version-container sidebar-version">
+                <span id="version-info">{{ version }}</span>
+                <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" type="button" aria-label="&#25910;&#36215;&#20391;&#36793;&#26639;" title="&#25910;&#36215;&#20391;&#36793;&#26639;"><<</button>
+            </div>
             <nav>
                 <ul>
                     <li><a href="#tasks" class="nav-link active">任务管理</a></li>
                     <li><a href="#accounts" class="nav-link">账号管理</a></li>
-                    <li><a href="#logs" class="nav-link">运行日志</a></li>
                     <li><a href="#scheduled" class="nav-link">定时任务</a></li>
                     <li><a href="#results" class="nav-link">结果查看</a></li>
+                    <li><a href="#logs" class="nav-link">运行日志</a></li>
                     <li><a href="#notifications" class="nav-link">通知配置</a></li>
                     <li><a href="#settings" class="nav-link">系统设置</a></li>
                 </ul>
@@ -370,12 +417,22 @@
             </div>
             <div class="modal-body">
                 <form id="add-task-form">
+                    <div class="form-group switch-group">
+                        <div class="switch-label-row">
+                            <span class="switch-label-text">风控时自动切换账号</span>
+                            <label class="switch">
+                                <input type="checkbox" id="auto-switch-on-risk" name="auto_switch_on_risk">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <p class="form-hint">当触发风控保护时，自动切换到其他可用账号继续执行</p>
+                    </div>
                     <div class="form-group">
-                        <label for="task-name">任务名称</label>
+                        <label for="task-name">任务名称<span class="required-pill">必填</span></label>
                         <input type="text" id="task-name" name="task_name" placeholder="例如：索尼 A7M4 相机" required>
                     </div>
                     <div class="form-group">
-                        <label for="keyword">搜索关键词</label>
+                        <label for="keyword">搜索关键词<span class="required-pill">必填</span></label>
                         <input type="text" id="keyword" name="keyword" placeholder="例如：a7m4" required>
                     </div>
                     <div class="form-group form-group-inline">
@@ -390,7 +447,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="max-pages">最大搜索页数</label>
+                        <label for="max-pages">最大搜索页数<span class="required-pill">必填</span></label>
                         <input type="number" id="max-pages" name="max_pages" value="3" min="1" required>
                     </div>
                     <div class="form-group">
@@ -401,31 +458,71 @@
                         </select>
                         <p class="form-hint">选择执行此任务时使用的咸鱼账号</p>
                     </div>
-                    <!-- Switch开关组 -->
-                    <div class="switch-options-group">
-                        <div class="form-group switch-group">
-                            <div class="switch-label-row">
-                                <span class="switch-label-text">仅筛选个人闲置卖家</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="personal-only" name="personal_only" checked>
-                                    <span class="slider round"></span>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="form-group switch-group">
-                            <div class="switch-label-row">
-                                <span class="switch-label-text">风控时自动切换账号</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="auto-switch-on-risk" name="auto_switch_on_risk">
-                                    <span class="slider round"></span>
-                                </label>
-                            </div>
-                            <p class="form-hint">当触发风控保护时，自动切换到其他可用账号继续执行</p>
+                    <div class="form-group">
+                        <label>筛选条件</label>
+                        <div class="tag-toggle-group">
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="personal-only" name="personal_only" checked>
+                                <span>个人闲置</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="free-shipping" name="free_shipping">
+                                <span>包邮</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="inspection-service" name="inspection_service">
+                                <span>验货宝</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="account-assurance" name="account_assurance">
+                                <span>验号担保</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="super-shop" name="super_shop">
+                                <span>超赞鱼小铺</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="brand-new" name="brand_new">
+                                <span>全新</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="strict-selected" name="strict_selected">
+                                <span>严选</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="resale" name="resale">
+                                <span>转卖</span>
+                            </label>
                         </div>
                     </div>
                     <div class="form-group">
+                        <label for="new-publish-option">新发布时间</label>
+                        <select id="new-publish-option" name="new_publish_option" class="styled-select">
+                            <option value="">最新</option>
+                            <option value="1天内">1天内</option>
+                            <option value="3天内">3天内</option>
+                            <option value="7天内">7天内</option>
+                            <option value="14天内">14天内</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>区域筛选</label>
+                        <div class="region-select-row">
+                            <select id="region-province" class="styled-select">
+                                <option value="">省/自治区/直辖市</option>
+                            </select>
+                            <select id="region-city" class="styled-select">
+                                <option value="">市/地区</option>
+                            </select>
+                            <select id="region-district" class="styled-select">
+                                <option value="">区/县</option>
+                            </select>
+                        </div>
+                        <p class="form-hint">选择省/市/区（可只选到任意层级）</p>
+                    </div>
+                    <div class="form-group">
                         <label for="task-cron">定时执行 (Cron 表达式) <a href="https://crontab.guru/" target="_blank"
-                                title="点击查看Cron表达式帮助">[?]</a></label>
+                                title="点击查看Cron表达式帮助">[<<]</a></label>
                         <input type="text" id="task-cron" name="cron" placeholder="分 时 日 月 周 (例如: 0 8 * * *)">
                         <p class="form-hint">留空则不启用定时执行。例如 "0 22 * * *" 表示每晚22:00执行。</p>
                     </div>
@@ -448,7 +545,7 @@
                         <p class="form-hint">预览内容不可修改，修改请前往系统设置 > Prompt 管理</p>
                     </div>
                     <div class="form-group">
-                        <label for="task-description">详细购买需求</label>
+                        <label for="task-description">详细购买需求<span class="required-pill">必填</span></label>
                         <textarea id="task-description" name="description" rows="6"
                             placeholder="请用自然语言详细描述你的购买需求，AI将根据此描述生成分析标准。例如：我想买一台95新以上的索尼A7M4相机，预算在10000到13000元之间，快门数要低于5000。必须是国行且配件齐全。优先考虑个人卖家..."
                             required></textarea>
@@ -485,12 +582,22 @@
                             </label>
                         </div>
                     </div>
+                    <div class="form-group switch-group">
+                        <div class="switch-label-row">
+                            <span class="switch-label-text">风控时自动切换账号</span>
+                            <label class="switch">
+                                <input type="checkbox" id="edit-auto-switch-on-risk" name="auto_switch_on_risk">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <p class="form-hint">当触发风控保护时，自动切换到其他可用账号继续执行</p>
+                    </div>
                     <div class="form-group">
-                        <label for="edit-task-name">任务名称</label>
+                        <label for="edit-task-name">任务名称<span class="required-pill">必填</span></label>
                         <input type="text" id="edit-task-name" name="task_name" placeholder="例如：索尼 A7M4 相机" required>
                     </div>
                     <div class="form-group">
-                        <label for="edit-keyword">搜索关键词</label>
+                        <label for="edit-keyword">搜索关键词<span class="required-pill">必填</span></label>
                         <input type="text" id="edit-keyword" name="keyword" placeholder="例如：a7m4" required>
                     </div>
                     <div class="form-group form-group-inline">
@@ -505,7 +612,7 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="edit-max-pages">最大搜索页数</label>
+                        <label for="edit-max-pages">最大搜索页数<span class="required-pill">必填</span></label>
                         <input type="number" id="edit-max-pages" name="max_pages" value="3" min="1" required>
                     </div>
                     <div class="form-group">
@@ -517,31 +624,71 @@
                         </select>
                         <p class="form-hint">选择执行此任务时使用的咸鱼账号</p>
                     </div>
-                    <!-- Switch开关组 -->
-                    <div class="switch-options-group">
-                        <div class="form-group switch-group">
-                            <div class="switch-label-row">
-                                <span class="switch-label-text">仅筛选个人闲置卖家</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="edit-personal-only" name="personal_only">
-                                    <span class="slider round"></span>
-                                </label>
-                            </div>
-                        </div>
-                        <div class="form-group switch-group">
-                            <div class="switch-label-row">
-                                <span class="switch-label-text">风控时自动切换账号</span>
-                                <label class="switch">
-                                    <input type="checkbox" id="edit-auto-switch-on-risk" name="auto_switch_on_risk">
-                                    <span class="slider round"></span>
-                                </label>
-                            </div>
-                            <p class="form-hint">当触发风控保护时，自动切换到其他可用账号继续执行</p>
+                    <div class="form-group">
+                        <label>筛选条件</label>
+                        <div class="tag-toggle-group">
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-personal-only" name="personal_only">
+                                <span>个人闲置</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-free-shipping" name="free_shipping">
+                                <span>包邮</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-inspection-service" name="inspection_service">
+                                <span>验货宝</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-account-assurance" name="account_assurance">
+                                <span>验号担保</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-super-shop" name="super_shop">
+                                <span>超赞鱼小铺</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-brand-new" name="brand_new">
+                                <span>全新</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-strict-selected" name="strict_selected">
+                                <span>严选</span>
+                            </label>
+                            <label class="tag-toggle">
+                                <input type="checkbox" id="edit-resale" name="resale">
+                                <span>转卖</span>
+                            </label>
                         </div>
                     </div>
                     <div class="form-group">
+                        <label for="edit-new-publish-option">新发布时间</label>
+                        <select id="edit-new-publish-option" name="new_publish_option" class="styled-select">
+                            <option value="">最新</option>
+                            <option value="1天内">1天内</option>
+                            <option value="3天内">3天内</option>
+                            <option value="7天内">7天内</option>
+                            <option value="14天内">14天内</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>区域筛选</label>
+                        <div class="region-select-row">
+                            <select id="edit-region-province" class="styled-select">
+                                <option value="">省/自治区/直辖市</option>
+                            </select>
+                            <select id="edit-region-city" class="styled-select">
+                                <option value="">市/地区</option>
+                            </select>
+                            <select id="edit-region-district" class="styled-select">
+                                <option value="">区/县</option>
+                            </select>
+                        </div>
+                        <p class="form-hint">选择省/市/区（可只选到任意层级）</p>
+                    </div>
+                    <div class="form-group">
                         <label for="edit-task-cron">定时执行 (Cron 表达式) <a href="https://crontab.guru/" target="_blank"
-                                title="点击查看Cron表达式帮助">[?]</a></label>
+                                title="点击查看Cron表达式帮助">[<<]</a></label>
                         <input type="text" id="edit-task-cron" name="cron" placeholder="分 时 日 月 周 (例如: 0 8 * * *)">
                         <p class="form-hint">留空则不启用定时执行。例如 "0 22 * * *" 表示每晚22:00执行。</p>
                     </div>
@@ -614,51 +761,74 @@
             </div>
         </div>
     </div>
-
-
-    <!-- refresh criteria Modal -->
-    <div id="refresh-criteria-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
+    <!-- AI Criteria Modal -->
+    <div id="ai-criteria-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content large">
             <div class="modal-header">
-                <h2>新生成AI标准</h2>
-                <button id="close-refresh-criteria-btn" class="close-button">&times;</button>
+                <h2>AI标准</h2>
+                <button id="close-ai-criteria-btn" class="close-button">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="refresh-criteria-form">
-                    <div class="form-group">
-                        <label for="refresh-reference-file-selector">参考文件模板</label>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <select id="refresh-reference-file-selector"
-                                style="flex: 1; padding: 10px 12px; font-size: 14px; border: 1px solid #d9d9d9; border-radius: 4px; transition: border-color 0.3s; box-sizing: border-box;">
-                                <option value="">正在加载...</option>
-                            </select>
-                            <button id="refresh-preview-reference-file-btn" class="control-button"
-                                style="flex-shrink: 0; background-color: #52c41a; color: white; border-color: #52c41a; padding: 10px 16px;">预览</button>
+                <div id="ai-criteria-tabs" style="display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 10px;">
+                    <button type="button" class="ai-criteria-tab active" data-tab="generate"
+                        style="padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 13px; border-bottom: 2px solid #1890ff; color: #1890ff; margin-bottom: -1px;">
+                        生成标准
+                    </button>
+                    <button type="button" class="ai-criteria-tab" data-tab="edit"
+                        style="padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; margin-bottom: -1px;">
+                        编辑标准
+                    </button>
+                </div>
+
+                <form id="ai-criteria-form">
+                    <div id="ai-criteria-tab-generate" class="ai-criteria-tab-content">
+                        <div class="form-group">
+                            <label for="ai-criteria-reference-selector">参考文件模板</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <select id="ai-criteria-reference-selector"
+                                    style="flex: 1; padding: 10px 12px; font-size: 14px; border: 1px solid #d9d9d9; border-radius: 4px; transition: border-color 0.3s; box-sizing: border-box;">
+                                    <option value="">正在加载...</option>
+                                </select>
+                                <button id="ai-criteria-preview-btn" class="control-button"
+                                    style="flex-shrink: 0; background-color: #52c41a; color: white; border-color: #52c41a; padding: 10px 16px;">预览</button>
+                            </div>
+                            <p class="form-hint">选择AI生成标准的参考文件模板</p>
                         </div>
-                        <p class="form-hint">选择AI生成标准的参考文件模板</p>
+                        <div class="form-group" id="ai-criteria-preview-container" style="display: none;">
+                            <label for="ai-criteria-preview-content">参考文件预览</label>
+                            <pre id="ai-criteria-preview-content"
+                                style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto;">参考文件内容..</pre>
+                            <p class="form-hint">预览内容不可修改，修改请前往系统设置 &gt; Prompt 管理</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="ai-criteria-description">详细购买需求</label>
+                            <textarea id="ai-criteria-description" name="description" rows="6"
+                                placeholder="请用自然语言详细描述你的购买需求，AI将根据此描述生成分析标准。例如：我想买一台5新以上的索尼A7M4相机，预算在10000到13000元之间，快门数要低于5000。必须是国行且配件齐全。优先考虑个人卖家..."
+                                required></textarea>
+                        </div>
                     </div>
-                    <div class="form-group" id="refresh-reference-preview-container" style="display: none;">
-                        <label for="refresh-reference-file-preview">参考文件预览</label>
-                        <pre id="refresh-reference-file-preview"
-                            style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto;">参考文件内容...</pre>
-                        <p class="form-hint">预览内容不可修改，修改请前往系统设置 > Prompt 管理</p>
-                    </div>
-                    <div class="form-group">
-                        <label for="refresh-criteria-description">详细购买需求</label>
-                        <textarea id="refresh-criteria-description" name="description" rows="6"
-                            placeholder="请用自然语言详细描述你的购买需求，AI将根据此描述生成分析标准。例如：我想买一台95新以上的索尼A7M4相机，预算在10000到13000元之间，快门数要低于5000。必须是国行且配件齐全。优先考虑个人卖家..."
-                            required></textarea>
+
+                    <div id="ai-criteria-tab-edit" class="ai-criteria-tab-content" style="display: none;">
+                        <div class="form-group">
+                            <label for="ai-criteria-filename">文件名:</label>
+                            <input type="text" id="ai-criteria-filename" readonly style="background-color: #f5f5f5;">
+                        </div>
+                        <div class="form-group">
+                            <label for="ai-criteria-editor">文件内容:</label>
+                            <textarea id="ai-criteria-editor" spellcheck="false" style="height: 360px;"></textarea>
+                        </div>
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button id="cancel-refresh-criteria-btn" class="control-button">取消</button>
-                <button id="refresh-criteria-btn" class="control-button primary-btn"
+            <div class="modal-footer" style="gap: 10px;">
+                <button id="cancel-ai-criteria-btn" class="control-button">取消</button>
+                <button id="ai-criteria-generate-btn" data-mode="generate" class="control-button primary-btn"
                     style="background-color: #fff533; color: #212529; border-color: #fff533; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     <span class="btn-text">新生成</span>
                     <span class="spinner" style="display: none;"></span>
                     <span class="loading-text" style="display: none;">正在后台生成</span>
                 </button>
+                <button id="ai-criteria-save-btn" data-mode="edit" class="control-button primary-btn" style="display: none;">保存更改</button>
             </div>
         </div>
     </div>
@@ -675,34 +845,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Criteria Editor Modal -->
-    <div id="criteria-editor-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content large">
-            <div class="modal-header">
-                <h2>AI标准文件编辑</h2>
-                <button id="close-criteria-editor-btn" class="close-button">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <button id="back-from-editor-btn" class="control-button">⬅️ 返回任务管理</button>
-                </div>
-                <div class="form-group">
-                    <label for="criteria-filename">文件名:</label>
-                    <input type="text" id="criteria-filename" readonly style="background-color: #f5f5f5;">
-                </div>
-                <div class="form-group">
-                    <label for="criteria-editor">文件内容:</label>
-                    <textarea id="criteria-editor" spellcheck="false" style="height: 400px;"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="cancel-criteria-editor-btn" class="control-button">取消</button>
-                <button id="save-criteria-editor-btn" class="control-button primary-btn">保存更改</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Manual Login State Modal -->
     <div id="login-state-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content large">
