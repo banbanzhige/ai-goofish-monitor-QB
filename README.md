@@ -14,8 +14,8 @@
 
 ## ✨ 核心功能
 
-- **Web管理界面**：提供直观的Web UI，方便配置和管理
-- **定时商品监控**：定时监控咸鱼平台上的商品信息与新上
+- **Web管理界面**：提供直观清晰的Web UI，方便配置和管理，多端UI配适，支持PC端，移动端，pad端多端登录管理
+- **定时商品监控**：定时监控咸鱼平台上的商品信息与新上，支持验货宝 / 验号担保 / 包邮 / 新发布时间 / 区域等筛选逻辑
 - **高度可定制**: 每个监控任务均可配置独立的关键词、价格范围、个性需求，筛选条件和AI分析指令 (Prompt)。
 - **AI智能分析**：利用AI自动分析商品信息，结合商品图文和卖家画像进行深度分析，精准筛选符合条件的商品，并且给出个性化建议
 - **多种通知方式**：企业微信群机器人、企业微信应用通知、钉钉机器人、支持Ntfy、Gotify、Bark、Telegram等多种通知渠道
@@ -27,7 +27,7 @@
 
 # 📸 界面展示
 <div align="center" style="margin: 2em 0;">
-  <img src="images/Example/0.9.7/任务管理.png" 
+  <img src="images/Example/0.9.8/任务管理.png" 
        style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
        alt="新任务管理界面">
   <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
@@ -36,7 +36,7 @@
 </div>
 
 <div align="center" style="margin: 2em 0;">
-  <img src="images/Example/0.9.7/结果查看.png" 
+  <img src="images/Example/0.9.8/结果查看.png" 
        style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
        alt="新结果管理界面">
   <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
@@ -47,7 +47,7 @@
 
 | 账号管理界面 | 定时任务界面 |
 |:---:|:---:|
-| ![账号管理界面](images/Example/0.9.7/账号管理.png) | ![定时任务界面](images/Example/0.9.7/定时任务.png) |
+| ![账号管理界面](images/Example/0.9.8/账号管理.png) | ![定时任务界面](images/Example/0.9.8/定时任务.png) |
 
 
 
@@ -84,6 +84,18 @@
 # 🆕 新特性
 **近期更新：**
 <details open>
+<summary>v0.9.8 更新日志 - 2026-01-25</summary>
+
+  <ul>
+    <li><strong>高级筛选功能焕新</strong>：将高级筛选功能悬浮框升级为胶囊标签开关，新增验货宝、验号担保、超赞鱼小铺等 6 项筛选项；优化区域三级联动、发布时间选项，隐藏冗余标签文案，压缩面板高度</li>
+    <li><strong>移动端交互全面适配</strong>：新增移动端卡片式管理布局，任务 / 账号 / 定时任务列表支持触控长按拖拽排序，配套占位线、动画反馈及滚动锁定机制；，优化操作按钮、风险标签排版；调整导航栏、表头字号与安全边距，避免界面重叠。</li>
+    <li><strong>系统功能补全与体验修复</strong>：新增结果数据批量删除、过期账号批量清理接口；AI 配置页合并测试按钮，系统 / 通知配置页改为横向 Tab 分组</li>
+    <li><strong>前后端逻辑贯通</strong>：新增筛选字段同步至任务模型与爬虫逻辑，确保前端筛选配置可精准落地；旧任务自动补充默认值，保障版本兼容无感知升级。</li>
+
+
+</details>
+
+<details>
 <summary>v0.9.7 更新日志 - 2026-01-18</summary>
 
   <ul>
@@ -348,7 +360,7 @@ services:
 
 **方式二**:  
 ```
-docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.7-beta
+docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.8-beta
 ```
   
 
