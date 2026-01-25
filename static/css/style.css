@@ -9,9 +9,9 @@
 
 #refresh-logs-btn:hover {
     background-color: #389e0d;
-    /* 设置悬停时的深绿色 */
+    /* 设置悬停时的深绿�?*/
     border-color: #389e0d;
-    /* 设置悬停时的深绿色边框 */
+    /* 设置悬停时的深绿色边�?*/
 }
 
 body {
@@ -93,6 +93,18 @@ header h1 {
     color: #40a9ff;
 }
 
+input,
+textarea {
+    cursor: text;
+    user-select: text;
+    caret-color: auto;
+}
+
+select,
+button {
+    cursor: pointer;
+}
+
 #start-all-tasks {
     background-color: #1890ff;
     color: #fff;
@@ -140,6 +152,58 @@ aside {
     border-right: 1px solid #e8e8e8;
     padding-top: 24px;
     flex-shrink: 0;
+    transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sidebar-version {
+    padding: 0 24px 12px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    color: #7a7a7a;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    transition: padding 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sidebar-toggle-btn {
+    border: 1px solid #d9d9d9;
+    background-color: #fff;
+    color: #595959;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.sidebar-toggle-btn:hover {
+    border-color: #40a9ff;
+    color: #40a9ff;
+}
+
+@media (min-width: 769px) {
+    .container.sidebar-collapsed aside {
+        width: 52px;
+    }
+
+    .container.sidebar-collapsed .sidebar-version {
+        justify-content: center;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .container.sidebar-collapsed #version-info {
+        display: none;
+    }
+
+    .container.sidebar-collapsed aside nav {
+        display: none;
+    }
 }
 
 aside nav ul {
@@ -177,7 +241,7 @@ main {
     background-color: #f0f2f5;
 }
 
-/* 内容部分的基本样式 */
+/* 内容部分的基本样�?*/
 .content-section {
     display: none;
     animation: fadeIn 0.5s;
@@ -245,6 +309,12 @@ h2 {
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
+    table-layout: fixed;
+}
+
+#tasks-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .tasks-table th,
@@ -254,25 +324,40 @@ h2 {
     border-bottom: 1px solid #e8e8e8;
     vertical-align: middle;
     color: #333;
-    min-height: 50px; /* 设置最小高度确保行高一致 */
+    word-break: normal;
+    overflow-wrap: break-word;
+    min-height: 50px; /* 设置最小高度确保行高一�?*/
     line-height: 1.3; /* 调整行高 */
+    min-width: 70px;
 }
 
 .tasks-table tbody tr {
-    min-height: 50px; /* 确保每行高度一致 */
+    min-height: 50px; /* 确保每行高度一�?*/
 }
 
 .tasks-table th {
     background-color: #fafafa;
     font-weight: 600;
     color: #555;
-    border: 1px solid #e8e8e8;
     font-size: 14px;
 }
 
 .tasks-table td {
-    border: 1px solid #e8e8e8;
     font-size: 14px;
+}
+
+.tasks-table th,
+.tasks-table td,
+.accounts-table th,
+.accounts-table td {
+    cursor: default;
+    user-select: none;
+}
+
+.tasks-table,
+.tasks-table th,
+.tasks-table td {
+    caret-color: transparent;
 }
 
 /* Center content in specific columns */
@@ -281,15 +366,15 @@ h2 {
 .tasks-table th:nth-child(2),
 /* 任务名称 */
 .tasks-table th:nth-child(3),
-/* 运行状态 */
+/* 运行状�?*/
 .tasks-table th:nth-child(4),
-/* 关键词 */
+/* 关键�?*/
 .tasks-table th:nth-child(5),
 /* 价格范围 */
 .tasks-table th:nth-child(6),
-/* 筛选条件 */
+/* 筛选条�?*/
 .tasks-table th:nth-child(7),
-/* 最大页数 */
+/* 最大页�?*/
 .tasks-table th:nth-child(8),
 /* AI 标准 */
 .tasks-table th:nth-child(9),
@@ -314,7 +399,7 @@ h2 {
 }
 
 .tasks-table td:nth-child(4) {
-    /* 关键词 */
+    /* 关键�?*/
     text-align: center;
     vertical-align: middle;
     max-width: 150px;
@@ -337,9 +422,9 @@ h2 {
 
 #refresh-results-btn:hover {
     background-color: #389e0d;
-    /* 设置悬停时的深绿色 */
+    /* 设置悬停时的深绿�?*/
     border-color: #389e0d;
-    /* 设置悬停时的深绿色边框 */
+    /* 设置悬停时的深绿色边�?*/
 }
 
 /* Ensure consistent styles for all tags */
@@ -385,18 +470,13 @@ h2 {
 }
 
 .criteria {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    flex-direction: column;
-    /* Stack vertically by default */
-    align-items: center;
-    /* Center align items when stacking */
-    justify-content: center;
-    /* Center justify items when stacking */
     gap: 8px;
-    /* Reduce gap when stacking */
+    flex-direction: column;
+    text-align: center;
+    max-width: 100%;
 }
 
 .refresh-criteria {
@@ -410,8 +490,14 @@ h2 {
     /* Same font size as action-btn */
     margin: 0;
     /* Remove all margins */
-    height: 27px;
-    /* Set fixed height to match action-btn */
+    min-height: 27px;
+    height: auto;
+    /* Allow wrapping when space is tight */
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.2;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
 }
 
 .criteria-btn {
@@ -425,8 +511,14 @@ h2 {
     /* Same font size as action-btn */
     margin: 0;
     /* Remove all margins */
-    height: 27px;
-    /* Set fixed height to match action-btn */
+    min-height: 27px;
+    height: auto;
+    /* Allow wrapping when space is tight */
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.2;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
 }
 
 .refresh-criteria.danger-btn {
@@ -465,7 +557,7 @@ h2 {
     background-color: #cf1322;
 }
 
-/* 切换开关 */
+/* 切换开�?*/
 .switch {
     position: relative;
     display: inline-block;
@@ -681,6 +773,20 @@ input:checked+.slider:before {
     font-size: 14px;
 }
 
+.required-pill {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #cf1322;
+    background-color: #fff1f0;
+    border: 1px solid #ffccc7;
+    line-height: 1;
+}
+
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group input[type="password"],
@@ -769,7 +875,7 @@ input:checked+.slider:before {
     box-shadow: 0 0 0 2px rgba(94, 114, 228, 0.1);
 }
 
-/* 日志查看器样式 */
+/* 日志查看器样�?*/
 #log-content-container {
     background-color: #2b2b2b;
     color: #f0f0f0;
@@ -784,7 +890,7 @@ input:checked+.slider:before {
     line-height: 1.6;
 }
 
-/* 按钮的旋转加载图标 */
+/* 按钮的旋转加载图�?*/
 .spinner {
     display: inline-block;
     width: 16px;
@@ -808,7 +914,7 @@ input:checked+.slider:before {
     }
 }
 
-/* 呼吸效果小红点 */
+/* 呼吸效果小红�?*/
 .red-dot-container {
     position: relative;
     display: inline-block;
@@ -859,7 +965,7 @@ input:checked+.slider:before {
     display: flex;
     /* 使用flex布局 */
     gap: 8px;
-    /* 减小所有筛选组之间的间距 */
+    /* 减小所有筛选组之间的间�?*/
     margin-bottom: 24px;
     background-color: #fafafa;
     padding: 16px;
@@ -868,26 +974,157 @@ input:checked+.slider:before {
     align-items: flex-end;
     /* 底部对齐 */
     flex-wrap: wrap;
-    /* 允许在小屏幕上换行 */
+    /* 允许在小屏幕上换�?*/
     justify-content: flex-start;
-    /* 从左侧开始排列 */
+    /* 从左侧开始排�?*/
 }
 
-/* 统一所有筛选组的固定宽度 */
+/* Results filter layout */
+.results-filter-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.results-filter-primary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+    align-items: flex-end;
+}
+
+.results-filter-secondary {
+    display: none;
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px dashed #e6e6e6;
+}
+
+.results-filter-secondary .filter-group select {
+    max-width: 320px;
+    height: 36px;
+}
+
+.results-filter-secondary .filter-group select {
+    max-width: 320px;
+    height: 36px;
+}
+
+.results-filter-secondary.is-open {
+    display: flex;
+}
+
+.results-filter-secondary-footer {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.results-filter-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.results-manual-input {
+    width: 100%;
+    min-width: 180px;
+    height: 36px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.results-manual-input:focus {
+    border-color: #40a9ff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.results-refresh-btn {
+    padding: 6px 12px;
+    min-width: 78px;
+    height: 36px;
+    background-color: #52c41a;
+    border-color: #52c41a;
+    color: white;
+}
+
+.results-refresh-btn:hover {
+    background-color: #389e0d;
+    border-color: #389e0d;
+    color: white;
+}
+
+.results-select-btn {
+    background-color: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
+}
+
+.results-select-btn:hover {
+    background-color: #40a9ff;
+    border-color: #40a9ff;
+    color: #fff;
+}
+
+.advanced-toggle-btn {
+    background-color: #fff533;
+    border-color: #fff533;
+    color: #222;
+    min-width: 110px;
+}
+
+.advanced-toggle-btn:hover {
+    background-color: #e8de2b;
+    border-color: #e8de2b;
+    color: #222;
+}
+
+.results-filter-bar .filter-group.compact {
+    width: auto;
+    align-items: flex-start;
+}
+
+.results-filter-bar .filter-group.results-file-group,
+.results-filter-bar .filter-group.results-manual-group {
+    width: auto;
+    flex: 1 1 240px;
+    align-items: flex-start;
+}
+
+.results-filter-bar .filter-group.results-manual-group {
+    flex: 2 1 360px;
+}
+
+.results-filter-bar .filter-group.results-select-group {
+    width: 110px;
+    flex: 0 0 auto;
+    align-items: flex-start;
+}
+
+/* 统一所有筛选组的固定宽�?*/
 .results-filter-bar .filter-group {
     width: 120px;
     /* 设置统一固定宽度 */
     flex: none;
-    /* 不分配额外空间 */
+    /* 不分配额外空�?*/
 }
 
-/* 为前面5个主要筛选组设置更大的固定宽度 */
+/* 为前�?个主要筛选组设置更大的固定宽�?*/
 .results-filter-bar .filter-group:nth-child(1),
 /* 结果文件 */
 .results-filter-bar .filter-group:nth-child(2),
 /* 任务名称 */
 .results-filter-bar .filter-group:nth-child(3),
-/* 关键词 */
+/* 关键�?*/
 .results-filter-bar .filter-group:nth-child(4),
 /* AI标准 */
 .results-filter-bar .filter-group:nth-child(5)
@@ -900,19 +1137,19 @@ input:checked+.slider:before {
     /* 统一右外边距 */
 }
 
-/* 为后面4个操作类筛选组设置更紧凑的宽度，更适合内容 */
+/* 为后�?个操作类筛选组设置更紧凑的宽度，更适合内容 */
 .results-filter-bar .filter-group:nth-child(6) {
     /* 排序方式 */
     width: 110px;
-    /* 设置合适宽度 */
+    /* 设置合适宽�?*/
     margin-right: 8px;
     /* 统一右外边距 */
 }
 
 .results-filter-bar .filter-group:nth-child(7) {
-    /* 手动筛选 */
+    /* 手动筛�?*/
     width: 220px;
-    /* 设置与"结果文件"一致的宽度 */
+    /* 设置�?结果文件"一致的宽度 */
     margin-right: 8px;
     /* 统一右外边距 */
 }
@@ -920,7 +1157,7 @@ input:checked+.slider:before {
 .results-filter-bar .filter-group:nth-child(8) {
     /* 删除 */
     width: 120px;
-    /* 设置合适宽度 */
+    /* 设置合适宽�?*/
     margin-right: 8px;
     /* 统一右外边距 */
 }
@@ -928,7 +1165,7 @@ input:checked+.slider:before {
 .results-filter-bar .filter-group:nth-child(9) {
     /* 刷新 */
     width: 110px;
-    /* 设置合适宽度 */
+    /* 设置合适宽�?*/
     margin-right: 8px;
     /* 统一右外边距 */
 }
@@ -936,12 +1173,12 @@ input:checked+.slider:before {
 .results-filter-bar .filter-group:nth-child(10) {
     /* 仅看AI推荐 */
     width: 80px;
-    /* 设置合适宽度 */
+    /* 设置合适宽�?*/
     margin-right: 8px;
     /* 统一右外边距 */
 }
 
-/* 统一所有筛选组的样式 */
+/* 统一所有筛选组的样�?*/
 .results-filter-bar .filter-group {
     display: flex;
     flex-direction: column;
@@ -949,7 +1186,7 @@ input:checked+.slider:before {
     justify-content: flex-end;
     /* 确保所有筛选组底部对齐 */
     align-items: center;
-    /* 表头和控件居中对齐 */
+    /* 表头和控件居中对�?*/
 }
 
 /* 移除可能导致宽度变化的旧样式 */
@@ -958,10 +1195,10 @@ input:checked+.slider:before {
 .results-filter-bar .filter-group:nth-child(8) {
     /* 仅看AI推荐 */
     flex: none;
-    /* 确保不分配额外空间 */
+    /* 确保不分配额外空�?*/
 }
 
-/* 确保按钮和筛选框高度一致 */
+/* 确保按钮和筛选框高度一�?*/
 .results-filter-bar button,
 .results-filter-bar select {
     height: 36px;
@@ -972,13 +1209,13 @@ input:checked+.slider:before {
 
 .results-filter-bar .filter-label {
     font-size: 14px;
-    /* 任务管理页表头字体大小 */
+    /* 任务管理页表头字体大�?*/
     font-weight: 600;
-    /* 任务管理页表头字体粗细 */
+    /* 任务管理页表头字体粗�?*/
     color: #555;
-    /* 任务管理页表头字体颜色 */
+    /* 任务管理页表头字体颜�?*/
     text-transform: none;
-    /* 取消任务管理页表头文字大写 */
+    /* 取消任务管理页表头文字大�?*/
     text-align: center;
     /* Center align the label */
 }
@@ -990,12 +1227,12 @@ input:checked+.slider:before {
     font-size: 14px;
     background-color: #fff;
     text-align: center;
-    /* 选框当前选择的内容居中对齐 */
+    /* 选框当前选择的内容居中对�?*/
     text-align-last: center;
-    /* 选框当前选择的内容居中对齐 (针对不同浏览器) */
+    /* 选框当前选择的内容居中对�?(针对不同浏览�? */
 }
 
-/* 为排序方式筛选框设置合适宽度 */
+/* 为排序方式筛选框设置合适宽�?*/
 .results-filter-bar #sort-order-selector {
     width: 100%;
     /* 使用100%宽度以适应容器 */
@@ -1003,32 +1240,32 @@ input:checked+.slider:before {
 
 /* 手动筛选组设置更合适的宽度 */
 .results-filter-bar .filter-group:nth-child(7) {
-    /* 手动筛选 */
+    /* 手动筛�?*/
     width: 220px;
-    /* 设置与"结果文件"一致的宽度 */
+    /* 设置�?结果文件"一致的宽度 */
     margin-right: 8px;
     /* 与其他筛选组保持一致的间距 */
     flex-shrink: 0;
-    /* 防止被挤压 */
+    /* 防止被挤�?*/
     min-width: 220px;
-    /* 设置与宽度一致的最小宽度 */
+    /* 设置与宽度一致的最小宽�?*/
 }
 
-/* 直接为手动筛选输入框设置宽度，确保不被挤压 */
+/* 直接为手动筛选输入框设置宽度，确保不被挤�?*/
 #manual-keyword-filter {
     width: 220px !important;
-    /* 设置与筛选组宽度一致的输入框宽度 */
+    /* 设置与筛选组宽度一致的输入框宽�?*/
     min-width: 220px !important;
-    /* 设置最小宽度 */
+    /* 设置最小宽�?*/
     flex-shrink: 0 !important;
-    /* 防止被挤压 */
+    /* 防止被挤�?*/
     border: 1px solid #d9d9d9 !important;
-    /* 确保边框颜色与结果文件选择器一致 */
+    /* 确保边框颜色与结果文件选择器一�?*/
     border-radius: 4px !important;
-    /* 确保圆角与结果文件选择器一致 */
+    /* 确保圆角与结果文件选择器一�?*/
 }
 
-/* 仅将手动筛选输入框的占位符居中并增大字体 */
+/* 仅将手动筛选输入框的占位符居中并增大字�?*/
 #manual-keyword-filter::placeholder {
     text-align: center;
     font-size: 16px;
@@ -1037,14 +1274,14 @@ input:checked+.slider:before {
 
 /* 仅看AI推荐的筛选组 */
 .results-filter-bar .filter-group:nth-child(10) {
-    /* 第10个是仅看AI推荐 */
+    /* �?0个是仅看AI推荐 */
     align-items: center;
     /* 确保元素居中对齐 */
     height: 70px;
-    /* 设置与其他筛选组相同的高度 */
+    /* 设置与其他筛选组相同的高�?*/
 }
 
-/* 为其他筛选框设置统一的宽度 */
+/* 为其他筛选框设置统一的宽�?*/
 .results-filter-bar select:not(#sort-order-selector) {
     width: 100%;
     /* Keep select width 100% to ensure consistent length */
@@ -1057,12 +1294,12 @@ input:checked+.slider:before {
     text-align: left;
 }
 
-/* 确保所有筛选组的元素垂直对齐 */
+/* 确保所有筛选组的元素垂直对�?*/
 .results-filter-bar .filter-group {
     height: 70px;
     /* 设置固定高度 */
     justify-content: flex-end;
-    /* 确保所有内容底部对齐 */
+    /* 确保所有内容底部对�?*/
 }
 
 /* 仅看AI推荐的筛选组 */
@@ -1070,7 +1307,7 @@ input:checked+.slider:before {
     align-items: center;
     /* 确保元素居中对齐 */
     height: 70px;
-    /* 设置与其他筛选组相同的高度 */
+    /* 设置与其他筛选组相同的高�?*/
 }
 
 /* 调整仅看AI推荐的label样式 */
@@ -1135,11 +1372,47 @@ input:checked+.slider:before {
     width: 300px;
     /* 设置固定宽度 */
     min-width: 300px;
-    /* 确保最小宽度 */
+    /* 确保最小宽�?*/
     max-width: 300px;
-    /* 确保最大宽度 */
+    /* 确保最大宽�?*/
     position: relative;
     /* Add this to position delete button absolutely */
+}
+
+
+.result-select-box {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    z-index: 11;
+    cursor: pointer;
+}
+
+.result-select-box input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.result-select-box span {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px #bfbfbf;
+}
+
+.result-select-box input:checked + span {
+    background-color: #1890ff;
+    box-shadow: inset 0 0 0 1px #1890ff;
 }
 
 .delete-card-btn {
@@ -1245,6 +1518,24 @@ input:checked+.slider:before {
     word-break: break-word;
 }
 
+.result-filter-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+}
+
+.result-filter-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f0f6ff;
+    color: #1b4f9c;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
 .card-ai-summary {
     background-color: #f6ffed;
     border: 1px solid #b7eb8f;
@@ -1326,7 +1617,7 @@ input:checked+.slider:before {
     font-size: 15px;
     /* 增大卖家名字 */
     max-width: 100%;
-    /* 确保内容不超出容器宽度 */
+    /* 确保内容不超出容器宽�?*/
 }
 
 /* 时间信息样式调整 - 优化字体和行间距 */
@@ -1335,7 +1626,7 @@ input:checked+.slider:before {
     flex-direction: column;
     /* 恢复纵向排列 */
     gap: 2px;
-    /* 时间项之间的小间距 */
+    /* 时间项之间的小间�?*/
 }
 
 .time-info p {
@@ -1343,11 +1634,11 @@ input:checked+.slider:before {
     font-size: 12px;
     /* 增大时间文案字体 */
     line-height: 1.2;
-    /* 减小行间距 */
+    /* 减小行间�?*/
     font-weight: 400;
     /* 正常字体粗细 */
     text-align: left;
-    /* 左对齐 */
+    /* 左对�?*/
 }
 
 /* Align seller-time-info to the left and ensure proper spacing */
@@ -1438,13 +1729,67 @@ input:checked+.slider:before {
     /* 加粗标题 */
     margin-top: 0;
     margin-bottom: 20px;
-    /* 增加标题底部外边距 */
+    /* 增加标题底部外边�?*/
     border-bottom: 2px solid #f0f0f0;
-    /* 加粗底边框 */
+    /* 加粗底边�?*/
     padding-bottom: 14px;
-    /* 增加标题内边距 */
+    /* 增加标题内边�?*/
     color: #222;
     /* 加深标题颜色 */
+}
+
+.notification-tabs, .settings-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e8e8e8;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+}
+
+.notification-tabs::-webkit-scrollbar, .settings-tabs::-webkit-scrollbar {
+    height: 6px;
+}
+
+.notification-tabs::-webkit-scrollbar-thumb, .settings-tabs::-webkit-scrollbar-thumb {
+    background-color: #d9d9d9;
+    border-radius: 4px;
+}
+
+.notification-tab, .settings-tab {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border: 1px solid #e6e6e6;
+    border-radius: 6px;
+    background-color: #f5f5f5;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.notification-tab:hover, .settings-tab:hover {
+    border-color: #1890ff;
+    color: #1890ff;
+}
+
+.notification-tab.active, .settings-tab.active {
+    background-color: #fff;
+    border-color: #1890ff;
+    color: #1890ff;
+    box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
+}
+
+.notification-tab:focus-visible, .settings-tab:focus-visible {
+    outline: 2px solid #1890ff;
+    outline-offset: 2px;
+}
+
+.notification-tab-panel[hidden], .settings-tab-panel[hidden] {
+    display: none;
 }
 
 .notification-channel-card h4 {
@@ -1600,6 +1945,98 @@ input:checked+.slider:before {
     text-decoration: underline;
 }
 
+.tasks-table.scheduled-table th:last-child,
+.tasks-table.scheduled-table td:last-child {
+    min-width: 180px;
+}
+
+.tasks-table.scheduled-table .scheduled-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    justify-content: center;
+    align-items: center;
+}
+
+.tasks-table.scheduled-table .scheduled-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 84px;
+    height: 30px;
+    padding: 0 12px;
+    font-size: 13px;
+    line-height: 1;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+    transition: filter 0.2s ease;
+}
+
+.scheduled-action-btn.is-run {
+    background-color: #52c41a;
+    border-color: #52c41a;
+    color: #fff;
+}
+
+.scheduled-action-btn.is-skip {
+    background-color: #faad14;
+    border-color: #faad14;
+    color: #fff;
+}
+
+.scheduled-action-btn.is-cancel {
+    background-color: #ff4d4f;
+    border-color: #ff4d4f;
+    color: #fff;
+}
+
+
+
+@media (min-width: 1401px) {
+    .tasks-table.scheduled-table th:nth-child(1),
+    .tasks-table.scheduled-table td:nth-child(1) {
+        width: 80px;
+    }
+
+    .tasks-table.scheduled-table th:nth-child(2),
+    .tasks-table.scheduled-table td:nth-child(2) {
+        width: 220px;
+    }
+
+    .tasks-table.scheduled-table th:nth-child(3),
+    .tasks-table.scheduled-table td:nth-child(3) {
+        width: 160px;
+    }
+
+    .tasks-table.scheduled-table th:nth-child(4),
+    .tasks-table.scheduled-table td:nth-child(4) {
+        width: 230px;
+    }
+
+    .tasks-table.scheduled-table th:nth-child(5),
+    .tasks-table.scheduled-table td:nth-child(5) {
+        width: 280px;
+        min-width: 280px;
+    }
+
+    .tasks-table.scheduled-table .scheduled-action-buttons {
+        flex-wrap: nowrap;
+    }
+}
+
+@media (max-width: 1400px) {
+    .tasks-table.scheduled-table .scheduled-action-buttons {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .tasks-table.scheduled-table .scheduled-action-btn {
+        width: 100%;
+        max-width: 96px;
+    }
+}
+
 .action-btn.edit-btn {
     color: #fff533;
     /* 编辑按钮颜色改为黄色 */
@@ -1608,7 +2045,7 @@ input:checked+.slider:before {
     border: none;
     /* 移除边框 */
     padding: 2px 6px;
-    /* 调整内边距 */
+    /* 调整内边�?*/
     border-radius: 3px;
     /* 轻微圆角 */
     transition: color 0.3s;
@@ -1619,9 +2056,9 @@ input:checked+.slider:before {
 
 .action-btn.edit-btn:hover {
     color: #000000;
-    /* 悬停时黄色加深 */
+    /* 悬停时黄色加�?*/
     text-decoration: underline;
-    /* 悬停下划线 */
+    /* 悬停下划�?*/
 }
 
 #save-prompt-btn {
@@ -1631,8 +2068,228 @@ input:checked+.slider:before {
 
 /* --- Responsive Design Media Queries --- */
 
-@media (max-width: 768px) {
+@media (min-width: 1401px) {
+    /* 宽屏下限制启用、运行状态与最大页数列宽度，避免浪费空间 */
+    .tasks-table th:nth-child(1),
+    .tasks-table td:nth-child(1) {
+        max-width: 60px;
+        white-space: nowrap;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
 
+    .tasks-table th:nth-child(3),
+    .tasks-table td:nth-child(3) {
+        max-width: 60px;
+        white-space: nowrap;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .tasks-table th:nth-child(8),
+    .tasks-table td:nth-child(8) {
+        max-width: 60px;
+        white-space: nowrap;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .tasks-table th:nth-child(3),
+    .tasks-table th:nth-child(8) {
+        white-space: normal;
+        word-break: break-all;
+        line-height: 1.1;
+    }
+
+    .tasks-table td:nth-child(3) .status-badge {
+        display: inline-block;
+        max-width: 100%;
+        white-space: normal;
+        word-break: break-all;
+        line-height: 1.1;
+    }
+
+    /* 放宽高级筛选列，降低标签堆叠高度 */
+
+    /* 宽屏下放宽操作列宽度，提升按钮舒适度 */
+    .tasks-table th:last-child,
+    .tasks-table td:last-child {
+        width: 220px;
+        min-width: 30px;
+    }
+}
+
+@media (max-width: 1400px) {
+    .tasks-table th:nth-child(1),
+    .tasks-table td:nth-child(1) {
+        max-width: 60px;
+        white-space: nowrap;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .tasks-table th:nth-child(3),
+    .tasks-table td:nth-child(3) {
+        max-width: 60px;
+        white-space: nowrap;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .tasks-table th:nth-child(8),
+    .tasks-table td:nth-child(8) {
+        max-width: 60px;
+        white-space: nowrap;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .tasks-table th:nth-child(3),
+    .tasks-table th:nth-child(8) {
+        white-space: normal;
+        word-break: break-all;
+        line-height: 1.1;
+    }
+
+    .tasks-table td:nth-child(3) .status-badge {
+        display: inline-block;
+        max-width: 100%;
+        white-space: normal;
+        word-break: break-all;
+        line-height: 1.1;
+    }
+
+    /* 放宽高级筛选列，降低标签堆叠高度 */
+
+    .tasks-table th:last-child,
+    .tasks-table td:last-child {
+        width: 92px;
+        min-width: 92px;
+    }
+
+    .tasks-table td:last-child .action-buttons {
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        padding: 4px 0;
+    }
+
+    .tasks-table td:last-child .action-buttons .action-btn,
+    .tasks-table td:last-child .action-buttons .dropdown-btn {
+        width: 100%;
+        max-width: 82px;
+        min-width: 0;
+        height: 30px;
+        padding: 0 8px;
+        font-size: 12px;
+        border-radius: 6px;
+        white-space: normal;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+    }
+
+    .tasks-table td:last-child .action-buttons .action-btn:disabled,
+    .tasks-table td:last-child .action-buttons .dropdown-btn:disabled {
+        box-shadow: none;
+    }
+
+    .tasks-table td:last-child .dropdown-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 1200px) {
+    .tasks-table th,
+    .tasks-table td {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .tasks-table th:nth-child(2),
+    .tasks-table td:nth-child(2),
+    .tasks-table th:nth-child(4),
+    .tasks-table td:nth-child(4) {
+        min-width: 90px;
+    }
+
+    .tasks-table th:last-child,
+    .tasks-table td:last-child {
+        min-width: 90px;
+    }
+
+    .tasks-table td .editable-cell,
+    .tasks-table td .account-cell,
+    .tasks-table td .criteria,
+    .tasks-table td .filter-tags {
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .tasks-table td .editable-display,
+    .tasks-table td .account-display,
+    .tasks-table td .filter-tag,
+    .tasks-table td .criteria button {
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .tasks-table td .account-cell {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .tasks-table td .auto-switch-icon {
+        margin-left: 0;
+    }
+
+    .tasks-table .filter-tags {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+
+
+@media (max-width: 1366px) and (hover: none) and (pointer: coarse) {
+        #results-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+    }
+
+    .result-card {
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .drag-handle {
+        display: none;
+    }
+}
+
+@media (min-width: 820px) and (max-width: 1366px) and (hover: none) and (pointer: coarse) {
+    .task-cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(260px, 1fr));
+        gap: 12px;
+    }
+
+    .scheduled-cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(260px, 1fr));
+        gap: 12px;
+    }
+}
+
+
+@media (max-width: 768px) {
+    
     /* Header Adjustments */
     header {
         padding: 0 16px !important;
@@ -1642,13 +2299,15 @@ input:checked+.slider:before {
         display: block !important;
     }
 
-    .version-container {
+    header .version-container {
         display: none !important;
     }
 
     .logo-container h1 {
-        font-size: 16px !important;
-        white-space: nowrap;
+        font-size: 18px !important;
+        white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 160px;
@@ -1657,6 +2316,14 @@ input:checked+.slider:before {
     .logo-container img {
         height: 32px !important;
         margin-right: 8px !important;
+    }
+
+    main {
+        padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+
+    .content-section {
+        padding-bottom: calc(64px + env(safe-area-inset-bottom));
     }
 
     /* Layout Adjustments */
@@ -1676,6 +2343,15 @@ input:checked+.slider:before {
         z-index: 1000;
         transition: left 0.3s ease;
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+    }
+
+    aside nav a {
+        font-size: 18px;
+        line-height: 1.4;
+    }
+
+    aside nav li {
+        padding: 16px 20px;
     }
 
     aside.active {
@@ -1699,7 +2375,7 @@ input:checked+.slider:before {
     }
 
     main {
-        padding: 12px;
+        padding: 12px 12px calc(72px + env(safe-area-inset-bottom));
         width: 100%;
         box-sizing: border-box;
     }
@@ -1798,7 +2474,7 @@ input:checked+.slider:before {
         min-width: 800px;
     }
 
-    /* 任务管理表格操作列冻结 */
+    /* 任务管理表格操作列冻�?*/
     .tasks-table thead th:last-child,
     .tasks-table tbody td:last-child {
         position: sticky;
@@ -1808,9 +2484,11 @@ input:checked+.slider:before {
         box-shadow: -1px 0 0 #e8e8e8;
         min-width: 90px;
         /* 进一步缩小操作列宽度 */
-        white-space: nowrap;
+        white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word;
         padding: 8px 4px !important;
-        /* 减小内边距 */
+        /* 减小内边�?*/
     }
 
     .tasks-table thead th:last-child {
@@ -1818,7 +2496,7 @@ input:checked+.slider:before {
         z-index: 11;
     }
 
-    /* 任务管理表格操作列按钮优化 */
+    /* 任务管理表格操作列按钮优�?*/
     .tasks-table .action-buttons {
         display: flex;
         flex-direction: column;
@@ -1830,9 +2508,9 @@ input:checked+.slider:before {
 
     .tasks-table .action-buttons button {
         width: 70px;
-        /* 进一步缩小按钮宽度 */
+        /* 进一步缩小按钮宽�?*/
         padding: 3px 6px;
-        /* 减小内边距 */
+        /* 减小内边�?*/
         font-size: 11px;
         /* 减小字体大小 */
         white-space: nowrap;
@@ -1847,7 +2525,7 @@ input:checked+.slider:before {
         position: relative;
     }
 
-    /* 账号管理表格操作列冻结 */
+    /* 账号管理表格操作列冻�?*/
     .accounts-table thead th:last-child,
     .accounts-table tbody td:last-child {
         position: sticky;
@@ -1856,11 +2534,13 @@ input:checked+.slider:before {
         z-index: 10;
         box-shadow: -1px 0 0 #e8e8e8;
         min-width: 70px;
-        /* 缩小操作列宽度 */
+        /* 缩小操作列宽�?*/
         max-width: 70px;
-        white-space: nowrap;
+        white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word;
         padding: 4px 2px !important;
-        /* 减小内边距 */
+        /* 减小内边�?*/
     }
 
     .accounts-table thead th:last-child {
@@ -1868,7 +2548,7 @@ input:checked+.slider:before {
         z-index: 11;
     }
 
-    /* 账号管理表格操作列按钮优化 */
+    /* 账号管理表格操作列按钮优�?*/
     .accounts-table .action-buttons {
         display: flex;
         flex-direction: column;
@@ -1882,10 +2562,12 @@ input:checked+.slider:before {
         width: 55px;
         /* 缩小按钮宽度 */
         padding: 2px 4px;
-        /* 减小内边距 */
+        /* 减小内边�?*/
         font-size: 10px;
         /* 减小字体大小 */
-        white-space: nowrap;
+        white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word;
     }
 
     /* 账号管理下拉菜单z-index修复 */
@@ -1897,15 +2579,55 @@ input:checked+.slider:before {
         position: relative;
     }
 
-    /* 账号管理标题不换行 */
+    /* 账号管理标题不换�?*/
     #accounts-section .section-header h2 {
-        white-space: nowrap;
+        white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word;
         font-size: 18px;
     }
 
     #accounts-section .section-header {
         flex-wrap: wrap;
         gap: 8px;
+    }
+
+    @media (max-width: 768px) {
+        #accounts-section .section-header {
+            flex-wrap: nowrap;
+            align-items: center;
+        }
+
+        #accounts-section .section-header h2 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        #accounts-section .header-buttons {
+            margin-left: auto;
+        }
+
+        #accounts-section #import-from-login-btn {
+            display: none;
+        }
+
+        #accounts-section #add-account-btn {
+            padding: 6px 12px !important;
+            font-size: 14px !important;
+            height: 32px;
+            white-space: nowrap;
+        }
+
+        #accounts-section #add-account-btn {
+            display: none;
+        }
+
+        #accounts-section #cleanup-expired-accounts-btn {
+            padding: 6px 12px !important;
+            font-size: 14px !important;
+            height: 32px;
+            white-space: nowrap;
+        }
     }
 
     /* 账号管理表格内容居中 */
@@ -1915,7 +2637,7 @@ input:checked+.slider:before {
         vertical-align: middle !important;
     }
 
-    /* 账号管理表格账号名称列调整 */
+    /* 账号管理表格账号名称列调�?*/
     .accounts-table .account-name-cell {
         display: flex;
         justify-content: center;
@@ -1923,7 +2645,7 @@ input:checked+.slider:before {
         min-height: 40px;
     }
 
-    /* 确保账号表格行高度一致 */
+    /* 确保账号表格行高度一�?*/
     .accounts-table tbody tr {
         height: auto;
     }
@@ -1941,7 +2663,7 @@ input:checked+.slider:before {
         vertical-align: middle !important;
     }
 
-    /* 任务管理表格任务名称列调整 */
+    /* 任务管理表格任务名称列调�?*/
     .tasks-table td:nth-child(2) {
         text-align: center !important;
         /* 改为居中对齐 */
@@ -1962,7 +2684,9 @@ input:checked+.slider:before {
         padding: 8px 12px !important;
         /* 保持原有按钮大小 */
         font-size: 14px !important;
-        white-space: nowrap;
+        white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word;
     }
 
     /* 确保表格容器有足够的宽度来容纳冻结列 */
@@ -2042,13 +2766,13 @@ input:checked+.slider:before {
 .accounts-table th,
 .accounts-table td {
     padding: 8px 12px;
-    /* 减小内边距，确保高度一致 */
+    /* 减小内边距，确保高度一�?*/
     text-align: center;
     border-bottom: 1px solid #e8e8e8;
     vertical-align: middle;
     /* 确保内容垂直居中 */
     line-height: 1.3;
-    /* 调整行高，确保文字包裹时高度一致 */
+    /* 调整行高，确保文字包裹时高度一�?*/
     height: auto;
     /* 确保高度自动调整 */
 }
@@ -2058,7 +2782,7 @@ input:checked+.slider:before {
     text-align: left;
 }
 
-/* 账号名称列内容居中对齐 */
+/* 账号名称列内容居中对�?*/
 .accounts-table .account-name-cell {
     justify-content: center;
     text-align: center;
@@ -2080,6 +2804,233 @@ input:checked+.slider:before {
 
 .accounts-table tr.active-row:hover {
     background-color: #d1f5ef;
+}
+
+@media (max-width: 768px) {
+    #accounts-table-container {
+        overflow: visible;
+        border: none;
+    }
+
+    .accounts-table {
+        display: block;
+        min-width: 0;
+    }
+
+    .accounts-table thead {
+        display: none;
+    }
+
+    .accounts-table tbody {
+        display: block;
+    }
+
+    .accounts-table tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "account risk"
+            "last actions";
+        gap: 12px 16px;
+        padding: 14px;
+        margin-bottom: 12px;
+        border: 1px solid #e6ebf2;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
+        overflow: visible;
+    }
+
+    .accounts-table.reorder-active::before {
+        content: "已进入移动模式";
+        display: inline-flex;
+        align-items: center;
+        margin: 0 0 8px 4px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #e6f4ff;
+        color: #0958d9;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: 0 4px 10px rgba(9, 88, 217, 0.15);
+    }
+
+    .accounts-table tbody tr.row-placeholder {
+        display: block;
+        padding: 0;
+        margin-bottom: 12px;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .accounts-table tbody tr.row-placeholder td {
+        display: block;
+        width: 100%;
+        height: var(--placeholder-height, 72px);
+        border: 2px dashed #91caff;
+        border-radius: 14px;
+        background: #f5faff;
+        box-sizing: border-box;
+    }
+
+    .accounts-table tbody tr.dragging {
+        display: none;
+    }
+
+    .accounts-table tbody td {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        text-align: left !important;
+        padding: 0 !important;
+        border-bottom: none;
+        min-width: 0;
+        gap: 4px;
+        font-size: 13px;
+        color: #1f1f1f;
+    }
+
+    .accounts-table tbody td::before {
+        content: attr(data-label);
+        font-size: 12px;
+        color: #8a8f99;
+        margin-bottom: 4px;
+    }
+
+    .accounts-table td.account-name-cell {
+        grid-area: account;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start !important;
+        gap: 8px;
+    }
+
+    .accounts-table td.account-name-cell::before {
+        display: none;
+    }
+
+    .accounts-table .account-status-badge {
+        display: none;
+    }
+
+    .accounts-table td.cookie-status-cell {
+        display: none;
+    }
+
+    .accounts-table td.risk-control-cell {
+        grid-area: risk;
+        align-items: flex-end;
+        text-align: right !important;
+    }
+
+    .accounts-table td.risk-control-cell::before {
+        display: none;
+    }
+
+    .accounts-table td.risk-control-cell .risk-summary {
+        justify-content: flex-end;
+    }
+
+    .accounts-table td.risk-control-cell .risk-label {
+        display: inline-flex;
+    }
+
+    .accounts-table td.risk-control-cell .account-status-badge {
+        display: inline-flex;
+    }
+
+    .accounts-table td.risk-control-cell .view-history-btn {
+        align-self: flex-end;
+    }
+
+    .accounts-table td.last-used-cell {
+        grid-area: last;
+        font-weight: 500;
+    }
+
+    .accounts-table td.action-buttons {
+        grid-area: actions;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 104px));
+        gap: 10px;
+        justify-self: end;
+        align-self: end;
+        justify-content: end;
+        align-items: center;
+        position: relative;
+        z-index: 2;
+    }
+
+    .accounts-table td.action-buttons::before {
+        display: none;
+    }
+
+    .accounts-table tbody td:last-child {
+        position: static;
+        box-shadow: none;
+        background: transparent;
+        min-width: 0;
+        max-width: none;
+    }
+
+    .accounts-table .action-buttons button,
+    .accounts-table .action-buttons .dropdown-btn {
+        width: 100%;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        white-space: nowrap;
+        line-height: 1;
+    }
+
+    .accounts-table td.action-buttons .small-btn {
+        font-size: 14px !important;
+    }
+
+    .accounts-table .action-buttons .dropdown-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        white-space: nowrap;
+        line-height: 1;
+    }
+
+    .accounts-table .action-buttons .dropdown-arrow {
+        font-size: 12px;
+    }
+
+    .accounts-table .action-buttons .dropdown-container {
+        width: 100%;
+    }
+
+    .accounts-table .dropdown-menu {
+        right: 0;
+        left: auto;
+        z-index: 3000 !important;
+    }
+
+    .accounts-table .dropdown-menu .dropdown-item {
+        font-size: 15px;
+        line-height: 1.6;
+        padding: 10px 16px;
+    }
+
+    .accounts-table .dropdown-menu.open-up {
+        top: auto;
+        bottom: 100%;
+        margin-top: 0;
+        margin-bottom: 6px;
+    }
+
+    .accounts-table tbody tr.dropdown-open {
+        z-index: 20;
+    }
 }
 
 .account-status {
@@ -2111,6 +3062,39 @@ input:checked+.slider:before {
     margin-right: 8px;
 }
 
+.risk-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.risk-label {
+    display: none;
+    font-size: 12px;
+    color: #8a8f99;
+}
+
+.risk-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: #fff;
+}
+
+.risk-pill--ok {
+    background-color: #52c41a;
+}
+
+.risk-pill--warn {
+    background-color: #ff4d4f;
+}
+
 .no-risk {
     color: #52c41a;
 }
@@ -2125,9 +3109,34 @@ input:checked+.slider:before {
     flex-wrap: wrap;
 }
 
+.tasks-table .action-buttons {
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+}
+
+.tasks-table .action-buttons .action-btn,
+.tasks-table .action-buttons .dropdown-btn {
+    white-space: nowrap;
+    min-width: 88px;
+    height: 34px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
 .small-btn {
     padding: 4px 10px !important;
     font-size: 12px !important;
+}
+
+.tasks-table .action-buttons .action-btn:hover,
+.tasks-table .action-buttons .dropdown-btn:hover,
+.tasks-table.scheduled-table .scheduled-action-btn:hover {
+    text-decoration: none;
+    filter: brightness(0.96);
 }
 
 .danger-btn {
@@ -2205,19 +3214,31 @@ input:checked+.slider:before {
     font-size: 12px;
 }
 
+.task-card .auto-switch-tag {
+    margin-left: 0;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 1px solid #ffe58f;
+    background: #fffbe6;
+    color: #ad6800;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 .no-account {
     color: #999;
     font-size: 12px;
 }
 
-/* 页面头部按钮组 */
+/* 页面头部按钮�?*/
 .header-buttons {
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
-/* 美化下拉选择器 */
+/* 美化下拉选择�?*/
 .styled-select {
     width: 100%;
     padding: 10px 12px;
@@ -2262,7 +3283,77 @@ input:checked+.slider:before {
     font-weight: 500;
 }
 
-/* Switch选项组 */
+/* 标签点亮式筛选开关 */
+.tag-toggle-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 6px 0 4px;
+}
+
+.tag-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tag-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.tag-toggle span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid #d9d9d9;
+    background-color: #fff;
+    color: #555;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.tag-toggle span:hover {
+    border-color: #1890ff;
+    color: #1890ff;
+}
+
+.tag-toggle input:checked + span {
+    background-color: #e6f7ff;
+    border-color: #1890ff;
+    color: #1890ff;
+    box-shadow: inset 0 0 0 1px rgba(24, 144, 255, 0.2);
+}
+
+.editable-advanced-panel .filter-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.editable-advanced-panel .filter-section .filter-label {
+    font-size: 12px;
+    color: #666;
+}
+
+.editable-advanced-panel .filter-tag-toggle-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0;
+}
+
+.editable-advanced-panel .filter-tag-toggle-group .tag-toggle span {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+/* Switch选项�?*/
 .switch-options-group {
     background-color: #f8f9fa;
     border-radius: 8px;
@@ -2280,15 +3371,41 @@ input:checked+.slider:before {
 
 /* 账号颜色标签 */
 .account-color-tag {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 10px;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     color: #fff;
 }
 
-/* 任务表格中的账号选择器 */
+.account-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.account-status-badge {
+    display: none;
+    align-items: center;
+}
+
+.account-status-badge .status-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* 任务表格中的账号选择�?*/
 .task-account-selector {
     padding: 4px 8px;
     font-size: 13px;
@@ -2312,7 +3429,7 @@ input:checked+.slider:before {
     /* 设置最小高度，确保第一行有足够高度 */
 }
 
-/* 任务表格账号显示单元格 */
+/* 任务表格账号显示单元�?*/
 .account-cell {
     display: inline-block;
     cursor: pointer;
@@ -2341,6 +3458,15 @@ input:checked+.slider:before {
 .account-display:hover {
     opacity: 0.85;
     transform: scale(1.02);
+}
+
+.task-card .account-display {
+    cursor: default;
+}
+
+.task-card .account-display:hover {
+    opacity: 1;
+    transform: none;
 }
 
 .account-cell .account-select {
@@ -2373,7 +3499,7 @@ input:checked+.slider:before {
     font-size: 13px;
     transition: all 0.2s;
     border: 1px solid transparent;
-    /* 确保显示内容不会被绝对定位的输入框遮挡 */
+    /* 确保显示内容不会被绝对定位的输入框遮�?*/
     position: relative;
     z-index: 1;
 }
@@ -2406,7 +3532,7 @@ input:checked+.slider:before {
     border-radius: 4px;
     background-color: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    /* 确保输入框不被其他内容遮挡 */
+    /* 确保输入框不被其他内容遮�?*/
     white-space: normal;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -2417,9 +3543,11 @@ input:checked+.slider:before {
 /* 任务名称和关键词输入框的特殊样式 - 禁止换行 */
 .editable-cell[data-field="task_name"] .editable-input,
 .editable-cell[data-field="keyword"] .editable-input {
-    max-width: 150px; /* 减少到原来的一半 */
-    min-width: 80px; /* 减少最小宽度 */
-    white-space: nowrap; /* 禁止换行 */
+    max-width: 150px; /* 减少到原来的一�?*/
+    min-width: 80px; /* 减少最小宽�?*/
+    white-space: normal;
+          word-break: normal;
+    overflow-wrap: break-word; /* 禁止换行 */
     line-height: 1.4;
     text-align: center; /* 文本居中对齐 */
     padding: 6px 8px;
@@ -2427,7 +3555,7 @@ input:checked+.slider:before {
     height: auto; /* 高度自适应 */
     vertical-align: middle; /* 垂直居中 */
     overflow: hidden;
-    text-overflow: ellipsis; /* 超出显示省略号 */
+    text-overflow: ellipsis; /* 超出显示省略�?*/
 }
 
 /* 确保输入框内容在单元格中居中对齐 */
@@ -2448,7 +3576,7 @@ input:checked+.slider:before {
     word-wrap: break-word;
     overflow-wrap: break-word;
     line-height: 1.4;
-    max-width: 150px; /* 与输入框相同的最大宽度 */
+    max-width: 150px; /* 与输入框相同的最大宽�?*/
     text-align: center; /* 文本居中对齐 */
     padding: 4px 8px;
 }
@@ -2466,17 +3594,17 @@ input:checked+.slider:before {
     word-break: break-all; /* 强制文字在任何字符处换行 */
     line-height: 1.4;
     text-align: center; /* 文本居中对齐 */
-    padding: 4px 8px; /* 调整内边距，让框更紧贴文字 */
+    padding: 4px 8px; /* 调整内边距，让框更紧贴文�?*/
     display: inline-block; /* 内联块级元素，根据内容自适应宽度 */
     border: 1px solid transparent; /* 默认状态下边框透明 */
-    border-radius: 4px; /* 添加圆角，与按钮保持一致 */
-    background-color: transparent; /* 默认状态下背景透明，继承表格行背景色 */
+    border-radius: 4px; /* 添加圆角，与按钮保持一�?*/
+    background-color: transparent; /* 默认状态下背景透明，继承表格行背景�?*/
     transition: all 0.2s;
     vertical-align: middle;
-    font-size: 13px; /* 统一字体大小，与其他列保持一致 */
-    min-height: 27px; /* 设置最小高度，与其他列保持一致 */
-    height: auto; /* 高度自适应，根据内容换行调整 */
-    box-sizing: border-box; /* 确保内边距和边框不会增加总高度 */
+    font-size: 13px; /* 统一字体大小，与其他列保持一�?*/
+    min-height: 27px; /* 设置最小高度，与其他列保持一�?*/
+    height: auto; /* 高度自适应，根据内容换行调�?*/
+    box-sizing: border-box; /* 确保内边距和边框不会增加总高�?*/
     display: inline-flex; /* 使用内联 flex 布局 */
     align-items: center; /* 垂直居中 */
     justify-content: center; /* 水平居中 */
@@ -2491,7 +3619,7 @@ input:checked+.slider:before {
     border: 1px dashed #1890ff;
 }
 
-/* 关键词列使用tag类时的样式调整 */
+/* 关键词列使用tag类时的样式调�?*/
 .editable-cell[data-field="keyword"] .editable-display.tag {
     background-color: #e6f7ff;
     border-color: #91d5ff;
@@ -2528,8 +3656,17 @@ input:checked+.slider:before {
     box-shadow: none;
     transform: none;
 }
+.editable-price-inputs input[type="number"] {
+    -moz-appearance: textfield;
+}
 
-/* 账号选择器浮动样式 */
+.editable-price-inputs input[type="number"]::-webkit-outer-spin-button,
+.editable-price-inputs input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* 账号选择器浮动样�?*/
 .editable-account-select {
     position: absolute;
     top: 0;
@@ -2553,4 +3690,667 @@ input:checked+.slider:before {
     padding: 4px 8px;
     font-size: 14px;
     height: 32px;
+}
+
+.region-select-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.region-select-row select {
+    min-width: 140px;
+    flex: 1 1 140px;
+}
+
+.region-select-row.compact select {
+    min-width: 110px;
+    flex: 1 1 110px;
+}
+
+.filter-tags {
+    display: inline-flex;
+    gap: 4px 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: center;
+}
+
+.filter-tags.advanced-filter-placeholder {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.filter-tag {
+    padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid #91d5ff;
+    background-color: #e6f7ff;
+    font-size: 13px;
+    line-height: 1.3;
+    color: #096dd9;
+}
+
+.filter-tag.is-active {
+    background-color: #e6f7ff;
+    border-color: #91d5ff;
+    color: #096dd9;
+}
+
+.editable-advanced-filter .editable-display {
+    cursor: pointer;
+}
+
+.editable-advanced-panel {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(-2px);
+    z-index: 12;
+    background: #fff;
+    border: 1px solid #1890ff;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 240px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.editable-advanced-panel .filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.editable-advanced-panel .filter-row .filter-field {
+    flex: 1 1 160px;
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+.editable-advanced-panel .filter-row .filter-field.region-field {
+    flex: 2 1 280px;
+}
+
+.editable-advanced-panel .filter-row .filter-label {
+    display: none;
+}
+
+.editable-advanced-panel .filter-row .filter-publish-option {
+    min-width: 140px;
+}
+
+.editable-advanced-panel .filter-row .region-select-row {
+    flex: 1 1 auto;
+}
+
+.editable-advanced-panel .filter-row .region-select-row.compact select {
+    min-width: 90px;
+    flex: 1 1 90px;
+}
+
+.inline-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #333;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.filter-actions button {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid #d9d9d9;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.filter-actions .filter-save-btn {
+    background: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
+}
+
+.filter-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.filter-field .filter-label {
+    font-size: 12px;
+    color: #666;
+    min-width: 68px;
+}
+
+.switch.small-switch {
+    transform: scale(0.85);
+}
+
+.filter-field.region-field {
+    align-items: flex-start;
+}
+
+.filter-field.region-field .filter-label {
+    padding-top: 6px;
+}
+
+.drag-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    width: 100%;
+}
+
+.drag-handle-cell {
+    width: 36px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.drag-handle {
+    font-weight: 700;
+    color: #bfbfbf;
+    cursor: grab;
+    user-select: none;
+    padding: 2px 6px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tasks-table th:first-child,
+.tasks-table td.drag-handle-cell,
+.accounts-table th:first-child,
+.accounts-table td.drag-handle-cell,
+.tasks-table.scheduled-table th:first-child,
+.tasks-table.scheduled-table td.drag-handle-cell {
+    width: 36px;
+}
+
+.task-card,
+.tasks-table tbody tr,
+.accounts-table tbody tr,
+.tasks-table.scheduled-table tbody tr {
+    touch-action: pan-y;
+}
+
+body.reorder-active .task-card,
+body.reorder-active .scheduled-card,
+body.reorder-active .tasks-table tbody tr,
+body.reorder-active .accounts-table tbody tr,
+body.reorder-active .tasks-table.scheduled-table tbody tr {
+    touch-action: none;
+}
+
+.task-cards.reorder-active,
+.scheduled-cards.reorder-active {
+    position: relative;
+}
+
+.task-cards.reorder-active::before,
+.scheduled-cards.reorder-active::before {
+    content: "已进入移动模式";
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    margin-bottom: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #e6f4ff;
+    color: #0958d9;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(9, 88, 217, 0.15);
+}
+
+.drag-placeholder {
+    border: 2px dashed #91caff;
+    background: #f5faff;
+}
+
+.row-placeholder td {
+    padding: 0;
+    height: 10px;
+    border-top: 2px dashed #91caff;
+    border-bottom: 2px dashed #91caff;
+    background: #f5faff;
+}
+
+.card-placeholder {
+    border-radius: 10px;
+    min-height: 56px;
+}
+
+.sort-animate {
+    animation: sortPulse 260ms ease;
+}
+
+tr.sort-animate td {
+    animation: sortPulse 260ms ease;
+}
+
+@keyframes sortPulse {
+    0% {
+        background-color: transparent;
+    }
+    50% {
+        background-color: #f0f7ff;
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+tr.dragging {
+    opacity: 0.65;
+    background: #fafafa;
+}
+
+.task-card.dragging,
+.scheduled-card.dragging {
+    display: none;
+}
+
+.task-cards,
+.scheduled-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.task-card,
+.scheduled-card {
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    background: #fff;
+    padding: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    position: relative;
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.task-card-header,
+.scheduled-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.task-title,
+.scheduled-title {
+    font-weight: 600;
+    color: #1f1f1f;
+    flex: 1;
+}
+
+.scheduled-title {
+    min-width: 0;
+    word-break: break-word;
+}
+
+.scheduled-order-pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #e6f4ff;
+    color: #0958d9;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.task-status {
+    margin-right: 8px;
+}
+
+.task-card .task-title,
+.task-card .task-status,
+.task-card .task-row > span,
+.scheduled-card .scheduled-title,
+.scheduled-card .scheduled-row > span {
+    cursor: default;
+    user-select: none;
+}
+
+.task-card-body,
+.scheduled-card-body {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    color: #333;
+}
+
+.task-card-body {
+    gap: 6px;
+}
+
+.scheduled-card-body {
+    gap: 8px;
+}
+
+.task-row,
+.scheduled-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.scheduled-row {
+    align-items: center;
+}
+
+.task-row > span:first-child {
+    color: #999;
+    min-width: 70px;
+}
+
+.scheduled-row > span:first-child {
+    color: #999;
+    min-width: 90px;
+}
+
+.scheduled-cron-input {
+    flex: 1;
+    min-width: 140px;
+    max-width: 220px;
+    padding: 4px 8px;
+    font-size: 12px;
+    text-align: right;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+.scheduled-next-time {
+    text-align: right;
+    font-weight: 500;
+    color: #1f1f1f;
+}
+
+.task-account-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    text-align: right;
+}
+
+.task-card-actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.scheduled-card-actions {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.task-card-actions .action-btn,
+.task-card-actions .dropdown-btn {
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1;
+    min-width: 56px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.scheduled-card-actions .action-btn {
+    width: 100%;
+    height: 34px;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.task-card-actions .run-task-btn {
+    background-color: #52c41a;
+    border-color: #52c41a;
+    color: #fff;
+}
+
+.task-card-actions .run-task-btn:hover {
+    background-color: #389e0d;
+    border-color: #389e0d;
+}
+
+.task-card-actions .stop-task-btn {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: #fff;
+}
+
+.task-card-actions .stop-task-btn:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.task-card-actions .dropdown-btn {
+    background-color: #1890ff;
+    border-color: #1890ff;
+    color: #fff;
+}
+
+.task-card-actions .dropdown-btn:hover {
+    background-color: #40a9ff;
+    border-color: #40a9ff;
+}
+
+.task-card-actions .action-btn:disabled,
+.task-card-actions .dropdown-btn:disabled {
+    background-color: #d9d9d9;
+    border-color: #d9d9d9;
+    color: #fff;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.task-card-filter-panel {
+    margin-top: 8px;
+}
+
+.task-card .filter-tags {
+    display: flex;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+}
+
+.task-card .filter-tag {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    width: max-content;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-word;
+    background-color: #e6f7ff;
+    border-color: #91d5ff;
+    color: #096dd9;
+    padding: 2px 6px;
+    border-radius: 999px;
+}
+
+.task-card .filter-tag.is-active {
+    background-color: #e6f7ff;
+    border-color: #91d5ff;
+    color: #096dd9;
+    padding: 2px 6px;
+    border-radius: 999px;
+}
+
+.task-card-filter-panel .editable-advanced-panel {
+    position: static;
+    transform: none;
+    box-shadow: none;
+    border: 1px solid #e8e8e8;
+}
+
+@media (max-width: 768px) {
+    .tasks-table {
+        display: none;
+    }
+
+    .tasks-table.scheduled-table {
+        display: none;
+    }
+
+    .task-card .dropdown-container {
+        position: relative;
+    }
+
+    .task-cards .dropdown-menu {
+        position: absolute;
+        right: 12px;
+        top: 100%;
+    }
+
+    .task-cards .dropdown-menu.open-up {
+        top: auto;
+        bottom: 100%;
+        margin-top: 0;
+        margin-bottom: 5px;
+        transform-origin: bottom right;
+    }
+}
+
+
+
+
+
+
+
+
+/* Results filter overrides */
+.results-filter-bar .results-filter-header .filter-group,
+.results-filter-bar .results-filter-primary .filter-group,
+.results-filter-bar .results-filter-secondary .filter-group {
+    width: auto !important;
+    margin-right: 0 !important;
+    flex: 0 0 auto;
+    height: auto;
+}
+
+.results-filter-bar .results-filter-primary,
+.results-filter-bar .results-filter-secondary {
+    column-gap: 8px;
+    row-gap: 8px;
+    justify-content: flex-start;
+}
+
+.results-filter-bar .results-filter-secondary {
+    padding-top: 4px;
+}
+
+.results-filter-bar .results-filter-secondary .filter-group {
+    align-items: flex-start;
+}
+
+.results-filter-bar .filter-group,
+.results-filter-bar .filter-group.compact {
+    height: auto;
+    align-items: center;
+}
+
+.results-filter-bar .filter-label {
+    text-align: center !important;
+    min-height: 20px;
+    line-height: 20px;
+    width: 100%;
+}
+
+#manual-keyword-filter.results-manual-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 360px;
+    flex: 1 1 auto !important;
+}
+
+.results-filter-bar #refresh-results-btn,
+.results-filter-bar #delete-results-btn {
+    width: auto;
+}
+
+.results-filter-bar .results-file-group {
+    max-width: 320px;
+    flex: 1 1 240px;
+}
+
+.results-filter-bar .results-manual-group {
+    flex: 1 1 320px;
+    max-width: 360px;
+}
+
+.results-filter-bar .results-refresh-group {
+    flex: 0 0 auto;
+}
+
+.results-filter-bar .filter-group.compact {
+    flex: 0 0 auto;
+    align-items: center;
+}
+
+.results-filter-bar .filter-group.compact .switch {
+    margin-top: -2px;
+}
+
+.results-filter-bar .results-filter-primary .filter-group:not(.results-file-group):not(.results-manual-group) {
+    flex: 0 0 auto;
+}
+
+.results-filter-bar .results-filter-primary .results-filter-switches {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+@media (max-width: 768px) {
+    .results-filter-bar .results-filter-primary {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .results-filter-bar .results-filter-secondary {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+
+
+
+
+.tasks-table td .filter-tags {
+    max-width: 220px;
 }
