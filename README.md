@@ -353,11 +353,11 @@ docker项目地址
   - 提前在`/工作文件夹根目录/config/`内创建空的`config.json`文件，以持久化管理你的监控任务
   - 推荐下载`/prompts/base_prompt.txt`，并挂载`/app/prompts`卷，提前创建好`/工作目录文件夹/prompts`文件夹并且复制一份`base_prompt.txt`在你的`/prompts`内，不挂载不影响正常使用，但是每次更新自定义的prompt内容会消失，如无需求可以不需要挂载。
   - `/state`是储存咸鱼cookie文件的文件夹，一般情况下不需要挂载
+  - 支持 amd64架构和arm64架构
 ```yaml
 services:
  app:
    image: banbanzhige/ai-goofish-monitor-qb:latest
-   #image: banbanzhige/ai-goofish-monitor-qb:latest-arm64
    container_name: ai-goofish-monitor-qb
    pull_policy: always
    ports:
@@ -376,17 +376,12 @@ services:
 ```
 
 **方式二**:  
-备用链接：amd64架构
+备用链接：支持 amd64架构和arm64架构
 ```
-docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.8-beta-amd64
+docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:latest
 
 ```
-备用链接：arm64架构
-```
 
-  docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:0.9.8-beta-arm64
-
-```
 ## 💻 Windows部署
 
 ### 环境准备
