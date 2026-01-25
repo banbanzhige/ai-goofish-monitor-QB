@@ -5020,7 +5020,7 @@ function setupTaskReorder(container) {
             });
 
             // Initial load
-            await fetchAndRenderResults();
+            await fetchAndRenderResults({ force: true });
 
             if (resultsRefreshInterval) {
                 clearInterval(resultsRefreshInterval);
