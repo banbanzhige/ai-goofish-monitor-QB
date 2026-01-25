@@ -178,7 +178,31 @@ def delete_task_stats_file(task_name):
         return True
     except Exception as e:
         print(f"删除任务统计数据文件失败: {e}")
-        return False
+    return False
+
+
+def record_risk_control(account_name: Optional[str], reason: str, task_name: Optional[str] = None) -> None:
+    if not account_name:
+        return
+    state_file_path = os.path.join("state", f"{account_name}.json")
+    if not os.path.exists(state_file_path):
+        return
+    try:
+        with open(state_file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["risk_control_count"] = data.get("risk_control_count", 0) + 1
+        history = data.get("risk_control_history", [])
+        history.append({
+            "timestamp": datetime.now().isoformat(),
+            "reason": reason,
+            "task_name": task_name
+        })
+        data["risk_control_history"] = history[-50:]
+        with open(state_file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"LOG: 账号 {account_name} 触发风控：{reason}（任务：{task_name or '未知'}）")
+    except Exception as e:
+        print(f"LOG: 记录风控次数失败: {e}")
 
 
 async def fetch_user_profile(context, user_id: str) -> dict:
@@ -294,6 +318,18 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     min_price = task_config.get('min_price')
     max_price = task_config.get('max_price')
     ai_prompt_text = task_config.get('ai_prompt_text', '')
+    free_shipping = bool(task_config.get('free_shipping', False))
+    inspection_service = bool(task_config.get('inspection_service', False))
+    account_assurance = bool(task_config.get('account_assurance', False))
+    super_shop = bool(task_config.get('super_shop', False))
+    brand_new = bool(task_config.get('brand_new', False))
+    strict_selected = bool(task_config.get('strict_selected', False))
+    resale = bool(task_config.get('resale', False))
+    raw_new_publish = task_config.get('new_publish_option') or ''
+    new_publish_option = raw_new_publish.strip()
+    if new_publish_option == '__none__':
+        new_publish_option = ''
+    region_filter = (task_config.get('region') or '').strip()
 
     processed_item_count = 0
     recommended_item_count = 0
@@ -340,8 +376,11 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 browser = await p.chromium.launch(headless=RUN_HEADLESS(), channel="chrome", args=launch_args)
 
         # 确定要使用的state文件路径
+        # 确定要使用的state文件路径
+        current_account_name = None
         if bound_account:
             state_file_path = os.path.join("state", f"{bound_account}.json")
+            current_account_name = bound_account
             print(f"LOG: 使用绑定账号 '{bound_account}' 的状态文件: {state_file_path}")
         else:
             # 默认随机选择一个有效账号
@@ -359,7 +398,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                         
                         # 检查账号Cookie是否有效
                         try:
-                            with open(account_file, 'r', encoding='utf-8') as f:
+                            with open(account_file, "r", encoding="utf-8") as f:
                                 account_data = json.load(f)
                             
                             cookies = account_data.get("cookies", [])
@@ -383,14 +422,15 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
             if valid_accounts:
                 selected_account = random.choice(valid_accounts)
                 state_file_path = os.path.join("state", f"{selected_account}.json")
+                current_account_name = selected_account
                 print(f"LOG: 随机选择有效账号 '{selected_account}': {state_file_path}")
                 
                 # 更新账号最后使用时间
                 try:
-                    with open(state_file_path, 'r', encoding='utf-8') as f:
+                    with open(state_file_path, "r", encoding="utf-8") as f:
                         account_data = json.load(f)
                     account_data["last_used_at"] = datetime.now().isoformat()
-                    with open(state_file_path, 'w', encoding='utf-8') as f:
+                    with open(state_file_path, "w", encoding="utf-8") as f:
                         json.dump(account_data, f, indent=2, ensure_ascii=False)
                 except Exception as e:
                     print(f"LOG: 更新账号使用时间失败: {e}")
@@ -414,7 +454,6 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 await browser.close()
                 return 0, 0, "NO_ACCOUNT:无可用账号"
 
-        # 加载登录状态文件
         snapshot_data = None
         try:
             if os.path.exists(state_file_path):
@@ -509,6 +548,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 print(f"任务 '{keyword}' 将在此处中止。")
                 print("==================================================")
                 end_reason = "RISK_CONTROL:BAXIA_DIALOG"
+                record_risk_control(current_account_name, "BAXIA_DIALOG", task_name)
                 await browser.close()
                 return processed_item_count, recommended_item_count, end_reason
             except PlaywrightTimeoutError:
@@ -523,6 +563,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 print(f"任务 '{keyword}' 将在此处中止。")
                 print("==================================================")
                 end_reason = "RISK_CONTROL:MIDDLEWARE_WIDGET"
+                record_risk_control(current_account_name, "MIDDLEWARE_WIDGET", task_name)
                 await browser.close()
                 return processed_item_count, recommended_item_count, end_reason
             except PlaywrightTimeoutError:
@@ -538,13 +579,26 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
 
             final_response = None
             log_time("步骤 2 - 应用筛选条件...", task_name=task_name)
-            await page.click('text=新发布')
-            await random_sleep(2, 4) # 原来是 (1.5, 2.5)
-            async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
-                await page.click('text=最新')
-                # --- 修改: 增加排序后的等待时间 ---
-                await random_sleep(4, 7) # 原来是 (3, 5)
-            final_response = await response_info.value
+            if new_publish_option:
+                try:
+                    await page.click('text=新发布')
+                    await random_sleep(1, 2)
+                    async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
+                        await page.click(f"text={new_publish_option}")
+                        await random_sleep(2, 4)
+                    final_response = await response_info.value
+                except PlaywrightTimeoutError:
+                    log_time(f"新发布筛选 '{new_publish_option}' 请求超时，继续执行。", task_name=task_name)
+                except Exception as e:
+                    print(f"LOG: 应用新发布筛选失败: {e}")
+            else:
+                await page.click('text=新发布')
+                await random_sleep(2, 4) # 原来是 (1.5, 2.5)
+                async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
+                    await page.click('text=最新')
+                    # --- 修改: 增加排序后的等待时间 ---
+                    await random_sleep(4, 7) # 原来是 (3, 5)
+                final_response = await response_info.value
 
             if personal_only:
                 async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
@@ -553,25 +607,166 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                     await random_sleep(4, 6) # 原来是 asyncio.sleep(5)
                 final_response = await response_info.value
 
-            if min_price or max_price:
-                price_container = page.locator('div[class*="search-price-input-container"]').first
-                if await price_container.is_visible():
-                    if min_price:
-                        await price_container.get_by_placeholder("¥").first.fill(min_price)
-                        # --- 修改: 将固定等待改为随机等待 ---
-                        await random_sleep(1, 2.5) # 原来是 asyncio.sleep(5)
-                    if max_price:
-                        await price_container.get_by_placeholder("¥").nth(1).fill(max_price)
-                        # --- 修改: 将固定等待改为随机等待 ---
-                        await random_sleep(1, 2.5) # 原来是 asyncio.sleep(5)
+            if free_shipping:
+                try:
+                    free_shipping_trigger = page.get_by_text("包邮", exact=True)
+                    if await free_shipping_trigger.count():
+                        async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
+                            await free_shipping_trigger.first.click()
+                            await random_sleep(2, 4)
+                        final_response = await response_info.value
+                    else:
+                        print("LOG: 未找到包邮筛选按钮，跳过。")
+                except PlaywrightTimeoutError:
+                    log_time("包邮筛选请求超时，继续执行。", task_name=task_name)
+                except Exception as e:
+                    print(f"LOG: 应用包邮筛选失败: {e}")
 
-                    async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
-                        await page.keyboard.press('Tab')
-                        # --- 修改: 增加确认价格后的等待时间 ---
-                        await random_sleep(4, 7) # 原来是 asyncio.sleep(5)
-                    final_response = await response_info.value
+            async def apply_extra_filter(label: str, enabled: bool) -> None:
+                nonlocal final_response
+                if not enabled:
+                    return
+                try:
+                    trigger = page.get_by_text(label, exact=True)
+                    if await trigger.count():
+                        async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
+                            await trigger.first.click()
+                            await random_sleep(2, 4)
+                        final_response = await response_info.value
+                    else:
+                        print(f"LOG: 未找到{label}筛选按钮，跳过。")
+                except PlaywrightTimeoutError:
+                    log_time(f"{label}筛选请求超时，继续执行。", task_name=task_name)
+                except Exception as e:
+                    print(f"LOG: 应用{label}筛选失败: {e}")
+
+            await apply_extra_filter("验货宝", inspection_service)
+            await apply_extra_filter("验号担保", account_assurance)
+            await apply_extra_filter("超赞鱼小铺", super_shop)
+            await apply_extra_filter("全新", brand_new)
+            await apply_extra_filter("严选", strict_selected)
+            await apply_extra_filter("转卖", resale)
+
+            if region_filter:
+                try:
+                    area_trigger = page.get_by_text("区域", exact=True)
+                    if await area_trigger.count():
+                        await area_trigger.first.click()
+                        await random_sleep(1.5, 2)
+                        popover_candidates = page.locator("div.ant-popover")
+                        popover = popover_candidates.filter(has=page.locator(".areaWrap--FaZHsn8E, [class*='areaWrap']")).last
+                        if not await popover.count():
+                            popover = popover_candidates.filter(has=page.get_by_text("重新定位")).last
+                        if not await popover.count():
+                            popover = popover_candidates.filter(has=page.get_by_text("查看")).last
+                        if not await popover.count():
+                            print("LOG: 未找到区域弹窗，跳过区域筛选。")
+                            raise PlaywrightTimeoutError("region-popover-not-found")
+                        await popover.wait_for(state="visible", timeout=5000)
+
+                        # 列表容器：第一层 children 即省/市/区三列，不再强依赖具体类名，提升鲁棒性
+                        area_wrap = popover.locator(".areaWrap--FaZHsn8E, [class*='areaWrap']").first
+                        await area_wrap.wait_for(state="visible", timeout=3000)
+                        columns = area_wrap.locator(":scope > div")
+                        col_prov = columns.nth(0)
+                        col_city = columns.nth(1)
+                        col_dist = columns.nth(2)
+
+                        region_parts = [p.strip() for p in region_filter.split('/') if p.strip()]
+                        city_first_regions = {"北京", "上海", "天津", "重庆"}
+                        if region_parts and region_parts[0] in city_first_regions:
+                            region_parts = region_parts[:2]
+
+                        async def _click_in_column(column_locator, text_value: str, desc: str) -> None:
+                            option = column_locator.locator(".provItem--QAdOx8nD", has_text=text_value).first
+                            if await option.count():
+                                await option.click()
+                                await random_sleep(1.5, 2)
+                                try:
+                                    await option.wait_for(state="attached", timeout=1500)
+                                    await option.wait_for(state="visible", timeout=1500)
+                                except PlaywrightTimeoutError:
+                                    pass
+                            else:
+                                print(f"LOG: 未找到{desc} '{text_value}'，跳过。")
+
+                        if len(region_parts) >= 1:
+                            await _click_in_column(col_prov, region_parts[0], "省份")
+                            await random_sleep(1, 2)
+                        if len(region_parts) >= 2:
+                            await _click_in_column(col_city, region_parts[1], "城市/区域")
+                            await random_sleep(1, 2)
+                        if len(region_parts) >= 3:
+                            if await col_dist.count():
+                                await _click_in_column(col_dist, region_parts[2], "区/县")
+                                await random_sleep(1, 2)
+
+                        search_btn = popover.locator("div.searchBtn--Ic6RKcAb").first
+                        if await search_btn.count():
+                            try:
+                                async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
+                                    await search_btn.click()
+                                    await random_sleep(2, 3)
+                                final_response = await response_info.value
+                            except PlaywrightTimeoutError:
+                                log_time("区域筛选提交超时，继续执行。", task_name=task_name)
+                        else:
+                            print("LOG: 未找到区域弹窗的“查看XX件宝贝”按钮，跳过提交。")
+                    else:
+                        print("LOG: 未找到区域筛选触发器。")
+                except PlaywrightTimeoutError:
+                    log_time(f"区域筛选 '{region_filter}' 请求超时，继续执行。", task_name=task_name)
+                except Exception as e:
+                    print(f"LOG: 应用区域筛选 '{region_filter}' 失败: {e}")
+
+            has_min_price = min_price is not None and str(min_price).strip() != ''
+            has_max_price = max_price is not None and str(max_price).strip() != ''
+            if has_min_price or has_max_price:
+                price_container = page.locator('div[class*="search-price-input-container"]').first
+                try:
+                    await price_container.wait_for(state="visible", timeout=5000)
+                except PlaywrightTimeoutError:
+                    print("LOG: 警告 - 价格输入容器不可见，跳过价格筛选。")
                 else:
-                    print("LOG: 警告 - 未找到价格输入容器。")
+                    try:
+                        price_inputs = price_container.get_by_placeholder("￥")
+                        if await price_inputs.count() < 2:
+                            price_inputs = price_container.get_by_placeholder("¥")
+                        if await price_inputs.count() < 2:
+                            price_inputs = price_container.locator("input[type='number']")
+                        if await price_inputs.count() < 2:
+                            print("LOG: 警告 - 未找到价格输入框，跳过价格筛选。")
+                        else:
+                            if has_min_price:
+                                await price_inputs.first.fill(str(min_price), timeout=5000)
+                                # --- 修改: 将固定等待改为随机等待 ---
+                                await random_sleep(1, 2.5) # 原来是 asyncio.sleep(5)
+                            if has_max_price:
+                                await price_inputs.nth(1).fill(str(max_price), timeout=5000)
+                                # --- 修改: 将固定等待改为随机等待 ---
+                                await random_sleep(1, 2.5) # 原来是 asyncio.sleep(5)
+
+                            async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
+                                await page.keyboard.press('Tab')
+                                # --- 修改: 增加确认价格后的等待时间 ---
+                                await random_sleep(4, 7) # 原来是 asyncio.sleep(5)
+                            final_response = await response_info.value
+                    except PlaywrightTimeoutError:
+                        print("LOG: 价格筛选输入超时，跳过价格筛选。")
+
+            log_time(
+                "Applying filters | "
+                f"free_shipping={int(free_shipping)} | "
+                f"inspection_service={int(inspection_service)} | "
+                f"account_assurance={int(account_assurance)} | "
+                f"super_shop={int(super_shop)} | "
+                f"brand_new={int(brand_new)} | "
+                f"strict_selected={int(strict_selected)} | "
+                f"resale={int(resale)} | "
+                f"new_publish={new_publish_option or '不限'} | "
+                f"region={region_filter or '不限'}",
+                task_name=task_name
+            )
 
             log_time("所有筛选已完成，开始处理商品列表...", task_name=task_name)
 
@@ -638,6 +833,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 print("==================================================")
                                 stop_scraping = True
                                 end_reason = "RISK_CONTROL:FAIL_SYS_USER_VALIDATE"
+                                record_risk_control(current_account_name, "FAIL_SYS_USER_VALIDATE", task_name)
                                 await detail_page.close()
                                 await browser.close()
                                 return processed_item_count, recommended_item_count, end_reason
@@ -688,6 +884,16 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 "搜索关键字": keyword,
                                 "任务名称": task_config.get('task_name', 'Untitled Task'),
                                 "AI标准": task_config.get('ai_prompt_criteria_file', 'N/A'),
+                                "personal_only": personal_only,
+                                "free_shipping": free_shipping,
+                                "inspection_service": inspection_service,
+                                "account_assurance": account_assurance,
+                                "super_shop": super_shop,
+                                "brand_new": brand_new,
+                                "strict_selected": strict_selected,
+                                "resale": resale,
+                                "new_publish_option": new_publish_option or None,
+                                "region": region_filter or None,
                                 "商品信息": item_data,
                                 "卖家信息": user_profile_data
                             }
