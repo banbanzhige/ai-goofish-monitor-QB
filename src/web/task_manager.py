@@ -8,7 +8,7 @@ import signal
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
-from src.web.models import Task, TaskUpdate, TaskGenerateRequestWithReference
+from src.web.models import Task, TaskUpdate, TaskGenerateRequestWithReference, TaskOrderUpdate
 from src.utils import write_log
 from src.web.scheduler import reload_scheduler_jobs
 from src.web.log_manager import sys_log
@@ -130,6 +130,16 @@ async def get_tasks():
             tasks = json.loads(content)
             for i, task in enumerate(tasks):
                 task['id'] = i
+                task.setdefault("order", i)
+                task.setdefault("free_shipping", False)
+                task.setdefault("new_publish_option", None)
+                task.setdefault("region", None)
+                task.setdefault("inspection_service", False)
+                task.setdefault("account_assurance", False)
+                task.setdefault("super_shop", False)
+                task.setdefault("brand_new", False)
+                task.setdefault("strict_selected", False)
+                task.setdefault("resale", False)
             return tasks
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"配置文件 {CONFIG_FILE} 未找到。")
@@ -137,6 +147,41 @@ async def get_tasks():
         raise HTTPException(status_code=500, detail=f"配置文件 {CONFIG_FILE} 格式错误。")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取任务配置时发生错误: {e}")
+
+
+@router.post("/api/tasks/reorder")
+async def reorder_tasks(payload: TaskOrderUpdate):
+    """更新任务顺序并写回 config.json。"""
+    ordered_ids = payload.ordered_ids
+    try:
+        async with aiofiles.open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            tasks = json.loads(await f.read())
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        raise HTTPException(status_code=500, detail=f"读取配置文件失败: {e}")
+
+    if len(ordered_ids) != len(tasks):
+        raise HTTPException(status_code=400, detail="排序数据不完整")
+
+    if len(set(ordered_ids)) != len(ordered_ids):
+        raise HTTPException(status_code=400, detail="排序数据存在重复")
+
+    if any(not isinstance(task_id, int) or task_id < 0 or task_id >= len(tasks) for task_id in ordered_ids):
+        raise HTTPException(status_code=400, detail="排序数据不合法")
+
+    reordered = [tasks[task_id] for task_id in ordered_ids]
+    for idx, task in enumerate(reordered):
+        task["order"] = idx
+
+    try:
+        async with aiofiles.open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(reordered, ensure_ascii=False, indent=2))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"写入配置文件失败: {e}")
+
+    from src.web.main import scheduler, fetcher_processes
+    await reload_scheduler_jobs(scheduler, fetcher_processes, update_task_running_status)
+
+    return {"message": "任务顺序已更新"}
 
 
 @router.post("/api/tasks/generate")
@@ -168,7 +213,16 @@ async def generate_task(req: TaskGenerateRequestWithReference):
         "description": req.description,
         "ai_prompt_base_file": "prompts/base_prompt.txt",
         "ai_prompt_criteria_file": requirement_filename,
-        "is_running": False
+        "is_running": False,
+        "free_shipping": req.free_shipping,
+        "new_publish_option": req.new_publish_option,
+        "region": req.region,
+        "inspection_service": req.inspection_service,
+        "account_assurance": req.account_assurance,
+        "super_shop": req.super_shop,
+        "brand_new": req.brand_new,
+        "strict_selected": req.strict_selected,
+        "resale": req.resale,
     }
 
     try:
@@ -176,6 +230,8 @@ async def generate_task(req: TaskGenerateRequestWithReference):
             existing_tasks = json.loads(await f.read())
     except (FileNotFoundError, json.JSONDecodeError):
         existing_tasks = []
+
+    new_task["order"] = len(existing_tasks)
 
     original_name = new_task["task_name"]
     base_name = original_name
@@ -238,6 +294,9 @@ async def create_task(task: Task):
                 existing_tasks = json.loads(await f.read())
         except (FileNotFoundError, json.JSONDecodeError):
             existing_tasks = []
+
+        if task.order is None:
+            task.order = len(existing_tasks)
 
         original_name = task.task_name
         base_name = original_name
@@ -317,6 +376,24 @@ async def create_task(task: Task):
         except Exception as e:
             print(f"Warning: Failed to copy criteria/requirement file: {e}")
 
+    if task.order is None:
+        try:
+            async with aiofiles.open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                existing_tasks = json.loads(await f.read())
+        except (FileNotFoundError, json.JSONDecodeError):
+            existing_tasks = []
+        task.order = len(existing_tasks)
+
+    task.free_shipping = bool(task.free_shipping)
+    task.inspection_service = bool(task.inspection_service)
+    task.account_assurance = bool(task.account_assurance)
+    task.super_shop = bool(task.super_shop)
+    task.brand_new = bool(task.brand_new)
+    task.strict_selected = bool(task.strict_selected)
+    task.resale = bool(task.resale)
+    task.new_publish_option = task.new_publish_option or None
+    task.region = task.region or None
+
     success = await add_task(task)
     if not success:
         if 'new_criteria_file' in locals() and os.path.exists(new_criteria_file):
@@ -359,6 +436,25 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
 
     if not update_data:
         return JSONResponse(content={"message": "数据无变化，未执行更新。"}, status_code=200)
+
+    if "free_shipping" in update_data:
+        update_data["free_shipping"] = bool(update_data["free_shipping"])
+    if "inspection_service" in update_data:
+        update_data["inspection_service"] = bool(update_data["inspection_service"])
+    if "account_assurance" in update_data:
+        update_data["account_assurance"] = bool(update_data["account_assurance"])
+    if "super_shop" in update_data:
+        update_data["super_shop"] = bool(update_data["super_shop"])
+    if "brand_new" in update_data:
+        update_data["brand_new"] = bool(update_data["brand_new"])
+    if "strict_selected" in update_data:
+        update_data["strict_selected"] = bool(update_data["strict_selected"])
+    if "resale" in update_data:
+        update_data["resale"] = bool(update_data["resale"])
+    if "new_publish_option" in update_data:
+        update_data["new_publish_option"] = update_data["new_publish_option"] or None
+    if "region" in update_data:
+        update_data["region"] = update_data["region"] or None
 
     if 'description' in update_data:
         update_data['generating_ai_criteria'] = True
@@ -415,6 +511,15 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
 
     task_dict = task.model_dump()
     task_dict.update(update_data)
+    task_dict.setdefault("free_shipping", False)
+    task_dict.setdefault("new_publish_option", None)
+    task_dict.setdefault("region", None)
+    task_dict.setdefault("inspection_service", False)
+    task_dict.setdefault("account_assurance", False)
+    task_dict.setdefault("super_shop", False)
+    task_dict.setdefault("brand_new", False)
+    task_dict.setdefault("strict_selected", False)
+    task_dict.setdefault("resale", False)
     task = Task(**task_dict)
 
     success = await update_task(task_id, task)
