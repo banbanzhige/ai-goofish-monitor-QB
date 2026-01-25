@@ -1,4 +1,187 @@
 document.addEventListener('DOMContentLoaded', function () {
+    const mainContent = document.getElementById('main-content');
+    // 下拉菜单使用固定定位，避免撑开滚动区域
+    const resetDropdownMenuStyle = (menu) => {
+        if (!menu) return;
+        menu.style.position = '';
+        menu.style.left = '';
+        menu.style.top = '';
+        menu.style.right = '';
+        menu.style.bottom = '';
+        menu.style.marginTop = '';
+        menu.style.marginBottom = '';
+        menu.style.maxHeight = '';
+        menu.style.overflowY = '';
+        menu.style.zIndex = '';
+    };
+
+    const positionDropdownMenu = (dropdownMenu, dropdownBtn) => {
+        if (!dropdownMenu || !dropdownBtn) return;
+        dropdownMenu.style.position = 'fixed';
+        dropdownMenu.style.left = '0px';
+        dropdownMenu.style.top = '0px';
+        dropdownMenu.style.right = 'auto';
+        dropdownMenu.style.bottom = 'auto';
+        dropdownMenu.style.marginTop = '0px';
+        dropdownMenu.style.marginBottom = '0px';
+        dropdownMenu.style.zIndex = '3000';
+
+        const menuRect = dropdownMenu.getBoundingClientRect();
+        const buttonRect = dropdownBtn.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const containerRect = mainContent ? mainContent.getBoundingClientRect() : null;
+        const containerTop = containerRect ? Math.max(containerRect.top, 0) : 0;
+        const containerBottom = containerRect ? Math.min(containerRect.bottom, viewportHeight) : viewportHeight;
+        const spaceBelow = containerBottom - buttonRect.bottom;
+        const spaceAbove = buttonRect.top - containerTop;
+        const shouldOpenUp = spaceBelow < menuRect.height && spaceAbove >= spaceBelow;
+
+        dropdownMenu.classList.toggle('open-up', shouldOpenUp);
+
+        const verticalGap = 6;
+        let top = shouldOpenUp
+            ? buttonRect.top - menuRect.height - verticalGap
+            : buttonRect.bottom + verticalGap;
+        const minTop = containerTop + 4;
+        const maxTop = containerBottom - menuRect.height - 4;
+        if (maxTop >= minTop) {
+            top = Math.min(Math.max(top, minTop), maxTop);
+        } else {
+            top = Math.min(Math.max(top, 4), viewportHeight - menuRect.height - 4);
+        }
+
+        let left = buttonRect.right - menuRect.width;
+        const minLeft = 8;
+        const maxLeft = viewportWidth - menuRect.width - 8;
+        left = Math.min(Math.max(left, minLeft), maxLeft);
+
+        dropdownMenu.style.left = `${Math.round(left)}px`;
+        dropdownMenu.style.top = `${Math.round(top)}px`;
+
+        const maxMenuHeight = Math.max(containerBottom - containerTop - 8, 120);
+        dropdownMenu.style.maxHeight = `${Math.floor(maxMenuHeight)}px`;
+        dropdownMenu.style.overflowY = 'auto';
+    };
+
+    const resetAdvancedPanelStyle = (panel) => {
+        if (!panel) return;
+        panel.style.position = '';
+        panel.style.left = '';
+        panel.style.top = '';
+        panel.style.right = '';
+        panel.style.bottom = '';
+        panel.style.marginTop = '';
+        panel.style.transform = '';
+        panel.style.zIndex = '';
+        panel.style.maxHeight = '';
+        panel.style.overflowY = '';
+        delete panel.dataset.fixed;
+    };
+
+    const positionAdvancedPanel = (panel, anchor) => {
+        if (!panel || !anchor) return;
+        panel.style.position = 'fixed';
+        panel.style.left = '0px';
+        panel.style.top = '0px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.marginTop = '0px';
+        panel.style.transform = 'none';
+        panel.style.zIndex = '3000';
+
+        const panelRect = panel.getBoundingClientRect();
+        const anchorRect = anchor.getBoundingClientRect();
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const containerRect = mainContent ? mainContent.getBoundingClientRect() : null;
+        const containerTop = containerRect ? Math.max(containerRect.top, 0) : 0;
+        const containerBottom = containerRect ? Math.min(containerRect.bottom, viewportHeight) : viewportHeight;
+        const spaceBelow = containerBottom - anchorRect.bottom;
+        const spaceAbove = anchorRect.top - containerTop;
+        const shouldOpenUp = spaceBelow < panelRect.height && spaceAbove >= spaceBelow;
+        const verticalGap = 6;
+
+        let top = shouldOpenUp
+            ? anchorRect.top - panelRect.height - verticalGap
+            : anchorRect.bottom + verticalGap;
+        const minTop = containerTop + 4;
+        const maxTop = containerBottom - panelRect.height - 4;
+        if (maxTop >= minTop) {
+            top = Math.min(Math.max(top, minTop), maxTop);
+        } else {
+            top = Math.min(Math.max(top, 4), viewportHeight - panelRect.height - 4);
+        }
+
+        let left = anchorRect.left + (anchorRect.width / 2) - (panelRect.width / 2);
+        const minLeft = 8;
+        const maxLeft = viewportWidth - panelRect.width - 8;
+        left = Math.min(Math.max(left, minLeft), maxLeft);
+
+        panel.style.left = `${Math.round(left)}px`;
+        panel.style.top = `${Math.round(top)}px`;
+        panel.style.maxHeight = `${Math.floor(containerBottom - containerTop - 8)}px`;
+        panel.style.overflowY = 'auto';
+        panel.dataset.fixed = 'true';
+    };
+
+    const closeAllDropdownMenus = () => {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('show');
+            menu.classList.remove('open-up');
+            resetDropdownMenuStyle(menu);
+        });
+        document.querySelectorAll('#accounts-section .accounts-table tbody tr.dropdown-open').forEach(row => {
+            row.classList.remove('dropdown-open');
+        });
+    };
+
+    const updateAdvancedPanelPositions = () => {
+        document.querySelectorAll('.editable-advanced-panel.open').forEach(panel => {
+            if (panel.dataset.fixed !== 'true') return;
+            const cell = panel.closest('.editable-advanced-filter');
+            if (!cell) return;
+            positionAdvancedPanel(panel, cell);
+        });
+    };
+
+    window.addEventListener('resize', updateAdvancedPanelPositions);
+    document.addEventListener('scroll', updateAdvancedPanelPositions, true);
+
+    function setAdvancedFilterPlaceholder(cell) {
+        if (!cell) return;
+        const display = cell.querySelector('.editable-display');
+        if (!display) return;
+        display.classList.add('advanced-filter-placeholder');
+        display.style.display = display.classList.contains('filter-tags') ? 'inline-flex' : 'inline-block';
+    }
+
+    function restoreAdvancedFilterDisplay(cell) {
+        if (!cell) return;
+        const display = cell.querySelector('.editable-display');
+        if (!display) return;
+        display.classList.remove('advanced-filter-placeholder');
+        display.style.visibility = '';
+        display.style.pointerEvents = '';
+        display.style.display = display.classList.contains('filter-tags') ? 'inline-flex' : 'inline-block';
+    }
+
+    const closeAllAdvancedPanels = () => {
+        const panels = document.querySelectorAll('.editable-advanced-panel.open');
+        panels.forEach(panel => {
+            panel.style.display = 'none';
+            panel.classList.remove('open');
+            resetAdvancedPanelStyle(panel);
+            const cell = panel.closest('.editable-advanced-filter');
+            const card = panel.closest('.task-card');
+            restoreAdvancedFilterDisplay(cell);
+            if (card) {
+                const wrapper = panel.closest('.task-card-filter-panel');
+                if (wrapper) wrapper.style.display = 'none';
+            }
+        });
+    };
+
     // 下拉菜单交互逻辑
     document.addEventListener('click', function(event) {
         const dropdownBtn = event.target.closest('.dropdown-btn');
@@ -9,22 +192,37 @@ document.addEventListener('DOMContentLoaded', function () {
             
             const dropdownContainer = dropdownBtn.closest('.dropdown-container');
             const dropdownMenu = dropdownContainer.querySelector('.dropdown-menu');
+            const accountRow = dropdownContainer.closest('#accounts-section .accounts-table tbody tr');
             
             // 切换当前下拉菜单的显示/隐藏
-            dropdownMenu.classList.toggle('show');
+            const isOpen = dropdownMenu.classList.toggle('show');
+            dropdownMenu.classList.remove('open-up');
+            resetDropdownMenuStyle(dropdownMenu);
+            if (accountRow) {
+                accountRow.classList.toggle('dropdown-open', isOpen);
+            }
+            if (isOpen) {
+                positionDropdownMenu(dropdownMenu, dropdownBtn);
+            } else {
+                resetDropdownMenuStyle(dropdownMenu);
+            }
             
             // 关闭其他所有下拉菜单
             document.querySelectorAll('.dropdown-container').forEach(container => {
                 if (container !== dropdownContainer) {
                     const menu = container.querySelector('.dropdown-menu');
                     menu.classList.remove('show');
+                    menu.classList.remove('open-up');
+                    resetDropdownMenuStyle(menu);
+                    const row = container.closest('#accounts-section .accounts-table tbody tr');
+                    if (row) {
+                        row.classList.remove('dropdown-open');
+                    }
                 }
             });
         } else {
             // 点击外部区域，关闭所有下拉菜单
-            document.querySelectorAll('.dropdown-menu').forEach(menu => {
-                menu.classList.remove('show');
-            });
+            closeAllDropdownMenus();
         }
     });
 
@@ -35,18 +233,65 @@ document.addEventListener('DOMContentLoaded', function () {
         if (dropdownItem) {
             const dropdownMenu = dropdownItem.closest('.dropdown-menu');
             dropdownMenu.classList.remove('show');
+            dropdownMenu.classList.remove('open-up');
+            resetDropdownMenuStyle(dropdownMenu);
+            const row = dropdownMenu.closest('#accounts-section .accounts-table tbody tr');
+            if (row) {
+                row.classList.remove('dropdown-open');
+            }
         }
     });
 
-    const mainContent = document.getElementById('main-content');
+    document.addEventListener('change', function(event) {
+        const checkbox = event.target.closest('.result-select-checkbox');
+        if (checkbox && typeof window.updateSelectionControls === 'function') {
+            window.updateSelectionControls();
+        }
+    });
+
+    if (mainContent) {
+        mainContent.addEventListener('scroll', closeAllDropdownMenus);
+    }
+    window.addEventListener('resize', closeAllDropdownMenus);
+
     const navLinks = document.querySelectorAll('.nav-link');
     let logRefreshInterval = null;
     let taskRefreshInterval = null;
+    let resultsRefreshInterval = null;
+    let lastResultsSignature = null;
+    let latestTasks = [];
+    let latestAccounts = [];
+    let isTaskReordering = false;
+    const headerTitle = document.querySelector('.logo-container h1');
+    const desktopTitleText = headerTitle ? headerTitle.textContent.trim() : '';
+    const mobileTitleText = '咸鱼AI监控机器人';
 
     // Mobile Menu Logic
     const mobileMenuBtn = document.getElementById('mobile-menu-toggle');
     const sidebar = document.querySelector('aside');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+    const layoutContainer = document.querySelector('.container');
+    const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
+
+        const applySidebarCollapsed = (collapsed) => {
+        if (!layoutContainer || !sidebarToggleBtn) return;
+        layoutContainer.classList.toggle('sidebar-collapsed', collapsed);
+        sidebarToggleBtn.textContent = collapsed ? '>>' : '<<';
+        sidebarToggleBtn.title = collapsed ? '\u5c55\u5f00\u4fa7\u8fb9\u680f' : '\u6536\u8d77\u4fa7\u8fb9\u680f';
+        sidebarToggleBtn.setAttribute('aria-label', sidebarToggleBtn.title);
+    };
+
+    if (sidebarToggleBtn && layoutContainer) {
+        const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+        applySidebarCollapsed(stored === '1');
+        sidebarToggleBtn.addEventListener('click', () => {
+            const next = !layoutContainer.classList.contains('sidebar-collapsed');
+            applySidebarCollapsed(next);
+            localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+        });
+    }
 
     if (mobileMenuBtn && sidebar && sidebarOverlay) {
         function toggleMobileMenu() {
@@ -66,12 +311,24 @@ document.addEventListener('DOMContentLoaded', function () {
         // Close sidebar when clicking a nav link on mobile
         navLinks.forEach(link => {
             link.addEventListener('click', () => {
-                if (window.innerWidth <= 768) {
+                if (window.matchMedia("(max-width: 1366px) and (hover: none) and (pointer: coarse)").matches) {
                     sidebar.classList.remove('active');
                     sidebarOverlay.classList.remove('active');
                 }
             });
         });
+    }
+
+    if (headerTitle) {
+        const updateHeaderTitle = () => {
+            if (window.matchMedia("(max-width: 1366px) and (hover: none) and (pointer: coarse)").matches) {
+                headerTitle.textContent = mobileTitleText;
+            } else if (desktopTitleText) {
+                headerTitle.textContent = desktopTitleText;
+            }
+        };
+        updateHeaderTitle();
+        window.addEventListener('resize', updateHeaderTitle);
     }
 
     // --- 各部分的模板 ---
@@ -92,63 +349,80 @@ document.addEventListener('DOMContentLoaded', function () {
                     <h2>结果查看</h2>
                 </div>
                 <div class="results-filter-bar">
-                    <div class="filter-group">
-                        <div class="filter-label">结果文件</div>
-                        <select id="result-file-selector">
-                            <option value="">正在加载...</option>
-                        </select>
+                    <div class="results-filter-primary">
+                        <div class="filter-group results-file-group">
+                            <div class="filter-label">结果文件</div>
+                            <select id="result-file-selector">
+                                <option value="">正在加载...</option>
+                            </select>
+                        </div>
+                        <div class="filter-group results-manual-group">
+                            <div class="filter-label">手动筛选</div>
+                            <input type="text" id="manual-keyword-filter" class="results-manual-input" placeholder="输入关键词筛选">
+                        </div>
+                        <div class="filter-group results-refresh-group">
+                            <div class="filter-label">刷新</div>
+                            <button id="refresh-results-btn" class="control-button results-refresh-btn">🔄 刷新</button>
+                        </div>
+                        <div class="filter-group results-select-group">
+                            <div class="filter-label">选择</div>
+                            <button id="toggle-results-selection" class="control-button results-select-btn">全选</button>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">删除</div>
+                            <button id="delete-results-btn" class="control-button danger-btn" disabled>删除结果</button>
+                        </div>
+                        <div class="results-filter-switches">
+                            <div class="filter-group compact">
+                                <div class="filter-label">仅看AI推荐</div>
+                                <label class="switch">
+                                    <input type="checkbox" id="recommended-only-checkbox">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="filter-group compact">
+                                <div class="filter-label">高级筛选</div>
+                                <label class="switch">
+                                    <input type="checkbox" id="toggle-advanced-filters" aria-expanded="false">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <div class="filter-label">任务名称</div>
-                        <select id="task-name-filter">
-                            <option value="all">所有任务</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">关键词</div>
-                        <select id="keyword-filter">
-                            <option value="all">所有关键词</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">AI标准</div>
-                        <select id="ai-criteria-filter">
-                            <option value="all">所有AI标准</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">排序字段</div>
-                        <select id="sort-by-selector">
-                            <option value="crawl_time">按浏览时间</option>
-                            <option value="publish_time">按发布时间</option>
-                            <option value="price">按价格</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">排序方式</div>
-                        <select id="sort-order-selector">
-                            <option value="desc">降序</option>
-                            <option value="asc">升序</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">手动筛选</div>
-                        <input type="text" id="manual-keyword-filter" placeholder="输入关键词筛选" style="width: 250px; height: 36px; box-sizing: border-box; padding: 0 10px;">
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">删除</div>
-                        <button id="delete-results-btn" class="control-button danger-btn" disabled>删除结果</button>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">刷新</div>
-                        <button id="refresh-results-btn" class="control-button">🔄 刷新</button>
-                    </div>
-                    <div class="filter-group">
-                        <div class="filter-label">仅看ai推荐</div>
-                        <label class="switch">
-                            <input type="checkbox" id="recommended-only-checkbox">
-                            <span class="slider round"></span>
-                        </label>
+                    <div class="results-filter-secondary" id="advanced-filters-panel">
+                        <div class="filter-group">
+                            <div class="filter-label">任务名称</div>
+                            <select id="task-name-filter">
+                                <option value="all">所有任务</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">关键词</div>
+                            <select id="keyword-filter">
+                                <option value="all">所有关键词</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">AI标准</div>
+                            <select id="ai-criteria-filter">
+                                <option value="all">所有AI标准</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">排序字段</div>
+                            <select id="sort-by-selector">
+                                <option value="crawl_time">按浏览时间</option>
+                                <option value="publish_time">按发布时间</option>
+                                <option value="price">按价格</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">排序方式</div>
+                            <select id="sort-order-selector">
+                                <option value="desc">降序</option>
+                                <option value="asc">升序</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div id="results-grid-container">
@@ -206,22 +480,35 @@ document.addEventListener('DOMContentLoaded', function () {
         settings: () => `
             <section id="settings-section" class="content-section">
                 <h2>系统设置</h2>
-                <div class="settings-card">
-                    <h3>系统状态检查</h3>
-                    <div id="system-status-container"><p>正在加载状态...</p></div>
+                <div class="settings-tabs" role="tablist" aria-label="系统设置分组">
+                    <button type="button" class="settings-tab active" data-tab="settings-tab-ai" role="tab" aria-controls="settings-tab-ai" aria-selected="true">AI模型配置</button>
+                    <button type="button" class="settings-tab" data-tab="settings-tab-prompt" role="tab" aria-controls="settings-tab-prompt" aria-selected="false">Prompt 管理</button>
+                    <button type="button" class="settings-tab" data-tab="settings-tab-generic" role="tab" aria-controls="settings-tab-generic" aria-selected="false">通用配置</button>
                 </div>
-                <div class="settings-card">
-                    <h3>Prompt 管理</h3>
-                    <div class="prompt-manager">
-                        <div class="prompt-list-container">
-                            <label for="prompt-selector">选择要编辑的 Prompt:</label>
-                            <select id="prompt-selector"><option>加载中...</option></select>
-                        </div>
-                        <div class="prompt-editor-container">
-                            <textarea id="prompt-editor" spellcheck="false" disabled placeholder="请先从上方选择一个 Prompt 文件进行编辑..."></textarea>
-                            <button id="save-prompt-btn" class="control-button primary-btn" disabled>保存更改</button>
+                <div class="settings-tab-panel active" id="settings-tab-ai" data-tab="settings-tab-ai" role="tabpanel">
+                    <div class="settings-card">
+                        <h3>系统状态检查</h3>
+                        <div id="system-status-container"><p>正在加载状态...</p></div>
+                    </div>
+                    <div id="ai-settings-panel"></div>
+                </div>
+                <div class="settings-tab-panel" id="settings-tab-prompt" data-tab="settings-tab-prompt" role="tabpanel" hidden>
+                    <div class="settings-card">
+                        <h3>Prompt 管理</h3>
+                        <div class="prompt-manager">
+                            <div class="prompt-list-container">
+                                <label for="prompt-selector">选择要编辑的 Prompt:</label>
+                                <select id="prompt-selector"><option>加载中...</option></select>
+                            </div>
+                            <div class="prompt-editor-container">
+                                <textarea id="prompt-editor" spellcheck="false" disabled placeholder="请先从上方选择一个 Prompt 文件进行编辑..."></textarea>
+                                <button id="save-prompt-btn" class="control-button primary-btn" disabled>保存更改</button>
+                            </div>
                         </div>
                     </div>
+                </div>
+                <div class="settings-tab-panel" id="settings-tab-generic" data-tab="settings-tab-generic" role="tabpanel" hidden>
+                    <div id="generic-settings-panel"></div>
                 </div>
             </section>`,
         scheduled: () => `
@@ -239,6 +526,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="section-header">
                     <h2>闲鱼账号管理</h2>
                     <div class="header-buttons" style="justify-content: flex-end;">
+                        <button id="cleanup-expired-accounts-btn" class="control-button" style="background-color: #ff4d4f; border-color: #ff4d4f; color: white;">🧹 批量清空失效账号</button>
                         <button id="import-from-login-btn" class="control-button" style="background-color: #52c41a; border-color: #52c41a; color: white;">🚀 自动获取账号</button>
                         <button id="add-account-btn" class="control-button primary-btn">✏️ 手动添加账号</button>
                     </div>
@@ -291,7 +579,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function testAISettings(settings) {
+    async function testAISettings(settings, options = {}) {
+        const { silent = false } = options;
         try {
             const response = await fetch('/api/settings/ai/test', {
                 method: 'POST',
@@ -305,7 +594,9 @@ document.addEventListener('DOMContentLoaded', function () {
             return await response.json();
         } catch (error) {
             console.error('无法测试AI设置:', error);
-            alert(`错误: ${error.message}`);
+            if (!silent) {
+                alert(`错误: ${error.message}`);
+            }
             return null;
         }
     }
@@ -481,9 +772,30 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            return await response.json();
+            const tasks = await response.json();
+            latestTasks = Array.isArray(tasks) ? tasks.slice() : [];
+            return tasks;
         } catch (error) {
             console.error("无法获取任务列表:", error);
+            return null;
+        }
+    }
+
+    async function reorderTasksOrder(orderedIds) {
+        try {
+            const response = await fetch('/api/tasks/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ordered_ids: orderedIds })
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Reorder failed');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Reorder tasks failed:', error);
+            alert(`Reorder failed: ${error.message}`);
             return null;
         }
     }
@@ -511,6 +823,25 @@ document.addEventListener('DOMContentLoaded', function () {
             return await response.json();
         } catch (error) {
             console.error(`无法删除结果文件 ${filename}:`, error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function deleteResultsBatch(payload) {
+        try {
+            const response = await fetch('/api/results/delete-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || '批量删除结果失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('批量删除结果失败:', error);
             alert(`错误: ${error.message}`);
             return null;
         }
@@ -689,10 +1020,31 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const response = await fetch('/api/accounts');
             if (!response.ok) throw new Error('无法获取账号列表');
-            return await response.json();
+            const accounts = await response.json();
+            latestAccounts = Array.isArray(accounts) ? accounts.slice() : [];
+            return accounts;
         } catch (error) {
             console.error(error);
             return [];
+        }
+    }
+
+    async function reorderAccountsOrder(orderedNames) {
+        try {
+            const response = await fetch('/api/accounts/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ordered_names: orderedNames })
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Reorder failed');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Reorder accounts failed:', error);
+            alert(`Reorder failed: ${error.message}`);
+            return null;
         }
     }
 
@@ -740,6 +1092,21 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!response.ok) {
                 const err = await response.json();
                 throw new Error(err.detail || '删除账号失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(error);
+            alert(`错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function cleanupExpiredAccounts() {
+        try {
+            const response = await fetch('/api/accounts/cleanup-expired', { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '批量清理失效账号失败');
             }
             return await response.json();
         } catch (error) {
@@ -897,12 +1264,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 };
 
-                confirmBtn.addEventListener('click', handleConfirmation, { once: true });
-                cancelBtn.addEventListener('click', closeModal, { once: true });
-                closeBtn.addEventListener('click', closeModal, { once: true });
-                confirmModal.addEventListener('click', (e) => {
-                    if (e.target === confirmModal) closeModal();
-                }, { once: true });
+                if (!confirmBtn.dataset.bound) {
+                    confirmBtn.dataset.bound = '1';
+                    confirmBtn.addEventListener('click', handleConfirmation);
+                }
+                if (!cancelBtn.dataset.bound) {
+                    cancelBtn.dataset.bound = '1';
+                    cancelBtn.addEventListener('click', closeModal);
+                }
+                if (!closeBtn.dataset.bound) {
+                    closeBtn.dataset.bound = '1';
+                    closeBtn.addEventListener('click', closeModal);
+                }
+                if (!confirmModal.dataset.overlayBound) {
+                    confirmModal.dataset.overlayBound = '1';
+                    confirmModal.addEventListener('click', (e) => {
+                        if (e.target === confirmModal) closeModal();
+                    });
+                }
             });
         }
 
@@ -946,6 +1325,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         return `
             <form id="notification-settings-form">
+                <div class="notification-tabs" role="tablist" aria-label="通知配置渠道"></div>
                 <div class="notification-channel-card">
                     <h4>通用配置</h4>
                     <div class="form-group">
@@ -1256,6 +1636,102 @@ document.addEventListener('DOMContentLoaded', function () {
         `;
     }
 
+    function setupNotificationTabs() {
+        const section = document.getElementById('notifications-section');
+        if (!section) return;
+
+        const tabContainer = section.querySelector('.notification-tabs');
+        const cards = Array.from(section.querySelectorAll('.notification-channel-card'));
+        if (!tabContainer || cards.length === 0) return;
+
+        tabContainer.innerHTML = '';
+        const tabButtons = [];
+
+        cards.forEach((card, index) => {
+            const title = card.querySelector('h4')?.textContent?.trim() || `Tab ${index + 1}`;
+            const tabId = `notification-tab-${index + 1}`;
+
+            card.dataset.tab = tabId;
+            card.classList.add('notification-tab-panel');
+            card.setAttribute('role', 'tabpanel');
+            card.id = tabId;
+
+            const tabButton = document.createElement('button');
+            tabButton.type = 'button';
+            tabButton.className = 'notification-tab';
+            tabButton.dataset.tab = tabId;
+            tabButton.setAttribute('role', 'tab');
+            tabButton.setAttribute('aria-controls', tabId);
+            tabButton.textContent = title;
+
+            tabContainer.appendChild(tabButton);
+            tabButtons.push(tabButton);
+        });
+
+        const activateTab = (tabId) => {
+            tabButtons.forEach((button) => {
+                const isActive = button.dataset.tab === tabId;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                button.tabIndex = isActive ? 0 : -1;
+            });
+
+            cards.forEach((card) => {
+                const isActive = card.dataset.tab === tabId;
+                card.classList.toggle('active', isActive);
+                card.hidden = !isActive;
+            });
+        };
+
+        if (tabButtons[0]?.dataset.tab) {
+            activateTab(tabButtons[0].dataset.tab);
+        }
+
+        tabContainer.addEventListener('click', (event) => {
+            const target = event.target.closest('.notification-tab');
+            if (!target) return;
+            activateTab(target.dataset.tab);
+        });
+    }
+
+
+    function setupSettingsTabs() {
+        const section = document.getElementById('settings-section');
+        if (!section) return;
+
+        const tabContainer = section.querySelector('.settings-tabs');
+        const tabButtons = Array.from(section.querySelectorAll('.settings-tab'));
+        const panels = Array.from(section.querySelectorAll('.settings-tab-panel'));
+        if (!tabContainer || tabButtons.length === 0 || panels.length === 0) return;
+
+        const activateTab = (tabId) => {
+            tabButtons.forEach((button) => {
+                const isActive = button.dataset.tab === tabId;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                button.tabIndex = isActive ? 0 : -1;
+            });
+
+            panels.forEach((panel) => {
+                const isActive = panel.dataset.tab === tabId;
+                panel.classList.toggle('active', isActive);
+                panel.hidden = !isActive;
+            });
+        };
+
+        const defaultTab = tabButtons.find((button) => button.classList.contains('active')) || tabButtons[0];
+        if (defaultTab?.dataset.tab) {
+            activateTab(defaultTab.dataset.tab);
+        }
+
+        tabContainer.addEventListener('click', (event) => {
+            const target = event.target.closest('.settings-tab');
+            if (!target) return;
+            activateTab(target.dataset.tab);
+        });
+    }
+
+
     function renderAISettings(settings) {
         if (!settings) return '<p>无法加载AI设置。</p>';
 
@@ -1294,8 +1770,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
                 
                 <div class="form-group">
-                    <button type="button" id="test-ai-settings-btn" class="control-button">测试连接（浏览器）</button>
-                    <button type="button" id="test-ai-settings-backend-btn" class="control-button">测试连接（后端容器）</button>
+                    <button type="button" id="test-ai-settings-btn" class="control-button">测试连接</button>
                     <button type="submit" class="control-button primary-btn">保存AI设置</button>
                 </div>
             </form>
@@ -1400,10 +1875,30 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const manualKeyword = document.getElementById('manual-keyword-filter')?.value || '';
+        const selectedIds = new Set(
+            Array.from(document.querySelectorAll('.result-select-checkbox:checked'))
+                .map(checkbox => checkbox.dataset.itemId)
+                .filter(Boolean)
+        );
+        const tasksByName = (data.tasks || []).reduce((acc, task) => {
+            if (task && task.task_name) acc[task.task_name] = task;
+            return acc;
+        }, {});
         const cards = data.items.map(item => {
             const info = item.商品信息 || {};
             const seller = item.卖家信息 || {};
             const ai = item.ai_analysis || {};
+            const taskMeta = tasksByName[item.任务名称] || {};
+            const personalOnly = item.personal_only ?? taskMeta.personal_only ?? false;
+            const inspectionService = item.inspection_service ?? taskMeta.inspection_service ?? false;
+            const accountAssurance = item.account_assurance ?? taskMeta.account_assurance ?? false;
+            const freeShipping = item.free_shipping ?? taskMeta.free_shipping ?? false;
+            const superShop = item.super_shop ?? taskMeta.super_shop ?? false;
+            const brandNew = item.brand_new ?? taskMeta.brand_new ?? false;
+            const strictSelected = item.strict_selected ?? taskMeta.strict_selected ?? false;
+            const resale = item.resale ?? taskMeta.resale ?? false;
+            const publishOption = item.new_publish_option ?? taskMeta.new_publish_option ?? '';
+            const regionValue = item.region ?? taskMeta.region ?? '';
 
             const isRecommended = ai.is_recommended === true;
             const recommendationClass = isRecommended ? 'recommended' : 'not-recommended';
@@ -1465,8 +1960,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // 从商品链接中提取商品ID
             const itemId = extractItemId(info.商品链接);
+            const checkedAttr = selectedIds.has(itemId) ? 'checked' : '';
             return `
             <div class="result-card" data-notification='${escapeHtml(JSON.stringify(notificationData))}' data-item-id='${escapeHtml(itemId)}'>
+            <label class="result-select-box" title="选择此商品">
+                <input type="checkbox" class="result-select-checkbox" data-item-id="${escapeHtml(itemId)}" ${checkedAttr}>
+                <span></span>
+            </label>
             <button class="delete-card-btn" title="删除此商品"></button>
                 <div class="card-image">
                     <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(info.商品标题) || '商品图片'}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJhzwvdGV4dD48L3N2Zz4=';"></a>
@@ -1474,6 +1974,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="card-content">
                 <h3 class="card-title"><a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" title="${escapeHtml(info.商品标题) || ''}">${highlightKeyword(escapeHtml(info.商品标题), manualKeyword) || '无标题'}</a></h3>
                     <p class="card-price">${highlightKeyword(escapeHtml(info.当前售价), manualKeyword) || '价格未知'}</p>
+                    ${(() => {
+                        const filterTags = [];
+                        if (personalOnly) filterTags.push('个人闲置');
+                        if (inspectionService) filterTags.push('验货宝');
+                        if (accountAssurance) filterTags.push('验号担保');
+                        if (freeShipping) filterTags.push('包邮');
+                        if (superShop) filterTags.push('超赞鱼小铺');
+                        if (brandNew) filterTags.push('全新');
+                        if (strictSelected) filterTags.push('严选');
+                        if (resale) filterTags.push('转卖');
+                        if (publishOption) filterTags.push(publishOption);
+                        if (regionValue) filterTags.push(regionValue);
+                        if (!filterTags.length) return '';
+                        const tagsHtml = filterTags.map(tag => `<span class="result-filter-tag">${escapeHtml(tag)}</span>`).join('');
+                        return `<div class="result-filter-tags">${tagsHtml}</div>`;
+                    })()}
                     <div class="card-ai-summary ${recommendationClass}">
                         <strong>AI建议: ${escapeHtml(recommendationText)}</strong>
                         <p title="${escapeHtml(ai.reason) || ''}">原因: ${highlightKeyword(escapeHtml(ai.reason), manualKeyword) || '无分析'}</p>
@@ -1499,21 +2015,29 @@ document.addEventListener('DOMContentLoaded', function () {
         return `<div id="results-grid">${cards}</div>`;
     }
 
+    function isMobileLayout() {
+        return window.matchMedia("(max-width: 768px)").matches
+            || window.matchMedia("(max-width: 1366px) and (hover: none) and (pointer: coarse)").matches;
+    }
+
     function renderTasksTable(tasks) {
         if (!tasks || tasks.length === 0) {
             return '<p>没有找到任何任务。请点击右上角“创建新任务”来添加一个。</p>';
         }
 
+        const isMobile = isMobileLayout();
+
         const tableHeader = `
             <thead>
                 <tr>
+                    <th></th>
                     <th>启用</th>
                     <th>任务名称</th>
                     <th>运行状态</th>
                     <th>关键词</th>
                     <th>绑定账号</th>
                     <th>价格范围</th>
-                    <th>筛选条件</th>
+                    <th>高级筛选</th>
                     <th>最大页数</th>
                     <th>AI 标准</th>
                     <th>定时规则</th>
@@ -1552,6 +2076,48 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
 
+            const filterTagsList = [];
+            if (task.personal_only) {
+                filterTagsList.push({ text: '个人闲置', active: true });
+            }
+            if (task.inspection_service) {
+                filterTagsList.push({ text: '验货宝', active: true });
+            }
+            if (task.account_assurance) {
+                filterTagsList.push({ text: '验号担保', active: true });
+            }
+            if (task.free_shipping) {
+                filterTagsList.push({ text: '包邮', active: true });
+            }
+            if (task.super_shop) {
+                filterTagsList.push({ text: '超赞鱼小铺', active: true });
+            }
+            if (task.brand_new) {
+                filterTagsList.push({ text: '全新', active: true });
+            }
+            if (task.strict_selected) {
+                filterTagsList.push({ text: '严选', active: true });
+            }
+            if (task.resale) {
+                filterTagsList.push({ text: '转卖', active: true });
+            }
+            if (task.new_publish_option) {
+                filterTagsList.push({ text: task.new_publish_option, active: true });
+            }
+            if (task.region) {
+                filterTagsList.push({ text: task.region, active: true, title: task.region });
+            }
+            if (!filterTagsList.length) {
+                filterTagsList.push({ text: '不限', active: false });
+            }
+
+            const filterTags = filterTagsList.map(tag => {
+                const titleAttr = tag.title ? `title="${tag.title}"` : '';
+                const isActive = tag.active || tag.text === '不限';
+                const activeClass = isActive ? 'is-active' : '';
+                return `<span class="filter-tag ${activeClass}" ${titleAttr}>${tag.text}</span>`;
+            }).join('');
+
             // 格式化条件文件名，只显示中间文本，不带前缀/后缀
             const criteriaFile = task.ai_prompt_criteria_file || 'N/A';
             let criteriaBtnText = 'N/A';
@@ -1577,11 +2143,128 @@ document.addEventListener('DOMContentLoaded', function () {
             // 检查是否禁止编辑
             const isEditDisabled = isRunning || isGeneratingAI;
 
-            return `
+            
+            
+            if (isMobile) {
+                return `
+                <div class="task-card" data-task-id="${task.id}" data-task='${JSON.stringify(task)}'>
+                    <div class="task-card-header">
+                        <div class="task-title">${task.task_name}</div>
+                        <div class="task-status">${statusBadge}</div>
+                        <label class="switch">
+                            <input type="checkbox" class="task-enabled-toggle" ${task.enabled ? 'checked' : ''} ${isEditDisabled ? 'disabled' : ''}>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="task-card-body">
+                        <div class="task-row"><span>关键词</span><span>${task.keyword}</span></div>
+                        <div class="task-row"><span>价格</span><span>${task.min_price || '不限'} - ${task.max_price || '不限'}</span></div>
+                        <div class="task-row">
+                            <span>账号</span>
+                            <span class="task-account-info">
+                                <span class="account-display ${task.bound_account ? 'has-account' : 'no-account'}" data-field="bound_account" style="${task.bound_account ? 'background-color:' + getAccountColorByName(task.bound_account) + ';color:#fff;' : ''}">${task.bound_account || '未绑定'}</span>
+                                ${task.auto_switch_on_risk ? '<span class="auto-switch-tag" title="风控自动切换">自动切换</span>' : ''}
+                            </span>
+                        </div>
+                        <div class="task-row">
+                            <span>高级筛选</span>
+                            <span class="filter-tags">${filterTags}</span>
+                        </div>
+                        <div class="task-card-filter-panel" style="display:none;">
+                            <div class="editable-advanced-panel" style="display:flex;">
+                            <div class="filter-section">
+                                <span class="filter-label">筛选条件</span>
+                                <div class="tag-toggle-group filter-tag-toggle-group">
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-personal-only" ${task.personal_only ? 'checked' : ''}>
+                                        <span>个人闲置</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-free-shipping" ${task.free_shipping ? 'checked' : ''}>
+                                        <span>包邮</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-inspection-service" ${task.inspection_service ? 'checked' : ''}>
+                                        <span>验货宝</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-account-assurance" ${task.account_assurance ? 'checked' : ''}>
+                                        <span>验号担保</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-super-shop" ${task.super_shop ? 'checked' : ''}>
+                                        <span>超赞鱼小铺</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-brand-new" ${task.brand_new ? 'checked' : ''}>
+                                        <span>全新</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-strict-selected" ${task.strict_selected ? 'checked' : ''}>
+                                        <span>严选</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-resale" ${task.resale ? 'checked' : ''}>
+                                        <span>转卖</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="filter-row">
+                                <div class="filter-field inline-field">
+                                    <span class="filter-label">新发布时间</span>
+                                    <select class="filter-publish-option">
+                                        <option value="">最新</option>
+                                        <option value="1天内" ${task.new_publish_option === '1天内' ? 'selected' : ''}>1天内</option>
+                                        <option value="3天内" ${task.new_publish_option === '3天内' ? 'selected' : ''}>3天内</option>
+                                        <option value="7天内" ${task.new_publish_option === '7天内' ? 'selected' : ''}>7天内</option>
+                                        <option value="14天内" ${task.new_publish_option === '14天内' ? 'selected' : ''}>14天内</option>
+                                    </select>
+                                </div>
+                                <div class="filter-field region-field inline-field">
+                                    <span class="filter-label">区域</span>
+                                    <div class="region-select-row compact">
+                                        <select class="filter-region-province">
+                                            <option value="">省/自治区/直辖市</option>
+                                        </select>
+                                        <select class="filter-region-city">
+                                            <option value="">市/地区</option>
+                                        </select>
+                                        <select class="filter-region-district">
+                                            <option value="">区/县</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="filter-actions">
+                                    <button class="filter-save-btn">保存</button>
+                                    <button class="filter-cancel-btn">取消</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="task-row"><span>最大页数</span><span>${task.max_pages || 3}</span></div>
+                        <div class="task-row"><span>定时</span><span>${task.cron || '未设置'}</span></div>
+                    </div>
+                    <div class="task-card-actions">
+                        ${actionButton}
+                        <div class="dropdown-container">
+                            <button class="dropdown-btn" ${buttonDisabledAttr} ${buttonDisabledTitle} ${buttonDisabledStyle}>操作</button>
+                            <div class="dropdown-menu">
+                                <button class="dropdown-item edit-btn" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>编辑</button>
+                                <button class="dropdown-item copy-btn" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>复制</button>
+                                <button class="dropdown-item delete-btn" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>删除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+return `
             <tr data-task-id="${task.id}" data-task='${JSON.stringify(task)}'>
+                <td style="text-align: center;" class="drag-handle-cell">
+                    <span class="drag-handle" draggable="true" title="Drag">::</span>
+                </td>
                 <td style="text-align: center;">
                     <label class="switch">
-                        <input type="checkbox" ${task.enabled ? 'checked' : ''} ${isEditDisabled ? 'disabled' : ''}>
+                        <input type="checkbox" class="task-enabled-toggle" ${task.enabled ? 'checked' : ''} ${isEditDisabled ? 'disabled' : ''}>
                         <span class="slider round"></span>
                     </label>
                 </td>
@@ -1601,7 +2284,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td style="text-align: center;">
                     <div class="account-cell" data-task-id="${task.id}" data-bound-account="${task.bound_account || ''}" data-display-name="" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
                         <span class="account-display ${task.bound_account ? 'has-account' : 'no-account'}" style="${task.bound_account ? 'background-color:' + getAccountColorByName(task.bound_account) + ';color:#fff;' : ''}">
-                            ${task.bound_account ? '加载中...' : '未绑定'}
+                            ${task.bound_account || '未绑定'}
                         </span>
                         <div class="editable-account-select">
                             <select class="account-select" style="display:none;">
@@ -1622,8 +2305,77 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </td>
                 <td style="text-align: center;">
-                    <div class="editable-cell editable-toggle" data-task-id="${task.id}" data-field="personal_only" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
-                        <span class="editable-display ${task.personal_only ? 'tag personal' : ''}">${task.personal_only ? '个人闲置' : '不限'}</span>
+                    <div class="editable-cell editable-advanced-filter" data-task-id="${task.id}" data-field="advanced_filters" ${isEditDisabled ? 'style="pointer-events: none; opacity: 0.7;"' : ''}>
+                        <span class="editable-display filter-tags">${filterTags}</span>
+                        <div class="editable-advanced-panel" style="display:none;">
+                            <div class="filter-section">
+                                <span class="filter-label">筛选条件</span>
+                                <div class="tag-toggle-group filter-tag-toggle-group">
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-personal-only" ${task.personal_only ? 'checked' : ''}>
+                                        <span>个人闲置</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-free-shipping" ${task.free_shipping ? 'checked' : ''}>
+                                        <span>包邮</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-inspection-service" ${task.inspection_service ? 'checked' : ''}>
+                                        <span>验货宝</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-account-assurance" ${task.account_assurance ? 'checked' : ''}>
+                                        <span>验号担保</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-super-shop" ${task.super_shop ? 'checked' : ''}>
+                                        <span>超赞鱼小铺</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-brand-new" ${task.brand_new ? 'checked' : ''}>
+                                        <span>全新</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-strict-selected" ${task.strict_selected ? 'checked' : ''}>
+                                        <span>严选</span>
+                                    </label>
+                                    <label class="tag-toggle">
+                                        <input type="checkbox" class="filter-resale" ${task.resale ? 'checked' : ''}>
+                                        <span>转卖</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="filter-row">
+                                <div class="filter-field inline-field">
+                                    <span class="filter-label">新发布时间</span>
+                                    <select class="filter-publish-option">
+                                        <option value="">最新</option>
+                                        <option value="1天内" ${task.new_publish_option === '1天内' ? 'selected' : ''}>1天内</option>
+                                        <option value="3天内" ${task.new_publish_option === '3天内' ? 'selected' : ''}>3天内</option>
+                                        <option value="7天内" ${task.new_publish_option === '7天内' ? 'selected' : ''}>7天内</option>
+                                        <option value="14天内" ${task.new_publish_option === '14天内' ? 'selected' : ''}>14天内</option>
+                                    </select>
+                                </div>
+                                <div class="filter-field region-field inline-field">
+                                    <span class="filter-label">区域</span>
+                                    <div class="region-select-row compact">
+                                        <select class="filter-region-province">
+                                            <option value="">省/自治区/直辖市</option>
+                                        </select>
+                                        <select class="filter-region-city">
+                                            <option value="">市/地区</option>
+                                        </select>
+                                        <select class="filter-region-district">
+                                            <option value="">区/县</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="filter-actions">
+                                <button class="filter-save-btn">保存</button>
+                                <button class="filter-cancel-btn">取消</button>
+                            </div>
+                        </div>
                     </div>
                 </td>
                 <td style="text-align: center;">
@@ -1632,23 +2384,23 @@ document.addEventListener('DOMContentLoaded', function () {
                         <input type="number" class="editable-input" value="${task.max_pages || 3}" min="1" style="display:none; width:50px;">
                     </div>
                 </td>
-                <td style="text-align: left !important;">
-                    <div class="criteria" style="display: inline-block; text-align: left;">
-${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement') ? `
+                <td style="text-align: center;">
+                    <div class="criteria">
+${isGeneratingAI ? `
+                            <button class="refresh-criteria danger-btn" title="正在生成AI标准" data-task-id="${task.id}" disabled style="background-color: #ccc; cursor: not-allowed;">生成中...</button>
+                        ` : criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLowerCase().endsWith('_requirement') ? `
                             <div class="red-dot-container">
                                 <button class="refresh-criteria success-btn" title="新生成AI标准" data-task-id="${task.id}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>待生成</button>
                                 <span class="red-dot"></span>
                             </div>
-                            <button class="criteria-btn danger-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
-                                ${criteriaBtnText}
-                            </button>
                         ` : `
-                            <button class="refresh-criteria danger-btn" title="新生成AI标准" data-task-id="${task.id}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>重生成</button>
                             ${criteriaFile !== 'N/A' ? `
                                 <button class="criteria-btn success-btn" title="编辑AI标准" data-task-id="${task.id}" data-criteria-file="${criteriaFile}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>
                                     ${criteriaBtnText}
                                 </button>
-                            ` : 'N/A'}
+                            ` : `
+                                <button class="refresh-criteria success-btn" title="新生成AI标准" data-task-id="${task.id}" ${isEditDisabled ? 'disabled style="background-color: #ccc; cursor: not-allowed;"' : ''}>待生成</button>
+                            `}
                         `}
                     </div>
                 </td>
@@ -1674,6 +2426,9 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             </tr>`
         }).join('');
 
+        if (isMobile) {
+            return `<div class="task-cards">${tableBody}</div>`;
+        }
         return `<table class="tasks-table">${tableHeader}<tbody>${tableBody}</tbody></table>`;
     }
 
@@ -1719,6 +2474,31 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     cell.dataset.displayName = displayName;
                 } else if (display && !currentAccount) {
                     display.textContent = '未绑定';
+                }
+            });
+
+            document.querySelectorAll('.task-card').forEach(card => {
+                try {
+                    const rowData = JSON.parse(card.dataset.task);
+                    const displayName = accountMap[rowData.bound_account] || rowData.bound_account || '未绑定';
+                    const accountValue = card.querySelector('[data-field="bound_account"]');
+                    if (accountValue) {
+                        accountValue.textContent = displayName;
+                        accountValue.classList.add('account-display');
+                        if (rowData.bound_account) {
+                            accountValue.classList.add('has-account');
+                            accountValue.classList.remove('no-account');
+                            accountValue.style.backgroundColor = getAccountColorByName(rowData.bound_account);
+                            accountValue.style.color = '#fff';
+                        } else {
+                            accountValue.classList.add('no-account');
+                            accountValue.classList.remove('has-account');
+                            accountValue.style.backgroundColor = '';
+                            accountValue.style.color = '';
+                        }
+                    }
+                } catch (error) {
+                    console.error('更新任务卡账号显示失败:', error);
                 }
             });
         } catch (error) {
@@ -1843,7 +2623,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             taskRefreshInterval = setInterval(async () => {
                 const tasks = await fetchTasks();
                 if (container && !container.querySelector('tr.editing') && !document.querySelector('.editable-input:focus') && !document.querySelector('.account-select:focus')) {
-                    container.innerHTML = renderTasksTable(tasks);
+                    renderTasksInto(container, tasks);
                 }
             }, 5000);
         }
@@ -1901,8 +2681,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }, 50);
         });
 
+        
         // Click on editable display to show input
         document.addEventListener('click', async (event) => {
+            if (event.target.closest('.editable-advanced-panel')) {
+                return;
+            }
             const display = event.target.closest('.editable-display');
             if (!display) return;
 
@@ -1945,6 +2729,32 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 return;
             }
 
+            if (cell.classList.contains('editable-advanced-filter')) {
+                const panel = cell.querySelector('.editable-advanced-panel');
+                if (panel) {
+                    closeAllAdvancedPanels();
+                    setAdvancedFilterPlaceholder(cell);
+                    panel.style.display = 'flex';
+                    panel.classList.add('open');
+                    resetAdvancedPanelStyle(panel);
+                    if (!panel.closest('.task-card-filter-panel')) {
+                        positionAdvancedPanel(panel, cell);
+                    }
+                    const row = cell.closest('tr');
+                    if (row) {
+                        await hydrateAdvancedFilterSelectors(cell, JSON.parse(row.dataset.task));
+                    }
+                }
+                return;
+            }
+
+            const tags = event.target.closest('.filter-tags');
+            if (tags && tags.closest('.task-card')) {
+                const card = tags.closest('.task-card');
+                await openMobileFilterPanel(card);
+                return;
+            }
+
             // Handle price_range field
             if (field === 'price_range') {
                 const priceInputs = cell.querySelector('.editable-price-inputs');
@@ -1978,13 +2788,13 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         async function refreshTasksAndRestartInterval() {
             const container = document.getElementById('tasks-table-container');
             const tasks = await fetchTasks();
-            container.innerHTML = renderTasksTable(tasks);
+            renderTasksInto(container, tasks);
             // 重新开启定时刷新
             if (!taskRefreshInterval) {
                 taskRefreshInterval = setInterval(async () => {
                     const tasks = await fetchTasks();
                     if (container && !container.querySelector('tr.editing') && !document.querySelector('.editable-input:focus')) {
-                        container.innerHTML = renderTasksTable(tasks);
+                        renderTasksInto(container, tasks);
                     }
                 }, 5000);
             }
@@ -2146,17 +2956,198 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             }
             if (display) display.style.display = 'inline-block';
         });
+
+        // Close advanced filter panels when clicking outside
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('.editable-advanced-panel')) return;
+            if (event.target.closest('.editable-advanced-filter')) return;
+            if (event.target.closest('.task-card-filter-panel')) return;
+
+            const panels = document.querySelectorAll('.editable-advanced-panel.open');
+            panels.forEach(panel => {
+                panel.style.display = 'none';
+                panel.classList.remove('open');
+                resetAdvancedPanelStyle(panel);
+                const cell = panel.closest('.editable-advanced-filter');
+                const card = panel.closest('.task-card');
+                restoreAdvancedFilterDisplay(cell);
+                if (card) {
+                    const wrapper = panel.closest('.task-card-filter-panel');
+                    if (wrapper) wrapper.style.display = 'none';
+                }
+            });
+        });
+
+        // Advanced filter actions
+        document.addEventListener('click', async (event) => {
+            const saveBtn = event.target.closest('.filter-save-btn');
+            const cancelBtn = event.target.closest('.filter-cancel-btn');
+            const panel = event.target.closest('.editable-advanced-panel');
+            if (!panel) return;
+
+            const cell = panel.closest('.editable-advanced-filter');
+            const card = panel.closest('.task-card');
+            if (!cell && !card) return;
+
+            if (cancelBtn) {
+                panel.style.display = 'none';
+                panel.classList.remove('open');
+                resetAdvancedPanelStyle(panel);
+                restoreAdvancedFilterDisplay(cell);
+                if (card) {
+                    const wrapper = panel.closest('.task-card-filter-panel');
+                    if (wrapper) wrapper.style.display = 'none';
+                }
+                return;
+            }
+
+            if (!saveBtn) return;
+
+            const row = cell ? cell.closest('tr') : null;
+            const taskId = cell ? cell.dataset.taskId : card.dataset.taskId;
+            const taskData = row ? JSON.parse(row.dataset.task) : JSON.parse(card.dataset.task);
+
+            const personalOnly = panel.querySelector('.filter-personal-only')?.checked || false;
+            const inspectionService = panel.querySelector('.filter-inspection-service')?.checked || false;
+            const accountAssurance = panel.querySelector('.filter-account-assurance')?.checked || false;
+            const freeShipping = panel.querySelector('.filter-free-shipping')?.checked || false;
+            const superShop = panel.querySelector('.filter-super-shop')?.checked || false;
+            const brandNew = panel.querySelector('.filter-brand-new')?.checked || false;
+            const strictSelected = panel.querySelector('.filter-strict-selected')?.checked || false;
+            const resale = panel.querySelector('.filter-resale')?.checked || false;
+            const publishOption = panel.querySelector('.filter-publish-option')?.value || null;
+            const province = panel.querySelector('.filter-region-province')?.value || '';
+            const city = panel.querySelector('.filter-region-city')?.value || '';
+            const district = panel.querySelector('.filter-region-district')?.value || '';
+            const regionValue = buildRegionValue(province, city, district);
+
+            try {
+                const result = await updateTask(taskId, {
+                    personal_only: personalOnly,
+                    free_shipping: freeShipping,
+                    inspection_service: inspectionService,
+                    account_assurance: accountAssurance,
+                    super_shop: superShop,
+                    brand_new: brandNew,
+                    strict_selected: strictSelected,
+                    resale: resale,
+                    new_publish_option: publishOption,
+                    region: regionValue || null,
+                });
+                try {
+                    const scheduledContainer = document.getElementById('scheduled-table-container');
+                    if (scheduledContainer && scheduledContainer.closest('.content-section.active')) {
+                        const jobs = await fetchScheduledJobs();
+                        if (jobs) {
+                            const refreshScheduled = async () => {
+                                const updatedJobs = await fetchScheduledJobs();
+                                if (updatedJobs) {
+                                    renderScheduledInto(scheduledContainer, updatedJobs, refreshScheduled);
+                                }
+                            };
+                            renderScheduledInto(scheduledContainer, jobs, refreshScheduled);
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Scheduled jobs reload skipped:', err);
+                }
+                if (result) {
+                    taskData.personal_only = personalOnly;
+                    taskData.free_shipping = freeShipping;
+                    taskData.inspection_service = inspectionService;
+                    taskData.account_assurance = accountAssurance;
+                    taskData.super_shop = superShop;
+                    taskData.brand_new = brandNew;
+                    taskData.strict_selected = strictSelected;
+                    taskData.resale = resale;
+                    taskData.new_publish_option = publishOption;
+                    taskData.region = regionValue || null;
+                    if (row) {
+                        row.dataset.task = JSON.stringify(taskData);
+                    }
+                    await refreshTasksAndRestartInterval();
+                }
+            } catch (error) {
+                console.error('更新高级筛选失败:', error);
+                alert('更新失败，请重试');
+                await refreshTasksAndRestartInterval();
+            }
+
+            panel.style.display = 'none';
+            panel.classList.remove('open');
+            resetAdvancedPanelStyle(panel);
+            restoreAdvancedFilterDisplay(cell);
+            if (card) {
+                const wrapper = panel.closest('.task-card-filter-panel');
+                if (wrapper) wrapper.style.display = 'none';
+            }
+        });
     }
 
+    async function openMobileFilterPanel(card) {
+        const wrapper = card.querySelector('.task-card-filter-panel');
+        const panel = card.querySelector('.task-card-filter-panel .editable-advanced-panel');
+        if (!panel) return;
+        closeAllAdvancedPanels();
+        if (wrapper) {
+            wrapper.style.display = 'block';
+        }
+        resetAdvancedPanelStyle(panel);
+        panel.style.display = 'flex';
+        panel.classList.add('open');
+        await hydrateAdvancedFilterSelectors(panel.closest('.editable-advanced-filter') || card, JSON.parse(card.dataset.task));
+    }
+
+
+    function formatScheduledNextRunTime(nextRunTime) {
+        if (!nextRunTime) return '未知';
+        return new Date(nextRunTime).toLocaleString('zh-CN', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+    }
 
     function renderScheduledJobsTable(data) {
         if (!data || !data.jobs || data.jobs.length === 0) {
             return '<p>当前没有调度中的定时任务。请在"任务管理"中启用带有 Cron 表达式的任务。</p>';
         }
 
+        const isMobile = isMobileLayout();
+        if (isMobile) {
+            const cards = data.jobs.map(job => {
+                const nextRunTime = formatScheduledNextRunTime(job.next_run_time);
+                const executionOrder = job.execution_order || '-';
+                return `
+                <div class="scheduled-card" data-job-id="${job.job_id}" data-task-id="${job.task_id}">
+                    <div class="scheduled-card-header">
+                        <div class="scheduled-title">${job.task_name}</div>
+                        <span class="scheduled-order-pill">执行顺序 ${executionOrder}</span>
+                    </div>
+                    <div class="scheduled-card-body">
+                        <div class="scheduled-row">
+                            <span>Cron 定时</span>
+                            <input type="text" class="cron-input scheduled-cron-input" value="${job.cron || ''}" placeholder="分 时 日 月 周">
+                        </div>
+                        <div class="scheduled-row">
+                            <span>下一次执行时间</span>
+                            <span class="scheduled-next-time">${nextRunTime}</span>
+                        </div>
+                    </div>
+                    <div class="scheduled-card-actions">
+                        <button class="action-btn run-now-btn scheduled-action-btn is-run" data-job-id="${job.job_id}">立刻执行</button>
+                        <button class="action-btn skip-job-btn scheduled-action-btn is-skip" data-job-id="${job.job_id}">跳过本次</button>
+                        <button class="action-btn cancel-job-btn scheduled-action-btn is-cancel" data-task-id="${job.task_id}">取消任务</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `<div class="scheduled-cards">${cards}</div>`;
+        }
+
         const tableHeader = `
             <thead>
                 <tr>
+                    <th></th>
                     <th>执行顺序</th>
                     <th>任务名称</th>
                     <th>Cron 定时</th>
@@ -2166,15 +3157,13 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             </thead>`;
 
         const tableBody = data.jobs.map(job => {
-            const nextRunTime = job.next_run_time
-                ? new Date(job.next_run_time).toLocaleString('zh-CN', {
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit'
-                })
-                : '未知';
+            const nextRunTime = formatScheduledNextRunTime(job.next_run_time);
 
             return `
             <tr data-job-id="${job.job_id}" data-task-id="${job.task_id}">
+                <td style="text-align: center;" class="drag-handle-cell">
+                    <span class="drag-handle" draggable="true" title="Drag">::</span>
+                </td>
                 <td style="text-align: center; font-weight: bold; color: #1890ff;">${job.execution_order || '-'}</td>
                 <td style="text-align: center;">${job.task_name}</td>
                 <td style="text-align: center;">
@@ -2183,14 +3172,607 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 </td>
                 <td style="text-align: center;">${nextRunTime}</td>
                 <td style="text-align: center;">
-                    <button class="action-btn skip-job-btn" data-job-id="${job.job_id}" style="background-color: #faad14; color: white; border: 1px solid #faad14; border-radius: 4px; padding: 4px 12px; margin-right: 5px;">跳过本次</button>
-                    <button class="action-btn run-now-btn" data-job-id="${job.job_id}" style="background-color: #52c41a; color: white; border: 1px solid #52c41a; border-radius: 4px; padding: 4px 12px; margin-right: 5px;">立刻执行</button>
-                    <button class="action-btn cancel-job-btn" data-task-id="${job.task_id}" style="background-color: #ff4d4f; color: white; border: 1px solid #ff4d4f; border-radius: 4px; padding: 4px 12px;">取消任务</button>
+                    <div class="scheduled-action-buttons">
+                        <button class="action-btn run-now-btn scheduled-action-btn is-run" data-job-id="${job.job_id}">立刻执行</button>
+                        <button class="action-btn skip-job-btn scheduled-action-btn is-skip" data-job-id="${job.job_id}">跳过本次</button>
+                        <button class="action-btn cancel-job-btn scheduled-action-btn is-cancel" data-task-id="${job.task_id}">取消任务</button>
+                    </div>
                 </td>
             </tr>`;
         }).join('');
 
-        return `<table class="tasks-table">${tableHeader}<tbody>${tableBody}</tbody></table>`;
+        return `<table class="tasks-table scheduled-table">${tableHeader}<tbody>${tableBody}</tbody></table>`;
+    }
+
+    function arraysEqual(a, b) {
+        if (!Array.isArray(a) || !Array.isArray(b) || a.length != b.length) return false;
+        for (let i = 0; i < a.length; i += 1) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    }
+
+
+    function createDragPlaceholder(type, options = {}) {
+        if (type == 'row') {
+            const row = document.createElement('tr');
+            row.className = 'drag-placeholder row-placeholder';
+            const cell = document.createElement('td');
+            cell.colSpan = options.colSpan || 1;
+            row.appendChild(cell);
+            if (options.height) {
+                row.style.setProperty('--placeholder-height', options.height + 'px');
+            }
+            return row;
+        }
+        const placeholder = document.createElement('div');
+        placeholder.className = 'drag-placeholder card-placeholder';
+        if (options.height) {
+            placeholder.style.height = options.height + 'px';
+        }
+        return placeholder;
+    }
+
+    function applySortFeedback(element) {
+        if (!element) return;
+        element.classList.remove('sort-animate');
+        void element.offsetHeight;
+        element.classList.add('sort-animate');
+    }
+
+    function applyTaskOrderLocally(orderedIds) {
+        if (!Array.isArray(latestTasks) || latestTasks.length === 0) return;
+        const map = new Map(latestTasks.map(task => [task.id, task]));
+        const next = orderedIds.map(id => map.get(id)).filter(Boolean);
+        if (next.length === latestTasks.length) {
+            latestTasks = next;
+        }
+    }
+
+    function applyAccountOrderLocally(orderedNames) {
+        if (!Array.isArray(latestAccounts) || latestAccounts.length === 0) return;
+        const map = new Map(latestAccounts.map(account => [account.name, account]));
+        const next = orderedNames.map(name => map.get(name)).filter(Boolean);
+        if (next.length === latestAccounts.length) {
+            latestAccounts = next;
+        }
+    }
+
+    function getTaskOrderFromCards(cards) {
+        return Array.from(cards.querySelectorAll('.task-card[data-task-id]'))
+            .map(card => Number(card.dataset.taskId))
+            .filter(id => Number.isFinite(id));
+    }
+
+    function getTaskOrderFromTable(table) {
+        return Array.from(table.querySelectorAll('tbody tr[data-task-id]'))
+            .map(row => Number(row.dataset.taskId))
+            .filter(id => Number.isFinite(id));
+    }
+
+    function getScheduledOrderFromTable(table) {
+        return Array.from(table.querySelectorAll('tbody tr[data-task-id]'))
+            .map(row => Number(row.dataset.taskId))
+            .filter(id => Number.isFinite(id));
+    }
+
+    function getScheduledOrderFromCards(container) {
+        return Array.from(container.querySelectorAll('.scheduled-card[data-task-id]'))
+            .map(card => Number(card.dataset.taskId))
+            .filter(id => Number.isFinite(id));
+    }
+
+    function getAccountOrderFromTable(table) {
+        return Array.from(table.querySelectorAll('tbody tr[data-account-name]'))
+            .map(row => row.dataset.accountName)
+            .filter(name => name);
+    }
+
+    function buildScheduledFullOrder(orderedScheduledIds) {
+        if (!Array.isArray(latestTasks) || latestTasks.length === 0) return orderedScheduledIds;
+        const scheduledSet = new Set(orderedScheduledIds);
+        const next = [];
+        let scheduledIndex = 0;
+        latestTasks.forEach(task => {
+            if (scheduledSet.has(task.id)) {
+                next.push(orderedScheduledIds[scheduledIndex]);
+                scheduledIndex += 1;
+            } else {
+                next.push(task.id);
+            }
+        });
+        return next;
+    }
+
+    function setupTableReorder(container, options) {
+        if (!container || !options) return;
+        const flag = `reorderReady${options.key || ''}`;
+        if (container.dataset[flag]) return;
+        container.dataset[flag] = '1';
+
+        let draggingRow = null;
+        let startOrder = null;
+        let placeholder = null;
+        let lastOverRow = null;
+        let didDrop = false;
+
+        const ensurePlaceholder = (row) => {
+            if (!placeholder) {
+                const colSpan = row && row.children ? row.children.length : 1;
+                placeholder = createDragPlaceholder('row', { colSpan: colSpan });
+            }
+        };
+
+        const clearPlaceholder = () => {
+            if (placeholder && placeholder.parentElement) {
+                placeholder.parentElement.removeChild(placeholder);
+            }
+            placeholder = null;
+            lastOverRow = null;
+        };
+
+        container.addEventListener('dragstart', (event) => {
+            const handle = event.target.closest(options.handleSelector || '.drag-handle');
+            if (!handle) return;
+            const row = handle.closest(options.rowSelector);
+            if (!row) return;
+            draggingRow = row;
+            startOrder = options.collectOrder(container);
+            didDrop = false;
+            draggingRow.classList.add('dragging');
+            ensurePlaceholder(draggingRow);
+            if (typeof options.onStart === 'function') {
+                options.onStart();
+            }
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', 'drag');
+        });
+
+        container.addEventListener('dragover', (event) => {
+            if (!draggingRow) return;
+            const row = event.target.closest(options.rowSelector);
+            if (!row || row === draggingRow) return;
+            event.preventDefault();
+            const rect = row.getBoundingClientRect();
+            const shouldMoveAfter = (event.clientY - rect.top) > rect.height / 2;
+            ensurePlaceholder(row);
+            if (shouldMoveAfter) {
+                row.after(placeholder);
+            } else {
+                row.before(placeholder);
+            }
+            if (row !== lastOverRow) {
+                applySortFeedback(row);
+                lastOverRow = row;
+            }
+        });
+
+        container.addEventListener('drop', (event) => {
+            if (!draggingRow) return;
+            event.preventDefault();
+            if (placeholder && placeholder.parentElement) {
+                placeholder.replaceWith(draggingRow);
+                applySortFeedback(draggingRow);
+                didDrop = true;
+            }
+        });
+
+        container.addEventListener('dragend', async () => {
+            if (!draggingRow) return;
+            const movedRow = draggingRow;
+            draggingRow.classList.remove('dragging');
+            draggingRow = null;
+            const order = options.collectOrder(container);
+            const changed = !arraysEqual(order, startOrder);
+            clearPlaceholder();
+            if (changed && typeof options.onReorder === 'function') {
+                await options.onReorder(order);
+                if (!didDrop) {
+                    applySortFeedback(movedRow);
+                }
+            }
+            didDrop = false;
+            if (typeof options.onEnd === 'function') {
+                options.onEnd();
+            }
+        });
+    }
+
+    function setupTouchReorder(container, options) {
+        if (!container || !options) return;
+        const flag = `touchReorderReady${options.key || ''}`;
+        if (container.dataset[flag]) return;
+        container.dataset[flag] = '1';
+
+        let pressTimer = null;
+        let draggingEl = null;
+        let startOrder = null;
+        let startPoint = null;
+        let pointerId = null;
+        let isDragging = false;
+        let placeholder = null;
+        let lastTarget = null;
+        let lastMovePoint = null;
+        let moveDirection = 0;
+        let scrollLockSnapshot = null;
+        let touchMoveBlocker = null;
+        const bodyStyle = document.body ? document.body.style : null;
+        const docElStyle = document.documentElement ? document.documentElement.style : null;
+        const prevUserSelect = bodyStyle ? bodyStyle.userSelect : '';
+
+        const ensurePlaceholder = (item) => {
+            if (!placeholder) {
+                if (options.placeholderType == 'row') {
+                    const colSpan = item && item.children ? item.children.length : 1;
+                    const height = item ? item.offsetHeight : 0;
+                    placeholder = createDragPlaceholder('row', { colSpan: colSpan, height: height });
+                } else {
+                    const height = item ? item.offsetHeight : 0;
+                    placeholder = createDragPlaceholder('card', { height: height });
+                }
+            }
+        };
+
+        const clearPlaceholder = () => {
+            if (placeholder && placeholder.parentElement) {
+                placeholder.parentElement.removeChild(placeholder);
+            }
+            placeholder = null;
+            lastTarget = null;
+        };
+
+        const clearPress = () => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+
+        const setReorderActive = (active) => {
+            if (document.body) {
+                document.body.classList.toggle('reorder-active', active);
+            }
+            container.classList.toggle('reorder-active', active);
+        };
+
+        const lockScroll = () => {
+            if (!bodyStyle || !docElStyle || scrollLockSnapshot) {
+                return;
+            }
+            scrollLockSnapshot = {
+                bodyOverflow: bodyStyle.overflow,
+                bodyTouchAction: bodyStyle.touchAction,
+                bodyOverscrollBehavior: bodyStyle.overscrollBehavior,
+                htmlOverflow: docElStyle.overflow,
+                htmlTouchAction: docElStyle.touchAction,
+                htmlOverscrollBehavior: docElStyle.overscrollBehavior
+            };
+            bodyStyle.overflow = 'hidden';
+            bodyStyle.touchAction = 'none';
+            bodyStyle.overscrollBehavior = 'none';
+            docElStyle.overflow = 'hidden';
+            docElStyle.touchAction = 'none';
+            docElStyle.overscrollBehavior = 'none';
+            if (!touchMoveBlocker) {
+                touchMoveBlocker = (event) => {
+                    if (isDragging) {
+                        event.preventDefault();
+                    }
+                };
+                document.addEventListener('touchmove', touchMoveBlocker, { passive: false });
+            }
+        };
+
+        const unlockScroll = () => {
+            if (touchMoveBlocker) {
+                document.removeEventListener('touchmove', touchMoveBlocker);
+                touchMoveBlocker = null;
+            }
+            if (!scrollLockSnapshot) return;
+            bodyStyle.overflow = scrollLockSnapshot.bodyOverflow;
+            bodyStyle.touchAction = scrollLockSnapshot.bodyTouchAction;
+            bodyStyle.overscrollBehavior = scrollLockSnapshot.bodyOverscrollBehavior;
+            docElStyle.overflow = scrollLockSnapshot.htmlOverflow;
+            docElStyle.touchAction = scrollLockSnapshot.htmlTouchAction;
+            docElStyle.overscrollBehavior = scrollLockSnapshot.htmlOverscrollBehavior;
+            scrollLockSnapshot = null;
+        };
+
+        const updateMoveDirection = (event) => {
+            if (!lastMovePoint) {
+                lastMovePoint = { x: event.clientX, y: event.clientY };
+                return;
+            }
+            const dy = event.clientY - lastMovePoint.y;
+            if (Math.abs(dy) >= 3) {
+                moveDirection = dy > 0 ? 1 : -1;
+            }
+            lastMovePoint = { x: event.clientX, y: event.clientY };
+        };
+
+        const finishDrag = async () => {
+            clearPress();
+            if (!draggingEl) return;
+            if (placeholder && placeholder.parentElement) {
+                placeholder.replaceWith(draggingEl);
+                applySortFeedback(draggingEl);
+            }
+            draggingEl.classList.remove('dragging');
+            if (bodyStyle) {
+                bodyStyle.userSelect = prevUserSelect || '';
+            }
+            setReorderActive(false);
+            unlockScroll();
+            if (draggingEl.releasePointerCapture && pointerId !== null) {
+                try {
+                    draggingEl.releasePointerCapture(pointerId);
+                } catch (e) {
+                    // ignore
+                }
+            }
+            clearPlaceholder();
+            const order = options.collectOrder(container);
+            if (!arraysEqual(order, startOrder) && typeof options.onReorder === 'function') {
+                await options.onReorder(order);
+            }
+            draggingEl = null;
+            startOrder = null;
+            startPoint = null;
+            pointerId = null;
+            isDragging = false;
+            lastMovePoint = null;
+            moveDirection = 0;
+            if (typeof options.onEnd === 'function') {
+                options.onEnd();
+            }
+        };
+
+        container.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse') return;
+            if (event.target.closest(options.cancelSelector || 'button, a, input, select, textarea')) return;
+            const item = event.target.closest(options.itemSelector);
+            if (!item) return;
+            startPoint = { x: event.clientX, y: event.clientY };
+            pointerId = event.pointerId;
+            pressTimer = setTimeout(() => {
+                draggingEl = item;
+                startOrder = options.collectOrder(container);
+                draggingEl.classList.add('dragging');
+                if (bodyStyle) {
+                    bodyStyle.userSelect = 'none';
+                }
+                ensurePlaceholder(draggingEl);
+                if (placeholder) {
+                    draggingEl.after(placeholder);
+                }
+                if (draggingEl.setPointerCapture) {
+                    draggingEl.setPointerCapture(pointerId);
+                }
+                isDragging = true;
+                lastMovePoint = startPoint ? { x: startPoint.x, y: startPoint.y } : null;
+                moveDirection = 0;
+                setReorderActive(true);
+                lockScroll();
+                if (navigator.vibrate) {
+                    navigator.vibrate(12);
+                }
+                if (typeof options.onStart === 'function') {
+                    options.onStart();
+                }
+            }, options.delay || 320);
+        }, { passive: true });
+
+        container.addEventListener('pointermove', (event) => {
+            if (!pressTimer && !isDragging) return;
+            if (!isDragging) {
+                if (!startPoint) return;
+                const dx = Math.abs(event.clientX - startPoint.x);
+                const dy = Math.abs(event.clientY - startPoint.y);
+                if (dx > 8 || dy > 8) {
+                    clearPress();
+                }
+                return;
+            }
+            event.preventDefault();
+            updateMoveDirection(event);
+            const target = document.elementFromPoint(event.clientX, event.clientY);
+            if (!target) return;
+            const item = target.closest(options.itemSelector);
+            if (!item || item == draggingEl) return;
+            const rect = item.getBoundingClientRect();
+            let shouldMoveAfter = (event.clientY - rect.top) > rect.height / 2;
+            if (moveDirection > 0) {
+                shouldMoveAfter = true;
+            } else if (moveDirection < 0) {
+                shouldMoveAfter = false;
+            }
+            ensurePlaceholder(item);
+            if (shouldMoveAfter) {
+                item.after(placeholder);
+            } else {
+                item.before(placeholder);
+            }
+            if (item !== lastTarget) {
+                applySortFeedback(item);
+                lastTarget = item;
+            }
+        }, { passive: false });
+
+        container.addEventListener('pointerup', () => {
+            finishDrag();
+        });
+
+        container.addEventListener('pointercancel', () => {
+            finishDrag();
+        });
+    }
+
+function setupTaskReorder(container) {
+        if (!container) return;
+        const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+        const cards = container.querySelector('.task-cards');
+        const table = container.querySelector('table.tasks-table');
+
+        const handleReorder = async (order) => {
+            const result = await reorderTasksOrder(order);
+            if (result) {
+                const tasks = await fetchTasks();
+                if (tasks) {
+                    renderTasksInto(container, tasks);
+                } else {
+                    applyTaskOrderLocally(order);
+                }
+            }
+        };
+
+        if (isTouch && cards) {
+            setupTouchReorder(cards, {
+                key: 'TaskCards',
+                itemSelector: '.task-card',
+                cancelSelector: 'button, a, input, select, textarea, .dropdown-container, .dropdown-btn, .dropdown-menu, .action-btn, .switch, .filter-tag',
+                collectOrder: getTaskOrderFromCards,
+                onStart: () => { isTaskReordering = true; },
+                onEnd: () => { isTaskReordering = false; },
+                onReorder: handleReorder
+            });
+            return;
+        }
+
+        if (table) {
+            setupTableReorder(table, {
+                key: 'TaskTable',
+                rowSelector: 'tbody tr[data-task-id]',
+                handleSelector: '.drag-handle',
+                collectOrder: getTaskOrderFromTable,
+                onStart: () => { isTaskReordering = true; },
+                onEnd: () => { isTaskReordering = false; },
+                onReorder: handleReorder
+            });
+        }
+    }
+
+    function setupAccountsReorder(container) {
+        if (!container) return;
+        const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+        const table = container.querySelector('table.accounts-table');
+        if (!table) return;
+
+        const options = {
+            key: 'AccountTable',
+            rowSelector: 'tbody tr[data-account-name]',
+            handleSelector: '.drag-handle',
+            itemSelector: 'tbody tr[data-account-name]',
+            placeholderType: 'row',
+            cancelSelector: 'button, a, input, select, textarea, .dropdown-container, .dropdown-btn, .dropdown-menu, .action-btn',
+            collectOrder: getAccountOrderFromTable,
+            onReorder: async (order) => {
+                const result = await reorderAccountsOrder(order);
+                if (result) {
+                    applyAccountOrderLocally(order);
+                }
+            }
+        };
+
+        if (isTouch) {
+            setupTouchReorder(table, options);
+        } else {
+            setupTableReorder(table, options);
+        }
+    }
+
+    function setupScheduledReorder(container, refreshCallback) {
+        if (!container) return;
+        const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+        const table = container.querySelector('table.scheduled-table');
+        const cards = container.querySelector('.scheduled-cards');
+
+        if (isTouch && cards) {
+            const options = {
+                key: 'ScheduledCards',
+                itemSelector: '.scheduled-card',
+                cancelSelector: 'button, a, input, select, textarea, .scheduled-action-btn',
+                placeholderType: 'card',
+                collectOrder: getScheduledOrderFromCards,
+                onReorder: async (order) => {
+                    if (!Array.isArray(latestTasks) || latestTasks.length === 0) {
+                        await fetchTasks();
+                    }
+                    const fullOrder = buildScheduledFullOrder(order);
+                    if (!Array.isArray(fullOrder) || fullOrder.length !== latestTasks.length) {
+                        alert('Reorder failed: incomplete order');
+                        return;
+                    }
+                    const result = await reorderTasksOrder(fullOrder);
+                    if (result) {
+                        const tasks = await fetchTasks();
+                        if (!tasks) {
+                            applyTaskOrderLocally(fullOrder);
+                        }
+                        if (typeof refreshCallback === 'function') {
+                            await refreshCallback();
+                        }
+                    }
+                }
+            };
+
+            setupTouchReorder(cards, options);
+            return;
+        }
+        if (!table) return;
+
+        const options = {
+            key: 'ScheduledTable',
+            rowSelector: 'tbody tr[data-task-id]',
+            handleSelector: '.drag-handle',
+            itemSelector: 'tbody tr[data-task-id]',
+            placeholderType: 'row',
+            cancelSelector: 'button, a, input, select, textarea, .scheduled-action-btn',
+            collectOrder: getScheduledOrderFromTable,
+            onReorder: async (order) => {
+                if (!Array.isArray(latestTasks) || latestTasks.length === 0) {
+                    await fetchTasks();
+                }
+                const fullOrder = buildScheduledFullOrder(order);
+                if (!Array.isArray(fullOrder) || fullOrder.length !== latestTasks.length) {
+                    alert('Reorder failed: incomplete order');
+                    return;
+                }
+                const result = await reorderTasksOrder(fullOrder);
+                if (result) {
+                    const tasks = await fetchTasks();
+                    if (!tasks) {
+                        applyTaskOrderLocally(fullOrder);
+                    }
+                    if (typeof refreshCallback === 'function') {
+                        await refreshCallback();
+                    }
+                }
+            }
+        };
+
+        if (isTouch) {
+            setupTouchReorder(table, options);
+        } else {
+            setupTableReorder(table, options);
+        }
+    }
+
+    function renderTasksInto(container, tasks) {
+        if (!container) return;
+        container.innerHTML = renderTasksTable(tasks);
+        setupTaskReorder(container);
+    }
+
+    function renderAccountsInto(container, accounts) {
+        if (!container) return;
+        container.innerHTML = renderAccountsTable(accounts);
+        setupAccountsReorder(container);
+    }
+
+    function renderScheduledInto(container, data, refreshCallback) {
+        if (!container) return;
+        container.innerHTML = renderScheduledJobsTable(data);
+        setupScheduledReorder(container, refreshCallback);
     }
 
 
@@ -2202,6 +3784,14 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         if (taskRefreshInterval) {
             clearInterval(taskRefreshInterval);
             taskRefreshInterval = null;
+        }
+        if (resultsRefreshInterval) {
+            if (typeof resultsRefreshInterval.stop === 'function') {
+                resultsRefreshInterval.stop();
+            } else {
+                clearInterval(resultsRefreshInterval);
+            }
+            resultsRefreshInterval = null;
         }
         const sectionId = hash.substring(1) || 'tasks';
 
@@ -2225,10 +3815,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             if (sectionId === 'tasks') {
                 const container = document.getElementById('tasks-table-container');
                 const refreshTasks = async () => {
+                    if (isTaskReordering) return;
                     const tasks = await fetchTasks();
                     // 如果处于编辑模式，避免重新渲染以避免丢失用户输入
                     if (container && !container.querySelector('tr.editing')) {
-                        container.innerHTML = renderTasksTable(tasks);
+                        renderTasksInto(container, tasks);
                     }
                 };
                 await refreshTasks();
@@ -2259,7 +3850,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const refreshScheduledJobs = async () => {
             const data = await fetchScheduledJobs();
             if (container) {
-                container.innerHTML = renderScheduledJobsTable(data);
+                renderScheduledInto(container, data, refreshScheduledJobs);
                 attachScheduledEventListeners();
             }
         };
@@ -2296,7 +3887,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         return;
                     }
 
-                    const row = e.target.closest('tr');
+                    const row = e.target.closest('[data-task-id]');
                     const taskId = row.dataset.taskId;
                     const newCron = e.target.value.trim();
 
@@ -2363,11 +3954,12 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
     async function initializeAccountsView() {
         const container = document.getElementById('accounts-table-container');
         const addBtn = document.getElementById('add-account-btn');
+        const cleanupExpiredBtn = document.getElementById('cleanup-expired-accounts-btn');
 
         const refreshAccounts = async () => {
             const accounts = await fetchAccounts();
             if (container) {
-                container.innerHTML = renderAccountsTable(accounts);
+                renderAccountsInto(container, accounts);
                 attachAccountEventListeners();
             }
         };
@@ -2439,14 +4031,31 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         const response = await fetch(`/api/accounts/${name}/test`, { method: 'POST' });
                         const result = await response.json();
 
-                        // 更新状态列
-                        if (statusCell) {
-                            if (response.ok && result.valid) {
+                        if (response.ok && result.valid) {
+                            if (statusCell) {
                                 statusCell.innerHTML = '<span class="status-badge status-ok" style="background:#52c41a;">有效</span>';
-                                alert(`✓ ${result.message}`);
-                            } else {
+                            }
+                            alert(`✓ ${result.message}`);
+                        } else {
+                            if (statusCell) {
                                 statusCell.innerHTML = '<span class="status-badge status-error" style="background:#ff4d4f;">已过期</span>';
-                                alert(`✗ ${result.message}`);
+                            }
+
+                            if (response.ok) {
+                                const displayName = btn.dataset.displayName || name;
+                                const rawMessage = result?.message || 'Cookie已失效';
+                                const prefix = `账号 '${name}' `;
+                                const reason = rawMessage.startsWith(prefix) ? rawMessage.slice(prefix.length) : rawMessage;
+                                const confirmMessage = `账号 "${displayName}" 已失效。\n${reason}\n是否删除该账号？`;
+                                if (confirm(confirmMessage)) {
+                                    const deleteResult = await deleteAccount(name);
+                                    if (deleteResult) {
+                                        await refreshAccounts();
+                                    }
+                                }
+                            } else {
+                                const errorMessage = result?.detail || result?.message || '未知错误';
+                                alert(`测试账号 '${name}' 失败: ${errorMessage}`);
                             }
                         }
                     } catch (error) {
@@ -2490,6 +4099,26 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 });
             });
         };
+
+        if (cleanupExpiredBtn) {
+            cleanupExpiredBtn.addEventListener('click', async () => {
+                if (!confirm('将删除所有已失效账号，是否继续？')) return;
+                const originalText = cleanupExpiredBtn.textContent;
+                cleanupExpiredBtn.disabled = true;
+                cleanupExpiredBtn.textContent = '清理中...';
+
+                try {
+                    const result = await cleanupExpiredAccounts();
+                    if (result) {
+                        alert(result.message || '批量清理完成');
+                        await refreshAccounts();
+                    }
+                } finally {
+                    cleanupExpiredBtn.disabled = false;
+                    cleanupExpiredBtn.textContent = originalText;
+                }
+            });
+        }
 
         // 打开手动添加账号模态框（复用login-state-modal）
         if (addBtn) {
@@ -2661,12 +4290,24 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     }
                 };
 
-                confirmBtn.addEventListener('click', handleConfirmation, { once: true });
-                cancelBtn.addEventListener('click', closeModal, { once: true });
-                closeBtn.addEventListener('click', closeModal, { once: true });
-                confirmModal.addEventListener('click', (e) => {
-                    if (e.target === confirmModal) closeModal();
-                }, { once: true });
+                if (!confirmBtn.dataset.bound) {
+                    confirmBtn.dataset.bound = '1';
+                    confirmBtn.addEventListener('click', handleConfirmation);
+                }
+                if (!cancelBtn.dataset.bound) {
+                    cancelBtn.dataset.bound = '1';
+                    cancelBtn.addEventListener('click', closeModal);
+                }
+                if (!closeBtn.dataset.bound) {
+                    closeBtn.dataset.bound = '1';
+                    closeBtn.addEventListener('click', closeModal);
+                }
+                if (!confirmModal.dataset.overlayBound) {
+                    confirmModal.dataset.overlayBound = '1';
+                    confirmModal.addEventListener('click', (e) => {
+                        if (e.target === confirmModal) closeModal();
+                    });
+                }
             });
         }
 
@@ -2742,6 +4383,15 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         return `<span class="account-color-tag" style="background-color: ${color};">${displayName}</span>`;
     }
 
+    function renderAccountLabel(displayName, accountName, statusHtml) {
+        return `
+            <div class="account-label">
+                ${renderAccountColorTag(displayName, accountName)}
+                <span class="account-status-badge">${statusHtml}</span>
+            </div>
+        `;
+    }
+
     function renderAccountsTable(accounts) {
         if (!accounts || accounts.length === 0) {
             return `
@@ -2754,6 +4404,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         let html = `<table class="data-table accounts-table">
             <thead>
                 <tr>
+                    <th></th>
                     <th>账号名称</th>
                     <th>状态</th>
                     <th>最后使用</th>
@@ -2768,7 +4419,6 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 ? new Date(account.last_used_at).toLocaleString('zh-CN')
                 : '未使用';
             const riskClass = account.risk_control_count > 0 ? 'risk-warning' : '';
-            const colorTag = renderAccountColorTag(account.display_name, account.name);
 
             // 状态显示
             let statusHtml;
@@ -2781,23 +4431,31 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             } else {
                 statusHtml = '<span class="status-badge" style="background:#999;">未检测</span>';
             }
+            const labelHtml = renderAccountLabel(account.display_name, account.name, '');
+            const riskValueHtml = account.risk_control_count > 0
+                ? `<span class="risk-pill risk-pill--warn">${account.risk_control_count}</span>`
+                : '<span class="risk-pill risk-pill--ok">0</span>';
+            const riskSummaryHtml = `<div class="risk-summary"><span class="risk-label">风控次数</span>${riskValueHtml}<span class="account-status-badge">${statusHtml}</span></div>`;
 
             html += `
                 <tr data-account-name="${account.name}">
-            <td class="account-name-cell" style="text-align: center; justify-content: center;">${colorTag}</td>
-            <td class="cookie-status-cell" data-name="${account.name}" style="text-align: center;">${statusHtml}</td>
-            <td style="text-align: center;">${lastUsed}</td>
-            <td class="${riskClass}" style="text-align: center;">
+            <td style="text-align: center;" class="drag-handle-cell">
+                <span class="drag-handle" draggable="true" title="Drag">::</span>
+            </td>
+            <td class="account-name-cell" data-label="????" style="text-align: center; justify-content: center;">${labelHtml}</td>
+            <td class="cookie-status-cell" data-name="${account.name}" data-label="状态" style="text-align: center;">${statusHtml}</td>
+            <td class="last-used-cell" data-label="最后使用" style="text-align: center;">${lastUsed}</td>
+            <td class="risk-control-cell ${riskClass}" data-label="风控次数" style="text-align: center;">
+                        ${riskSummaryHtml}
                         ${account.risk_control_count > 0
-                    ? `<span class="risk-count">${account.risk_control_count}</span>
-                               <button class="control-button small-btn view-history-btn" data-name="${account.name}">查看</button>`
-                    : '<span class="no-risk">0</span>'
+                    ? `<button class="control-button small-btn view-history-btn" data-name="${account.name}">查看</button>`
+                    : ''
                 }
                     </td>
-                    <td class="action-buttons">
-                        <button class="control-button small-btn test-account-btn" data-name="${account.name}" title="测试Cookie是否有效">测试</button>
+                    <td class="action-buttons" data-label="操作">
+                        <button class="control-button small-btn test-account-btn" data-name="${account.name}" data-display-name="${account.display_name}" title="测试Cookie是否有效">测试</button>
                         <div class="dropdown-container">
-                            <button class="dropdown-btn small-btn">操作 ▾</button>
+                            <button class="dropdown-btn small-btn"><span class="dropdown-label">操作</span><span class="dropdown-arrow">▾</span></button>
                             <div class="dropdown-menu">
                                 <button class="dropdown-item copy-account-btn" data-name="${account.name}">📋 复制</button>
                                 <button class="dropdown-item edit-account-btn" data-name="${account.name}">✏️ 编辑</button>
@@ -3088,7 +4746,18 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         await updateLogs(true);
     }
 
-    async function fetchAndRenderResults() {
+    async function fetchAndRenderResults(options = {}) {
+        const { silent = false, force = false } = options;
+        const scrollContainer = document.querySelector('main');
+        const scrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+        const restoreScroll = () => {
+            if (scrollContainer) {
+                scrollContainer.scrollTop = scrollTop;
+            } else {
+                window.scrollTo(0, scrollTop);
+            }
+        };
+
         const selector = document.getElementById('result-file-selector');
         const checkbox = document.getElementById('recommended-only-checkbox');
         const sortBySelector = document.getElementById('sort-by-selector');
@@ -3098,8 +4767,9 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
         const manualKeywordFilter = document.getElementById('manual-keyword-filter');
         const container = document.getElementById('results-grid-container');
+        const selectToggleBtn = document.getElementById('toggle-results-selection');
 
-        if (!selector || !checkbox || !container || !sortBySelector || !sortOrderSelector || !taskNameFilter || !keywordFilter || !aiCriteriaFilter || !manualKeywordFilter) return;
+        if (!selector || !checkbox || !container || !sortBySelector || !sortOrderSelector || !taskNameFilter || !keywordFilter || !aiCriteriaFilter || !manualKeywordFilter || !selectToggleBtn) return;
 
         const selectedFile = selector.value;
         const recommendedOnly = checkbox.checked; // Checkbox is now an input type="checkbox"
@@ -3112,15 +4782,28 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
         if (!selectedFile) {
             container.innerHTML = '<p>请先选择一个结果文件。</p>';
+            lastResultsSignature = null;
+            restoreScroll();
             return;
         }
 
         localStorage.setItem('lastSelectedResultFile', selectedFile);
 
-        container.innerHTML = '<p>正在加载结果...</p>';
-        // 使用所有筛选条件获取结果，但如果是查看所有结果或切换结果文件，则获取所有结果以更新筛选选项
-        const dataForFilters = await fetchResultContent(selectedFile, false, 'all', 'all', 'all', 'crawl_time', 'desc');
-        const dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword);
+        if (!silent) {
+            container.innerHTML = '<p>正在加载结果...</p>';
+        }
+        let dataForFilters = null;
+        let dataForDisplay = null;
+        try {
+            // 使用所有筛选条件获取结果，但如果是查看所有结果或切换结果文件，则获取所有结果以更新筛选选项
+            dataForFilters = await fetchResultContent(selectedFile, false, 'all', 'all', 'all', 'crawl_time', 'desc');
+            dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword);
+        } catch (error) {
+            console.error('结果加载失败:', error);
+            container.innerHTML = '<p>结果加载失败，请稍后重试。</p>';
+            restoreScroll();
+            return;
+        }
 
         // 总是更新筛选控件的选项，无论当前筛选条件是什么
         if (dataForFilters && dataForFilters.items) {
@@ -3153,7 +4836,25 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             aiCriteriaFilter.value = aiCriteria;
         }
 
-        container.innerHTML = renderResultsGrid(dataForDisplay);
+        const signature = JSON.stringify({
+            file: selectedFile,
+            recommendedOnly,
+            taskName,
+            keyword,
+            aiCriteria,
+            sortBy,
+            sortOrder,
+            manualKeyword,
+            items: dataForDisplay?.items || [],
+        });
+        if (force || signature !== lastResultsSignature) {
+            container.innerHTML = renderResultsGrid(dataForDisplay);
+            lastResultsSignature = signature;
+        }
+        if (typeof window.updateSelectionControls === 'function') {
+            window.updateSelectionControls();
+        }
+        restoreScroll();
     }
 
     async function initializeResultsView() {
@@ -3161,8 +4862,11 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const checkbox = document.getElementById('recommended-only-checkbox');
         const refreshBtn = document.getElementById('refresh-results-btn');
         const deleteBtn = document.getElementById('delete-results-btn');
+        const selectToggleBtn = document.getElementById('toggle-results-selection');
         const sortBySelector = document.getElementById('sort-by-selector');
         const sortOrderSelector = document.getElementById('sort-order-selector');
+        const advancedToggleBtn = document.getElementById('toggle-advanced-filters');
+        const advancedPanel = document.getElementById('advanced-filters-panel');
 
         const fileData = await fetchResultFiles();
         if (fileData && fileData.files && fileData.files.length > 0) {
@@ -3215,15 +4919,55 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             // 添加现有的事件监听器
             sortBySelector.addEventListener('change', fetchAndRenderResults);
             sortOrderSelector.addEventListener('change', fetchAndRenderResults);
-            refreshBtn.addEventListener('click', fetchAndRenderResults);
+            refreshBtn.addEventListener('click', () => fetchAndRenderResults({ force: true }));
 
-            // 当选择文件时启用删除按钮
+            if (advancedToggleBtn && advancedPanel) {
+                const isDesktop = !window.matchMedia("(max-width: 1366px) and (hover: none) and (pointer: coarse)").matches;
+                let isAdvancedOpen = isDesktop;
+                const updateAdvancedToggle = () => {
+                    advancedToggleBtn.checked = isAdvancedOpen;
+                    advancedToggleBtn.setAttribute('aria-expanded', isAdvancedOpen ? 'true' : 'false');
+                    advancedPanel.classList.toggle('is-open', isAdvancedOpen);
+                };
+                updateAdvancedToggle();
+                advancedToggleBtn.addEventListener('change', () => {
+                    if (advancedToggleBtn.dataset.locked === 'true') {
+                        advancedToggleBtn.checked = isAdvancedOpen;
+                        return;
+                    }
+                    advancedToggleBtn.dataset.locked = 'true';
+                    isAdvancedOpen = advancedToggleBtn.checked;
+                    updateAdvancedToggle();
+                    setTimeout(() => {
+                        advancedToggleBtn.dataset.locked = 'false';
+                    }, 200);
+                });
+            }
+
             const updateDeleteButtonState = () => {
                 deleteBtn.disabled = !selector.value;
             };
+            const updateSelectionControls = () => {
+                const checkboxes = Array.from(document.querySelectorAll('.result-select-checkbox'));
+                const checkedBoxes = checkboxes.filter(checkbox => checkbox.checked);
+                selectToggleBtn.textContent = checkedBoxes.length === checkboxes.length && checkboxes.length > 0 ? '取消全选' : '全选';
+                selectToggleBtn.disabled = checkboxes.length === 0;
+                updateDeleteButtonState();
+            };
+            window.updateSelectionControls = updateSelectionControls;
             selector.addEventListener('change', updateDeleteButtonState);
-            // 初始化时也更新一次删除按钮状态
             updateDeleteButtonState();
+            updateSelectionControls();
+
+            selectToggleBtn.addEventListener('click', () => {
+                const checkboxes = Array.from(document.querySelectorAll('.result-select-checkbox'));
+                if (!checkboxes.length) return;
+                const shouldSelectAll = checkboxes.some(checkbox => !checkbox.checked);
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = shouldSelectAll;
+                });
+                updateSelectionControls();
+            });
 
             // 删除按钮功能
             deleteBtn.addEventListener('click', async () => {
@@ -3233,18 +4977,90 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     return;
                 }
 
-                if (confirm(`你确定要删除结果文件 "${selectedFile}" 吗？此操作不可恢复。`)) {
-                    const result = await deleteResultFile(selectedFile);
-                    if (result) {
-                        alert(result.message);
-                        // Refresh the file list
-                        await initializeResultsView();
-                    }
+                const selectedItemIds = Array.from(document.querySelectorAll('.result-select-checkbox:checked'))
+                    .map(checkbox => checkbox.dataset.itemId)
+                    .filter(Boolean);
+                const taskNameFilter = document.getElementById('task-name-filter');
+                const keywordFilter = document.getElementById('keyword-filter');
+                const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
+                const manualKeywordFilter = document.getElementById('manual-keyword-filter');
+                const sortBySelector = document.getElementById('sort-by-selector');
+                const sortOrderSelector = document.getElementById('sort-order-selector');
+                const recommendedOnly = checkbox.checked;
+                const taskName = taskNameFilter ? taskNameFilter.value : 'all';
+                const keyword = keywordFilter ? keywordFilter.value : 'all';
+                const aiCriteria = aiCriteriaFilter ? aiCriteriaFilter.value : 'all';
+                const manualKeyword = manualKeywordFilter ? manualKeywordFilter.value : '';
+            const deleteBySelection = selectedItemIds.length > 0;
+                const confirmMessage = deleteBySelection
+                    ? `你确定要删除选中的 ${selectedItemIds.length} 条结果吗？此操作不可恢复。`
+                    : `你确定要按当前筛选条件删除结果吗？此操作不可恢复。`;
+
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+
+                const payload = {
+                    filename: selectedFile,
+                    filters: {
+                        recommended_only: recommendedOnly,
+                        task_name: taskName,
+                        keyword: keyword,
+                        ai_criteria: aiCriteria,
+                        manual_keyword: manualKeyword || null
+                    },
+                    item_ids: deleteBySelection ? selectedItemIds : []
+                };
+                const result = await deleteResultsBatch(payload);
+                if (result) {
+                    alert(result.message);
+                    await fetchAndRenderResults({ force: true });
+                    updateSelectionControls();
                 }
             });
 
             // Initial load
             await fetchAndRenderResults();
+
+            if (resultsRefreshInterval) {
+                clearInterval(resultsRefreshInterval);
+            }
+            let resultsRefreshTimer = null;
+            let resultsRefreshInFlight = false;
+            const resultsRefreshDelayMs = 5000;
+            const scheduleResultsRefresh = () => {
+                if (resultsRefreshTimer) {
+                    clearTimeout(resultsRefreshTimer);
+                }
+                resultsRefreshTimer = setTimeout(async () => {
+                    const currentSection = location.hash.substring(1) || 'tasks';
+                    if (currentSection !== 'results' || resultsRefreshInFlight) {
+                        scheduleResultsRefresh();
+                        return;
+                    }
+                    resultsRefreshInFlight = true;
+                    const containerEl = document.getElementById('results-grid-container');
+                    const scrollTop = containerEl ? containerEl.scrollTop : 0;
+                    try {
+                        await fetchAndRenderResults({ silent: true });
+                        if (containerEl) {
+                            containerEl.scrollTop = scrollTop;
+                        }
+                    } finally {
+                        resultsRefreshInFlight = false;
+                        scheduleResultsRefresh();
+                    }
+                }, resultsRefreshDelayMs);
+            };
+            resultsRefreshInterval = {
+                stop() {
+                    if (resultsRefreshTimer) {
+                        clearTimeout(resultsRefreshTimer);
+                        resultsRefreshTimer = null;
+                    }
+                }
+            };
+            scheduleResultsRefresh();
         } else {
             selector.innerHTML = '<option value="">没有可用的结果文件</option>';
             document.getElementById('results-grid-container').innerHTML = '<p>没有找到任何结果文件。请先运行监控任务。</p>';
@@ -3257,6 +5073,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         const notificationSettings = await fetchNotificationSettings();
         if (notificationSettings !== null) {
             notificationContainer.innerHTML = renderNotificationSettings(notificationSettings);
+            setupNotificationTabs();
             
             // Add event listener for show password buttons in notification settings
             const toggleWxSecretButton = document.getElementById('toggle-wx-secret-visibility');
@@ -3513,6 +5330,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         // Render all sections as separate cards with the same level
         const settingsSection = document.querySelector('#settings-section');
 
+        setupSettingsTabs();
+
         // 1. Render System Status first to avoid the stuck issue
         const statusContainer = document.getElementById('system-status-container');
         const status = await fetchSystemStatus();
@@ -3527,7 +5346,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             <p>正在加载通用配置...</p>
         </div>
     `;
-        settingsSection.appendChild(genericContainer);
+        const genericPanel = document.getElementById('generic-settings-panel') || settingsSection;
+        genericPanel.appendChild(genericContainer);
 
         // Fetch generic settings with error handling and timeout
         try {
@@ -3859,9 +5679,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             </div>
         `;
 
-        // Insert AI settings card before Prompt Management
-        const promptCard = document.querySelector('.settings-card h3').closest('.settings-card');
-        promptCard.parentNode.insertBefore(aiContainer, promptCard);
+        const aiPanel = document.getElementById('ai-settings-panel') || settingsSection;
+        aiPanel.appendChild(aiContainer);
 
         const aiSettingsContainer = document.getElementById('ai-settings-container');
         const aiSettings = await fetchAISettings();
@@ -4164,63 +5983,36 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 saveBtn.textContent = originalText;
             });
 
-            // Add event listener for AI settings test button (browser)
+            // Add event listener for AI settings test button
             const testBtn = document.getElementById('test-ai-settings-btn');
             if (testBtn) {
                 testBtn.addEventListener('click', async () => {
-                    // Collect form data
                     const formData = new FormData(aiForm);
                     const settings = {};
 
-                    // Handle regular inputs
                     for (let [key, value] of formData.entries()) {
                         settings[key] = value || '';
                     }
 
-                    // Test settings
                     const originalText = testBtn.textContent;
                     testBtn.disabled = true;
                     testBtn.textContent = '测试中...';
+                    const results = [];
 
-                    const result = await testAISettings(settings);
-                    if (result) {
-                        if (result.success) {
-                            alert(result.message || "AI模型连接测试成功！");
-                        } else {
-                            alert("浏览器测试失败: " + result.message);
-                        }
+                    const browserResult = await testAISettings(settings, { silent: true });
+                    if (browserResult && browserResult.success) {
+                        results.push(`浏览器测试成功：${browserResult.message || '连接正常'}`);
+                    } else if (browserResult) {
+                        results.push(`浏览器测试失败：${browserResult.message || '未知错误'}`);
+                    } else {
+                        results.push('浏览器测试失败：无响应');
                     }
-
-                    testBtn.disabled = false;
-                    testBtn.textContent = originalText;
-                });
-            }
-
-            // Add event listener for AI settings test button (backend)
-            const testBackendBtn = document.getElementById('test-ai-settings-backend-btn');
-            if (testBackendBtn) {
-                testBackendBtn.addEventListener('click', async () => {
-                    // 先保存AI设置，然后再测试
-                    const formData = new FormData(aiForm);
-                    const settings = {};
-
-                    // 收集表单数据
-                    for (let [key, value] of formData.entries()) {
-                        // 将kebab-case转换为UPPERCASE_WITH_UNDERSCORES
-                        const convertedKey = key.toUpperCase().replace(/-/g, '_');
-                        settings[convertedKey] = value || '';
-                    }
-
-                    const originalText = testBackendBtn.textContent;
-                    testBackendBtn.disabled = true;
-                    testBackendBtn.textContent = '保存并测试中...';
 
                     try {
-                        // 保存AI设置
                         const saveResult = await updateAISettings(settings);
-
-                        if (saveResult) {
-                            // 保存成功后执行后端测试
+                        if (!saveResult) {
+                            results.push('后端容器测试失败：保存AI设置失败');
+                        } else {
                             const response = await fetch('/api/settings/ai/test/backend', {
                                 method: 'POST',
                                 headers: {
@@ -4232,18 +6024,18 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                                 throw new Error('后端测试请求失败');
                             }
 
-                            const result = await response.json();
-                            if (result.success) {
-                                alert(result.message || "后端AI模型连接测试成功！");
+                            const backendResult = await response.json();
+                            if (backendResult.success) {
+                                results.push(`后端容器测试成功：${backendResult.message || '连接正常'}`);
                             } else {
-                                alert("后端容器测试失败: " + result.message);
+                                results.push(`后端容器测试失败：${backendResult.message || '未知错误'}`);
                             }
                         }
                     } catch (error) {
-                        alert("后端容器测试错误: " + error.message);
+                        results.push(`后端容器测试错误：${error.message}`);
                     } finally {
-                        testBackendBtn.disabled = false;
-                        testBackendBtn.textContent = originalText;
+                        testBtn.disabled = false;
+                        testBtn.textContent = originalText;
 
                         // 刷新系统状态检查
                         const status = await fetchSystemStatus();
@@ -4252,6 +6044,8 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                             statusContainer.innerHTML = renderSystemStatus(status);
                         }
                     }
+
+                    alert(results.join('\n'));
                 });
             }
         }
@@ -4290,46 +6084,26 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 const selectedFile = selector.value;
 
                 if (selectedFile) {
-                    // 创建包含唯一标识的商品数据
-                    const itemData = {
-                        商品信息: {
-                            商品链接: `id=${itemId}` // 使用商品ID构造一个简约的查找条件
+                    deleteResultsBatch({
+                        filename: selectedFile,
+                        item_ids: [itemId]
+                    }).then(async result => {
+                        if (result) {
+                            await fetchAndRenderResults({ force: true });
                         }
-                    };
-
-                    // 调用API删除商品，传递唯一标识符
-                    fetch(`/api/results/delete`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            filename: selectedFile,
-                            item: itemData
-                        })
-                    })
-                        .then(response => {
-                            if (response.ok) {
-                                // 删除成功，从DOM中移除卡片
-                                card.remove();
-                            } else {
-                                throw new Error('删除失败');
-                            }
-                        })
-                        .catch(error => {
-                            console.error('删除商品时出错:', error);
-                            alert('删除失败，请重试');
-                        });
+                    });
                 } else {
-                    // 没有找到文件或索引，直接从DOM删除但不通知API
                     card.remove();
                 }
             }
             return;
         }
 
-        const row = button.closest('tr');
-        const taskId = row ? row.dataset.taskId : null;
+
+        const taskContainer = button.closest('tr, .task-card');
+        const row = taskContainer && taskContainer.matches('tr') ? taskContainer : null;
+        const taskId = taskContainer ? taskContainer.dataset.taskId : null;
+        const taskData = taskContainer && taskContainer.dataset.task ? JSON.parse(taskContainer.dataset.task) : null;
 
         if (button.matches('.view-json-btn')) {
             const card = button.closest('.result-card');
@@ -4347,7 +6121,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             await startSingleTask(taskId);
             // The auto-refresh will update the UI. For immediate feedback:
             const tasks = await fetchTasks();
-            document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
+            renderTasksInto(document.getElementById('tasks-table-container'), tasks);
         } else if (button.matches('.stop-task-btn')) {
             const taskId = button.dataset.taskId;
             button.disabled = true;
@@ -4355,21 +6129,23 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             await stopSingleTask(taskId);
             // The auto-refresh will update the UI. For immediate feedback:
             const tasks = await fetchTasks();
-            document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
+            renderTasksInto(document.getElementById('tasks-table-container'), tasks);
         } else if (button.matches('.edit-btn')) {
-            const taskData = JSON.parse(row.dataset.task);
+            if (!taskData || !taskId) return;
             openEditTaskModal(taskData, taskId);
         } else if (button.matches('.delete-btn')) {
-            const taskName = row.querySelector('td:nth-child(2)').innerText.trim();
-            if (confirm(`你确定要删除任务 "${taskName}" 吗?`)) {
+            const taskName = taskData?.task_name || (row ? row.querySelector('td:nth-child(2)')?.innerText.trim() : '');
+            if (confirm(`你确定要删除任务 "${taskName}" 吗`)) {
                 const result = await deleteTask(taskId);
-                if (result) {
-                    row.remove();
+                if (result && taskContainer) {
+                    taskContainer.remove();
                 }
             }
         } else if (button.matches('.copy-btn')) {
+
             // Copy task functionality - optimized to not run AI again and handle duplicate names
-            const task = JSON.parse(row.dataset.task);
+            const task = taskData || (row ? JSON.parse(row.dataset.task) : null);
+            if (!task) return;
 
             // Create new task data with existing criteria - will be renamed by backend
             const newTaskData = {
@@ -4401,7 +6177,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     // Refresh task list immediately for better UX
                     const container = document.getElementById('tasks-table-container');
                     const tasks = await fetchTasks();
-                    container.innerHTML = renderTasksTable(tasks);
+                    renderTasksInto(container, tasks);
                 } else {
                     const errorData = await response.json();
                     throw new Error(errorData.detail || '复制任务失败');
@@ -4444,156 +6220,29 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             if (result && result.task) {
                 const container = document.getElementById('tasks-table-container');
                 const tasks = await fetchTasks();
-                container.innerHTML = renderTasksTable(tasks);
+                renderTasksInto(container, tasks);
             }
         } else if (button.matches('.cancel-btn')) {
             const container = document.getElementById('tasks-table-container');
             const tasks = await fetchTasks();
-            container.innerHTML = renderTasksTable(tasks);
+            renderTasksInto(container, tasks);
         } else if (button.matches('.refresh-criteria')) {
             const task = JSON.parse(row.dataset.task);
-            const modal = document.getElementById('refresh-criteria-modal');
-            const textarea = document.getElementById('refresh-criteria-description');
-            const refreshBtn = document.getElementById('refresh-criteria-btn');
-            const btnText = refreshBtn.querySelector('.btn-text');
-            const spinner = refreshBtn.querySelector('.spinner');
-            const loadingText = refreshBtn.querySelector('.loading-text');
-
-            // 恢复按钮默认状态
-            btnText.style.display = 'inline-block';
-            spinner.style.display = 'none';
-            loadingText.style.display = 'none';
-            refreshBtn.disabled = false;
-
-            // 检查任务是否正在生成AI标准
-            if (task.generating_ai_criteria) {
-                // 如果正在生成，显示加载状态
-                btnText.style.display = 'none';
-                spinner.style.display = 'inline-block';
-                loadingText.style.display = 'inline-block';
-                refreshBtn.disabled = true;
-            }
-
-            textarea.value = task['description'] || '';
-            modal.dataset.taskId = taskId;
-            modal.style.display = 'flex';
-            setTimeout(() => modal.classList.add('visible'), 10);
-
-            // Load reference files for refresh modal
-            try {
-                const response = await fetch('/api/prompts');
-                const referenceFiles = await response.json();
-                const selector = document.getElementById('refresh-reference-file-selector');
-
-                // Clear existing options
-                selector.innerHTML = '';
-
-                // Add options
-                if (referenceFiles.length === 0) {
-                    selector.innerHTML = '<option value="">没有可用的参考文件</option>';
-                    return;
-                }
-
-                // Add each file as an option
-                referenceFiles.forEach(file => {
-                    const option = document.createElement('option');
-                    option.value = 'prompts/' + file; // Add full path
-                    option.textContent = file;
-                    // Set base_prompt.txt as default if present
-                    if (file === 'base_prompt.txt') {
-                        option.selected = true;
-                    }
-                    selector.appendChild(option);
-                });
-
-                // Add event listener to preview button
-                const previewBtn = document.getElementById('refresh-preview-reference-file-btn');
-                previewBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const selectedFile = document.getElementById('refresh-reference-file-selector').value;
-                    if (!selectedFile) {
-                        alert('请先选择一个参考文件模板');
-                        return;
-                    }
-                    // Function to load reference file preview for refresh modal
-                    async function loadRefreshReferenceFilePreview(filePath) {
-                        if (!filePath) {
-                            return;
-                        }
-
-                        try {
-                            const previewContainer = document.getElementById('refresh-reference-preview-container');
-                            const previewContent = document.getElementById('refresh-reference-file-preview');
-
-                            previewContent.textContent = '正在加载预览...';
-                            previewContainer.style.display = 'block';
-
-                            const fileName = filePath.replace('prompts/', '');
-                            const response = await fetch(`/api/prompts/${fileName}`);
-                            const data = await response.json();
-
-                            previewContent.textContent = data.content;
-                        } catch (error) {
-                            console.error('无法加载参考文件内容:', error);
-                            document.getElementById('refresh-reference-file-preview').textContent = '预览加载失败，请稍后重试...';
-                        }
-                    }
-                    loadRefreshReferenceFilePreview(selectedFile);
-                });
-
-            } catch (error) {
-                console.error('无法加载参考文件列表:', error);
-                const selector = document.getElementById('refresh-reference-file-selector');
-                selector.innerHTML = '<option value="">加载参考文件失败</option>';
-            }
-        }
-        // Handle criteria button click
-        else if (button.matches('.criteria-btn')) {
-            const criteriaFile = button.dataset.criteriaFile;
-            const fileName = criteriaFile.replace(/^(prompts|requirement)\//, '');
-
-            // Load the criteria file content
-            const modal = document.getElementById('criteria-editor-modal');
-            const filenameInput = document.getElementById('criteria-filename');
-            const editorTextarea = document.getElementById('criteria-editor');
-
-            filenameInput.value = fileName;
-
-            // Fetch and display the file content
-            // Determine if it's a criteria file based on full path from backend
-            const isCriteriaFile = criteriaFile.startsWith('criteria/');
-            const isRequirementFile = criteriaFile.startsWith('requirement/');
-            const cleanFileName = criteriaFile.replace('criteria/', '').replace('prompts/', '').replace('requirement/', '');
-
-            // Function to fetch content from the correct endpoint
-            async function fetchContent() {
-                try {
-                    let data;
-                    if (isCriteriaFile || isRequirementFile) {
-                        // Fetch from criteria endpoint which now handles both criteria and requirement files
-                        const response = await fetch(`/api/criteria/${encodeURIComponent(cleanFileName)}`);
-                        data = await response.json();
-                    } else {
-                        // Fetch from prompts endpoint
-                        data = await fetchPromptContent(cleanFileName);
-                    }
-                    if (data) {
-                        editorTextarea.value = data.content;
-                    } else {
-                        editorTextarea.value = '加载文件失败，请稍后重试...';
-                    }
-                } catch (error) {
-                    console.error('Failed to load file:', error);
-                    editorTextarea.value = '加载文件失败，请稍后重试...';
-                }
-            }
-
-            fetchContent();
-
-            modal.style.display = 'flex';
-            modal.dataset.filename = criteriaFile; // 保存完整的文件路径
-            setTimeout(() => modal.classList.add('visible'), 10);
-        } else if (button.matches('.send-notification-btn')) {
+            openAiCriteriaModal({
+                mode: 'generate',
+                task,
+                taskId,
+                criteriaFile: task.ai_prompt_criteria_file || 'N/A'
+            });
+        } else if (button.matches('.criteria-btn')) {
+            const task = JSON.parse(row.dataset.task);
+            openAiCriteriaModal({
+                mode: 'edit',
+                task,
+                taskId,
+                criteriaFile: button.dataset.criteriaFile
+            });
+        } else if (button.matches('.send-notification-btn')) {} else if (button.matches('.send-notification-btn')) {
             const card = button.closest('.result-card');
             const notificationData = JSON.parse(card.dataset.notification);
 
@@ -4632,9 +6281,9 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
 
     mainContent.addEventListener('change', async (event) => {
         const target = event.target;
-        // Check if the changed element is a toggle switch in the main table (not in an editing row)
-        if (target.matches('.tasks-table input[type="checkbox"]') && !target.closest('tr.editing')) {
-            const row = target.closest('tr');
+        // Check if the changed element is a toggle switch in tasks table or cards
+        if (target.matches('.task-enabled-toggle') && !target.closest('tr.editing')) {
+            const row = target.closest('tr, .task-card');
             const taskId = row.dataset.taskId;
             const isEnabled = target.checked;
 
@@ -4643,7 +6292,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 // 立即刷新任务列表以更新运行状态
                 const container = document.getElementById('tasks-table-container');
                 const tasks = await fetchTasks();
-                container.innerHTML = renderTasksTable(tasks);
+                renderTasksInto(container, tasks);
             }
         }
     });
@@ -4787,10 +6436,20 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 return;
             }
 
+            if (!validateTaskFiltersForm('region-province', 'region-city', 'region-district', 'new-publish-option')) {
+                return;
+            }
+
             const formData = new FormData(form);
             const referenceSelector = document.getElementById('reference-file-selector');
             const boundAccountSelector = document.getElementById('bound-account');
             const autoSwitchCheckbox = document.getElementById('auto-switch-on-risk');
+            const regionValue = buildRegionValue(
+                document.getElementById('region-province')?.value || '',
+                document.getElementById('region-city')?.value || '',
+                document.getElementById('region-district')?.value || ''
+            );
+
             const data = {
                 task_name: formData.get('task_name'),
                 keyword: formData.get('keyword'),
@@ -4798,6 +6457,15 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 min_price: formData.get('min_price') || null,
                 max_price: formData.get('max_price') || null,
                 personal_only: formData.get('personal_only') === 'on',
+                free_shipping: formData.get('free_shipping') === 'on',
+                inspection_service: formData.get('inspection_service') === 'on',
+                account_assurance: formData.get('account_assurance') === 'on',
+                super_shop: formData.get('super_shop') === 'on',
+                brand_new: formData.get('brand_new') === 'on',
+                strict_selected: formData.get('strict_selected') === 'on',
+                resale: formData.get('resale') === 'on',
+                new_publish_option: formData.get('new_publish_option') || null,
+                region: regionValue || null,
                 max_pages: parseInt(formData.get('max_pages'), 10) || 3,
                 cron: formData.get('cron') || null,
                 reference_file: referenceSelector.value,
@@ -4825,25 +6493,43 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 const container = document.getElementById('tasks-table-container');
                 if (container) {
                     const tasks = await fetchTasks();
-                    container.innerHTML = renderTasksTable(tasks);
+                    renderTasksInto(container, tasks);
                 }
             }
         });
+
+        setupRegionSelectors({
+            provinceId: 'region-province',
+            cityId: 'region-city',
+            districtId: 'region-district',
+            regionValue: ''
+        }).catch(error => console.error('初始化区域选择器失败:', error));
     }
 
-    // --- refresh criteria Modal Logic ---
-    const refreshCriteriaModal = document.getElementById('refresh-criteria-modal');
-    if (refreshCriteriaModal) {
-        const form = document.getElementById('refresh-criteria-form');
-        const closeModalBtn = document.getElementById('close-refresh-criteria-btn');
-        const cancelBtn = document.getElementById('cancel-refresh-criteria-btn');
-        const refreshBtn = document.getElementById('refresh-criteria-btn');
+    // --- AI Criteria Modal Logic ---
+    const aiCriteriaModal = document.getElementById('ai-criteria-modal');
+    if (aiCriteriaModal) {
+        const form = document.getElementById('ai-criteria-form');
+        const closeModalBtn = document.getElementById('close-ai-criteria-btn');
+        const cancelBtn = document.getElementById('cancel-ai-criteria-btn');
+        const generateBtn = document.getElementById('ai-criteria-generate-btn');
+        const saveBtn = document.getElementById('ai-criteria-save-btn');
+        const descriptionTextarea = document.getElementById('ai-criteria-description');
+        const referenceSelector = document.getElementById('ai-criteria-reference-selector');
+        const previewBtn = document.getElementById('ai-criteria-preview-btn');
+        const previewContainer = document.getElementById('ai-criteria-preview-container');
+        const previewContent = document.getElementById('ai-criteria-preview-content');
+        const filenameInput = document.getElementById('ai-criteria-filename');
+        const editorTextarea = document.getElementById('ai-criteria-editor');
 
         const closeModal = () => {
-            refreshCriteriaModal.classList.remove('visible');
+            aiCriteriaModal.classList.remove('visible');
             setTimeout(() => {
-                refreshCriteriaModal.style.display = 'none';
-                form.reset(); // Reset form on close
+                aiCriteriaModal.style.display = 'none';
+                form.reset();
+                filenameInput.value = '';
+                editorTextarea.value = '';
+                previewContainer.style.display = 'none';
             }, 300);
         };
 
@@ -4851,31 +6537,180 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         cancelBtn.addEventListener('click', closeModal);
 
         let canClose = false;
-        refreshCriteriaModal.addEventListener('mousedown', event => {
-            canClose = event.target === refreshCriteriaModal;
+        aiCriteriaModal.addEventListener('mousedown', event => {
+            canClose = event.target === aiCriteriaModal;
         });
-        refreshCriteriaModal.addEventListener('mouseup', (event) => {
-            // Close if clicked on the overlay background
-            if (canClose && event.target === refreshCriteriaModal) {
+        aiCriteriaModal.addEventListener('mouseup', (event) => {
+            if (canClose && event.target === aiCriteriaModal) {
                 closeModal();
             }
         });
 
-        // Add event listener to load reference files when refresh modal opens
-        refreshCriteriaModal.addEventListener('transitionend', () => {
-            if (refreshCriteriaModal.style.display === 'flex' && refreshCriteriaModal.classList.contains('visible')) {
-                // Reference files are already loaded when the button is clicked
+        const setActiveTab = (tabName) => {
+            const tabs = Array.from(document.querySelectorAll('.ai-criteria-tab'));
+            tabs.forEach(tab => {
+                const isActive = tab.dataset.tab === tabName;
+                tab.classList.toggle('active', isActive);
+                tab.style.borderBottom = isActive ? '2px solid #1890ff' : 'none';
+                tab.style.color = isActive ? '#1890ff' : '#666';
+            });
+            document.querySelectorAll('.ai-criteria-tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            const content = document.getElementById(`ai-criteria-tab-${tabName}`);
+            if (content) content.style.display = 'block';
+
+            generateBtn.style.display = tabName === 'generate' ? 'inline-flex' : 'none';
+            saveBtn.style.display = tabName === 'edit' ? 'inline-flex' : 'none';
+        };
+
+        document.querySelectorAll('.ai-criteria-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+            if (tab.dataset.tab === 'edit' && tab.disabled) {
+                return;
+            }
+                setActiveTab(tab.dataset.tab);
+                if (tab.dataset.tab === 'edit') {
+                    loadEditContent(aiCriteriaModal.dataset.criteriaFile);
+                }
+            });
+        });
+
+        const loadReferenceFiles = async () => {
+            try {
+                const response = await fetch('/api/prompts');
+                const referenceFiles = await response.json();
+                referenceSelector.innerHTML = '';
+                if (referenceFiles.length === 0) {
+                    referenceSelector.innerHTML = '<option value="">没有可用的参考文件</option>';
+                    return;
+                }
+                referenceFiles.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = 'prompts/' + file;
+                    option.textContent = file;
+                    if (file === 'base_prompt.txt') {
+                        option.selected = true;
+                    }
+                    referenceSelector.appendChild(option);
+                });
+            } catch (error) {
+                console.error('无法加载参考文件列表:', error);
+                referenceSelector.innerHTML = '<option value="">加载参考文件失败</option>';
+            }
+        };
+
+        previewBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const selectedFile = referenceSelector.value;
+            if (!selectedFile) {
+                alert('请先选择一个参考文件模板');
+                return;
+            }
+            try {
+                previewContent.textContent = '正在加载预览...';
+                previewContainer.style.display = 'block';
+                const fileName = selectedFile.replace('prompts/', '');
+                const response = await fetch(`/api/prompts/${fileName}`);
+                const data = await response.json();
+                previewContent.textContent = data.content;
+            } catch (error) {
+                console.error('无法加载参考文件内容:', error);
+                previewContent.textContent = '预览加载失败，请稍后重试...';
             }
         });
 
-        refreshBtn.addEventListener('click', async () => {
-            // 首先检查AI配置是否完整
+        const updateEditDisabledState = (task) => {
+            const isGenerating = !!task?.generating_ai_criteria;
+            const hasCriteria = aiCriteriaModal.dataset.hasCriteria === '1';
+            const editTab = Array.from(document.querySelectorAll('.ai-criteria-tab'))
+                .find(tab => tab.dataset.tab === 'edit');
+            if (editTab) {
+                editTab.disabled = isGenerating || !hasCriteria;
+                editTab.style.opacity = (isGenerating || !hasCriteria) ? '0.5' : '';
+                editTab.style.cursor = (isGenerating || !hasCriteria) ? 'not-allowed' : 'pointer';
+            }
+            editorTextarea.disabled = isGenerating || !hasCriteria;
+            if (saveBtn.style.display !== 'none') {
+                saveBtn.disabled = isGenerating || !hasCriteria;
+            }
+        };
+
+        const updateGenerateButtonState = (task) => {
+            const btnText = generateBtn.querySelector('.btn-text');
+            const spinner = generateBtn.querySelector('.spinner');
+            const loadingText = generateBtn.querySelector('.loading-text');
+
+            btnText.style.display = 'inline-block';
+            spinner.style.display = 'none';
+            loadingText.style.display = 'none';
+            generateBtn.disabled = false;
+
+            if (task && task.generating_ai_criteria) {
+                btnText.style.display = 'none';
+                spinner.style.display = 'inline-block';
+                loadingText.style.display = 'inline-block';
+                generateBtn.disabled = true;
+            }
+        };
+
+        const loadEditContent = async (criteriaFile) => {
+            if (!criteriaFile || criteriaFile === 'N/A' || !criteriaFile.startsWith('criteria/')) {
+                editorTextarea.value = '(尚未生成AI标准)';
+                return;
+            }
+            try {
+                const isCriteriaFile = criteriaFile.startsWith('criteria/');
+                const isRequirementFile = criteriaFile.startsWith('requirement/');
+                const cleanFileName = criteriaFile.replace('criteria/', '').replace('prompts/', '').replace('requirement/', '');
+                let data;
+                if (isCriteriaFile || isRequirementFile) {
+                    const response = await fetch(`/api/criteria/${encodeURIComponent(cleanFileName)}`);
+                    data = await response.json();
+                } else {
+                    data = await fetchPromptContent(cleanFileName);
+                }
+                editorTextarea.value = data?.content || '(暂无内容)';
+            } catch (error) {
+                console.error('Failed to load file:', error);
+                editorTextarea.value = '加载文件失败，请稍后重试...';
+            }
+        };
+
+        window.openAiCriteriaModal = async ({ mode, task, taskId, criteriaFile }) => {
+            aiCriteriaModal.dataset.taskId = taskId;
+            aiCriteriaModal.dataset.criteriaFile = criteriaFile || 'N/A';
+            aiCriteriaModal.dataset.hasCriteria = criteriaFile && criteriaFile.startsWith('criteria/') ? '1' : '0';
+            descriptionTextarea.value = task?.description || '';
+            filenameInput.value = criteriaFile && criteriaFile !== 'N/A' && criteriaFile.startsWith('criteria/')
+                ? criteriaFile.replace(/^(prompts|requirement|criteria)\//, '')
+                : '';
+            editorTextarea.value = '';
+            previewContainer.style.display = 'none';
+
+            await loadReferenceFiles();
+            updateGenerateButtonState(task || null);
+            updateEditDisabledState(task || null);
+            setActiveTab(mode === 'edit' ? 'edit' : 'generate');
+            if (mode === 'edit') {
+                await loadEditContent(criteriaFile);
+            }
+            const btnText = generateBtn.querySelector('.btn-text');
+            if (btnText) {
+                btnText.textContent = aiCriteriaModal.dataset.hasCriteria === '1' ? '重新生成' : '新生成';
+            }
+
+            aiCriteriaModal.style.display = 'flex';
+            setTimeout(() => aiCriteriaModal.classList.add('visible'), 10);
+        };
+
+        generateBtn.addEventListener('click', async () => {
             try {
                 const aiSettingsResponse = await fetch('/api/settings/ai');
                 const aiSettings = await aiSettingsResponse.json();
 
                 if (!aiSettings.OPENAI_BASE_URL || !aiSettings.OPENAI_MODEL_NAME) {
-                    alert('请先配置ai模型api接口');
+                    alert('请先到系统设置-AI模型配置-配置ai模型api接口');
                     return;
                 }
             } catch (error) {
@@ -4888,34 +6723,31 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 form.reportValidity();
                 return;
             }
-            const btnText = refreshBtn.querySelector('.btn-text');
-            const spinner = refreshBtn.querySelector('.spinner');
-            const loadingText = refreshBtn.querySelector('.loading-text');
 
-            // Show loading state
+            const btnText = generateBtn.querySelector('.btn-text');
+            const spinner = generateBtn.querySelector('.spinner');
+            const loadingText = generateBtn.querySelector('.loading-text');
+            btnText.textContent = aiCriteriaModal.dataset.hasCriteria === '1' ? '重新生成' : '新生成';
             btnText.style.display = 'none';
             spinner.style.display = 'inline-block';
             loadingText.style.display = 'inline-block';
-            refreshBtn.disabled = true;
+            generateBtn.disabled = true;
 
-            const taskId = refreshCriteriaModal.dataset.taskId;
+            const modalTaskId = aiCriteriaModal.dataset.taskId;
             const formData = new FormData(form);
-            const refreshReferenceSelector = document.getElementById('refresh-reference-file-selector');
 
-            // Send both description and reference file to updateTask, and set generating_ai_criteria to true
             const updateData = {
                 description: formData.get('description'),
-                reference_file: refreshReferenceSelector.value,
+                reference_file: referenceSelector.value,
                 generating_ai_criteria: true
             };
 
             try {
-                const result = await updateTask(taskId, updateData);
+                await updateTask(modalTaskId, updateData);
 
-                // 立即更新当前任务行的状态为"生成中"
-                const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
+                const taskRow = document.querySelector(`tr[data-task-id="${modalTaskId}"]`);
                 if (taskRow) {
-                    // 更新状态徽章
+                    updateEditDisabledState({ generating_ai_criteria: true });
                     const statusBadge = taskRow.querySelector('.status-badge');
                     if (statusBadge) {
                         statusBadge.className = 'status-badge status-generating';
@@ -4923,44 +6755,76 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         statusBadge.style.backgroundColor = 'orange';
                     }
 
-                    // 禁用所有操作按钮（运行、编辑、复制、删除）
                     const actionButtons = taskRow.querySelectorAll('.action-btn');
                     actionButtons.forEach(btn => {
                         btn.disabled = true;
-                        btn.style.backgroundColor = '#ccc'; // 灰色
+                        btn.style.backgroundColor = '#ccc';
                         btn.style.cursor = 'not-allowed';
                     });
 
-                    // 禁用AI标准的生成和编辑按钮
                     const criteriaButtons = taskRow.querySelectorAll('.refresh-criteria, .criteria-btn');
                     criteriaButtons.forEach(btn => {
                         btn.disabled = true;
-                        btn.style.backgroundColor = '#ccc'; // 灰色
+                        btn.style.backgroundColor = '#ccc';
                         btn.style.cursor = 'not-allowed';
                     });
 
-                    // 禁用任务开关
                     const toggleSwitch = taskRow.querySelector('.switch input[type="checkbox"]');
                     if (toggleSwitch) {
                         toggleSwitch.disabled = true;
                     }
                 }
-
-                // 不立即关闭模态框，保持打开状态直到生成完成
-
             } catch (error) {
                 console.error('更新任务失败:', error);
                 alert('更新任务失败: ' + error.message);
-
-                // 恢复按钮状态
                 btnText.style.display = 'inline-block';
                 spinner.style.display = 'none';
                 loadingText.style.display = 'none';
-                refreshBtn.disabled = false;
+                generateBtn.disabled = false;
             }
-        })
-    }
+        });
 
+        saveBtn.addEventListener('click', async () => {
+            const fullFileName = aiCriteriaModal.dataset.criteriaFile;
+            const content = editorTextarea.value;
+
+            if (!fullFileName || fullFileName === 'N/A' || !content) {
+                alert('请确保文件名和内容都已填写。');
+                return;
+            }
+
+            try {
+                let apiPath;
+                if (fullFileName.includes('requirement/')) {
+                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('requirement/', ''))}`;
+                } else if (fullFileName.includes('criteria/')) {
+                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('criteria/', ''))}`;
+                } else if (fullFileName.includes('prompts/')) {
+                    apiPath = `/api/prompts/${encodeURIComponent(fullFileName.replace('prompts/', ''))}`;
+                } else {
+                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName)}`;
+                }
+
+                const response = await fetch(apiPath, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content }),
+                });
+
+                if (response.ok) {
+                    await response.json();
+                    alert('文件保存成功！');
+                    closeModal();
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '保存失败');
+                }
+            } catch (error) {
+                console.error('Failed to save file:', error);
+                alert('文件保存失败: ' + error.message);
+            }
+        });
+    }
 
     // Initial load
     refreshLoginStatusWidget();
@@ -5049,15 +6913,27 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 }
             };
 
-            // Add event listeners with once: true to avoid memory leaks
-            confirmBtn.addEventListener('click', handleConfirmation, { once: true });
-            cancelBtn.addEventListener('click', closeModal, { once: true });
-            closeBtn.addEventListener('click', closeModal, { once: true });
+            if (!confirmBtn.dataset.bound) {
+                confirmBtn.dataset.bound = '1';
+                confirmBtn.addEventListener('click', handleConfirmation);
+            }
 
-            // Add click outside to close functionality
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) closeModal();
-            }, { once: true });
+            if (!cancelBtn.dataset.bound) {
+                cancelBtn.dataset.bound = '1';
+                cancelBtn.addEventListener('click', closeModal);
+            }
+
+            if (!closeBtn.dataset.bound) {
+                closeBtn.dataset.bound = '1';
+                closeBtn.addEventListener('click', closeModal);
+            }
+
+            if (!modal.dataset.overlayBound) {
+                modal.dataset.overlayBound = '1';
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+            }
         });
 
         // Insert the button before the status text
@@ -5138,98 +7014,6 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
         jsonViewerModal.addEventListener('click', (event) => {
             if (event.target === jsonViewerModal) {
                 closeModal();
-            }
-        });
-    }
-
-    // --- Criteria Editor Modal Logic ---
-    const criteriaEditorModal = document.getElementById('criteria-editor-modal');
-    if (criteriaEditorModal) {
-        const closeBtn = document.getElementById('close-criteria-editor-btn');
-        const cancelBtn = document.getElementById('cancel-criteria-editor-btn');
-        const saveBtn = document.getElementById('save-criteria-editor-btn');
-        const backBtn = document.getElementById('back-from-editor-btn');
-        const editorTextarea = document.getElementById('criteria-editor');
-
-        const closeModal = () => {
-            criteriaEditorModal.classList.remove('visible');
-            setTimeout(() => {
-                criteriaEditorModal.style.display = 'none';
-                // Clear content on close
-                document.getElementById('criteria-filename').value = '';
-                editorTextarea.value = '';
-            }, 300);
-        };
-
-        // Close modal event handlers
-        closeBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
-
-        // Track mousedown origin to prevent modal close when text selection ends on overlay
-        let mouseDownOnOverlay = false;
-        criteriaEditorModal.addEventListener('mousedown', (event) => {
-            mouseDownOnOverlay = (event.target === criteriaEditorModal);
-        });
-        criteriaEditorModal.addEventListener('click', (event) => {
-            if (event.target === criteriaEditorModal && mouseDownOnOverlay) {
-                closeModal();
-            }
-            mouseDownOnOverlay = false;
-        });
-
-        // Back button event handler (navigates back to task management)
-        backBtn.addEventListener('click', () => {
-            closeModal();
-            // Ensure we're on the tasks page
-            if (window.location.hash !== '#tasks') {
-                window.location.hash = '#tasks';
-            }
-        });
-
-        // Save button event handler
-        saveBtn.addEventListener('click', async () => {
-            const fullFileName = criteriaEditorModal.dataset.filename;
-            const content = editorTextarea.value;
-
-            if (!fullFileName || !content) {
-                alert('请确保文件名和内容都已填写。');
-                return;
-            }
-
-            try {
-                let apiPath;
-                // 根据文件名判断是哪种类型的文件并选择正确的API路径
-                if (fullFileName.includes('requirement/')) {
-                    // requirement文件使用/api/criteria端点
-                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('requirement/', ''))}`;
-                } else if (fullFileName.includes('criteria/')) {
-                    // criteria文件使用/api/criteria端点
-                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName.replace('criteria/', ''))}`;
-                } else if (fullFileName.includes('prompts/')) {
-                    // prompt文件使用/api/prompts端点
-                    apiPath = `/api/prompts/${encodeURIComponent(fullFileName.replace('prompts/', ''))}`;
-                } else {
-                    // 普通文件名直接使用/api/criteria端点
-                    apiPath = `/api/criteria/${encodeURIComponent(fullFileName)}`;
-                }
-
-                const response = await fetch(apiPath, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content: content }),
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    alert('文件保存成功！');
-                    closeModal();
-                } else {
-                    const errorData = await response.json();
-                    throw new Error(errorData.detail || '保存失败');
-                }
-            } catch (error) {
-                console.error('Failed to save file:', error);
-                alert('文件保存失败: ' + error.message);
             }
         });
     }
@@ -5346,6 +7130,16 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             const btnText = saveBtn.querySelector('.btn-text');
             const spinner = saveBtn.querySelector('.spinner');
 
+            if (!validateTaskFiltersForm('edit-region-province', 'edit-region-city', 'edit-region-district', 'edit-new-publish-option')) {
+                return;
+            }
+
+            const editRegionValue = buildRegionValue(
+                document.getElementById('edit-region-province')?.value || '',
+                document.getElementById('edit-region-city')?.value || '',
+                document.getElementById('edit-region-district')?.value || ''
+            );
+
             const data = {
                 enabled: document.getElementById('edit-task-enabled').checked,
                 task_name: document.getElementById('edit-task-name').value,
@@ -5357,6 +7151,15 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                 auto_switch_on_risk: document.getElementById('edit-auto-switch-on-risk').checked,
                 cron: document.getElementById('edit-task-cron').value || null,
                 personal_only: document.getElementById('edit-personal-only').checked,
+                free_shipping: document.getElementById('edit-free-shipping').checked,
+                inspection_service: document.getElementById('edit-inspection-service').checked,
+                account_assurance: document.getElementById('edit-account-assurance').checked,
+                super_shop: document.getElementById('edit-super-shop').checked,
+                brand_new: document.getElementById('edit-brand-new').checked,
+                strict_selected: document.getElementById('edit-strict-selected').checked,
+                resale: document.getElementById('edit-resale').checked,
+                new_publish_option: document.getElementById('edit-new-publish-option').value || null,
+                region: editRegionValue || null,
             };
 
             // 保存更改不发送description字段，避免触发AI生成
@@ -5378,7 +7181,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                     closeEditTaskModal();
                     // 刷新任务列表
                     const tasks = await fetchTasks();
-                    document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
+                    renderTasksInto(document.getElementById('tasks-table-container'), tasks);
                 }
             } catch (error) {
                 console.error('保存任务失败:', error);
@@ -5403,6 +7206,20 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
             document.getElementById('edit-auto-switch-on-risk').checked = taskData.auto_switch_on_risk || false;
             document.getElementById('edit-task-cron').value = taskData.cron || '';
             document.getElementById('edit-personal-only').checked = taskData.personal_only || false;
+            document.getElementById('edit-free-shipping').checked = taskData.free_shipping || false;
+            document.getElementById('edit-inspection-service').checked = taskData.inspection_service || false;
+            document.getElementById('edit-account-assurance').checked = taskData.account_assurance || false;
+            document.getElementById('edit-super-shop').checked = taskData.super_shop || false;
+            document.getElementById('edit-brand-new').checked = taskData.brand_new || false;
+            document.getElementById('edit-strict-selected').checked = taskData.strict_selected || false;
+            document.getElementById('edit-resale').checked = taskData.resale || false;
+            document.getElementById('edit-new-publish-option').value = taskData.new_publish_option || '';
+            await setupRegionSelectors({
+                provinceId: 'edit-region-province',
+                cityId: 'edit-region-city',
+                districtId: 'edit-region-district',
+                regionValue: taskData.region || ''
+            });
 
             // 加载账号选择器并选中当前绑定的账号
             await loadEditAccountSelector(taskData.bound_account || '');
@@ -5600,7 +7417,7 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
                         // 关闭模态框并刷新任务列表
                         closeEditTaskModal();
                         const tasks = await fetchTasks();
-                        document.getElementById('tasks-table-container').innerHTML = renderTasksTable(tasks);
+                        renderTasksInto(document.getElementById('tasks-table-container'), tasks);
                     } else {
                         throw new Error('更新请求失败');
                     }
@@ -5639,5 +7456,282 @@ ${criteriaBtnText.toLowerCase().endsWith('requirement') || criteriaBtnText.toLow
     // 开始观察mainContent的变化
     if (mainContent) {
         accountCellObserver.observe(mainContent, { childList: true, subtree: true });
+    }
+
+    function validateTaskFiltersForm(provinceId, cityId, districtId, publishSelectId) {
+        const publishSelect = document.getElementById(publishSelectId);
+        const publishValue = publishSelect ? publishSelect.value.trim() : '';
+
+        if (publishValue) {
+            const allowedValues = new Set(['1天内', '3天内', '7天内', '14天内']);
+            if (!allowedValues.has(publishValue)) {
+                alert('新发布时间选项无效，请重新选择');
+                return false;
+            }
+        }
+
+        const province = document.getElementById(provinceId)?.value || '';
+        const city = document.getElementById(cityId)?.value || '';
+        const district = document.getElementById(districtId)?.value || '';
+        const regionValue = buildRegionValue(province, city, district);
+
+        if (regionValue) {
+            const regionPattern = /^[\u4e00-\u9fa5]+(\/[\u4e00-\u9fa5]+)*$/;
+            if (!regionPattern.test(regionValue)) {
+                alert('区域格式不正确，请使用"省/市/区"格式');
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function buildRegionValue(province, city, district) {
+        const parts = [province, city, district]
+            .map(value => (value || '').trim().replace(/(省|市)$/u, ''))
+            .filter(Boolean);
+        return parts.join('/');
+    }
+
+    async function fetchChinaIndex() {
+        const response = await fetch('/static/china/index.json');
+        if (!response.ok) {
+            throw new Error('无法加载省份列表');
+        }
+        return await response.json();
+    }
+
+    async function fetchChinaProvinceFile(filename) {
+        const response = await fetch(`/static/china/${encodeURIComponent(filename)}`);
+        if (!response.ok) {
+            throw new Error('无法加载省份数据');
+        }
+        return await response.json();
+    }
+
+    function parseRegionValue(regionValue) {
+        if (!regionValue) {
+            return { province: '', city: '', district: '' };
+        }
+        const parts = regionValue.split('/').map(part => part.trim());
+        return {
+            province: parts[0] || '',
+            city: parts[1] || '',
+            district: parts[2] || '',
+        };
+    }
+
+    function pickRegionOption(value, options) {
+        if (!value) return '';
+        const exact = options.find(option => option === value);
+        if (exact) return exact;
+        const startsWith = options.find(option => option.startsWith(value));
+        if (startsWith) return startsWith;
+        const includes = options.find(option => option.includes(value));
+        return includes || value;
+    }
+
+    function isMunicipality(name) {
+        return ['北京', '上海', '天津', '重庆', '北京市', '上海市', '天津市', '重庆市'].includes(name);
+    }
+
+    function toggleMunicipalityUI(citySelect, districtSelect, isMunicipalityRegion, placeholder) {
+        if (!citySelect || !districtSelect) return;
+        citySelect.disabled = isMunicipalityRegion;
+        if (isMunicipalityRegion) {
+            citySelect.value = placeholder || '';
+        }
+    }
+
+    function populateSelect(selectEl, items, placeholder) {
+        if (!selectEl) return;
+        selectEl.innerHTML = '';
+        const placeholderOption = document.createElement('option');
+        placeholderOption.value = '';
+        placeholderOption.textContent = placeholder;
+        selectEl.appendChild(placeholderOption);
+        items.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item;
+            option.textContent = item;
+            selectEl.appendChild(option);
+        });
+
+    }
+
+    async function hydrateRegionSelectors({ provinceId, cityId, districtId, regionValue }) {
+        const provinceSelect = document.getElementById(provinceId);
+        const citySelect = document.getElementById(cityId);
+        const districtSelect = document.getElementById(districtId);
+
+        if (!provinceSelect || !citySelect || !districtSelect) return;
+
+        const { province, city, district } = parseRegionValue(regionValue);
+        const index = await fetchChinaIndex();
+        const provinces = index.map(item => item.name);
+        populateSelect(provinceSelect, provinces, '省/自治区/直辖市');
+
+        const normalizedProvince = pickRegionOption(province, provinces);
+        provinceSelect.value = normalizedProvince;
+
+        if (!normalizedProvince) {
+            populateSelect(citySelect, [], '市/地区');
+            populateSelect(districtSelect, [], '区/县');
+            return;
+        }
+
+        const provinceEntry = index.find(item => item.name === normalizedProvince);
+        if (!provinceEntry) return;
+
+        const provinceData = await fetchChinaProvinceFile(provinceEntry.file);
+        const cities = (provinceData.children || []).map(item => item.name);
+        const municipality = isMunicipality(normalizedProvince);
+        const cityPlaceholder = municipality ? '市辖区' : '市/地区';
+        populateSelect(citySelect, cities, cityPlaceholder);
+        const normalizedCity = municipality ? (cities[0] || '') : pickRegionOption(city, cities);
+        citySelect.value = normalizedCity;
+        toggleMunicipalityUI(citySelect, districtSelect, municipality, cityPlaceholder);
+        toggleMunicipalityUI(citySelect, districtSelect, municipality, cityPlaceholder);
+
+        if (!normalizedCity) {
+            populateSelect(districtSelect, [], '区/县');
+            return;
+        }
+
+        const cityEntry = (provinceData.children || []).find(item => item.name === normalizedCity);
+        const districts = cityEntry ? (cityEntry.children || []).map(item => item.name) : [];
+        populateSelect(districtSelect, districts, '区/县');
+        districtSelect.value = pickRegionOption(district, districts);
+    }
+
+    async function setupRegionSelectors({ provinceId, cityId, districtId, regionValue }) {
+        const provinceSelect = document.getElementById(provinceId);
+        const citySelect = document.getElementById(cityId);
+        const districtSelect = document.getElementById(districtId);
+
+        if (!provinceSelect || !citySelect || !districtSelect) return;
+
+        let indexCache = null;
+        let provinceDataCache = null;
+
+        const loadIndex = async () => {
+            if (!indexCache) {
+                indexCache = await fetchChinaIndex();
+            }
+            return indexCache;
+        };
+
+        const loadProvinceData = async (provinceName) => {
+            if (!provinceName) return null;
+            if (provinceDataCache && provinceDataCache.name === provinceName) {
+                return provinceDataCache.data;
+            }
+            const index = await loadIndex();
+            const entry = index.find(item => item.name === provinceName);
+            if (!entry) return null;
+            const data = await fetchChinaProvinceFile(entry.file);
+            provinceDataCache = { name: provinceName, data };
+            return data;
+        };
+
+        provinceSelect.addEventListener('change', async () => {
+            const provinceName = provinceSelect.value;
+            populateSelect(citySelect, [], '市/地区');
+            populateSelect(districtSelect, [], '区/县');
+            if (!provinceName) return;
+            const provinceData = await loadProvinceData(provinceName);
+            const cities = (provinceData?.children || []).map(item => item.name);
+            const municipality = isMunicipality(provinceName);
+            populateSelect(citySelect, cities, municipality ? '市辖区' : '市/地区');
+            if (municipality) {
+                citySelect.value = cities[0] || '';
+                citySelect.dispatchEvent(new Event('change'));
+            }
+            toggleMunicipalityUI(citySelect, districtSelect, municipality, municipality ? '市辖区' : '');
+        });
+
+        citySelect.addEventListener('change', async () => {
+            const provinceName = provinceSelect.value;
+            const cityName = citySelect.value;
+            populateSelect(districtSelect, [], '区/县');
+            if (!provinceName || !cityName) return;
+            const provinceData = await loadProvinceData(provinceName);
+            const cityEntry = (provinceData?.children || []).find(item => item.name === cityName);
+            const districts = cityEntry ? (cityEntry.children || []).map(item => item.name) : [];
+            populateSelect(districtSelect, districts, '区/县');
+        });
+
+        await hydrateRegionSelectors({ provinceId, cityId, districtId, regionValue });
+    }
+
+    async function hydrateAdvancedFilterSelectors(cell, taskData) {
+        const provinceSelect = cell.querySelector('.filter-region-province');
+        const citySelect = cell.querySelector('.filter-region-city');
+        const districtSelect = cell.querySelector('.filter-region-district');
+        if (!provinceSelect || !citySelect || !districtSelect) return;
+
+        const { province, city, district } = parseRegionValue(taskData.region || '');
+        const index = await fetchChinaIndex();
+        const provinces = index.map(item => item.name);
+        populateSelect(provinceSelect, provinces, '省/自治区/直辖市');
+        const normalizedProvince = pickRegionOption(province, provinces);
+        provinceSelect.value = normalizedProvince;
+
+        provinceSelect.onchange = async () => {
+            const provinceName = provinceSelect.value;
+            populateSelect(citySelect, [], '市/地区');
+            populateSelect(districtSelect, [], '区/县');
+            if (!provinceName) return;
+            const provinceEntry = index.find(item => item.name === provinceName);
+            if (!provinceEntry) return;
+            const updatedProvince = await fetchChinaProvinceFile(provinceEntry.file);
+            const updatedCities = (updatedProvince.children || []).map(item => item.name);
+            const municipality = isMunicipality(provinceName);
+            populateSelect(citySelect, updatedCities, municipality ? '市辖区' : '市/地区');
+            if (municipality) {
+                citySelect.value = updatedCities[0] || '';
+                citySelect.dispatchEvent(new Event('change'));
+            }
+            toggleMunicipalityUI(citySelect, districtSelect, municipality, municipality ? '市辖区' : '');
+        };
+
+        citySelect.onchange = async () => {
+            const provinceName = provinceSelect.value;
+            const cityName = citySelect.value;
+            populateSelect(districtSelect, [], '区/县');
+            if (!provinceName || !cityName) return;
+            const provinceEntry = index.find(item => item.name === provinceName);
+            if (!provinceEntry) return;
+            const updatedProvince = await fetchChinaProvinceFile(provinceEntry.file);
+            const updatedCity = (updatedProvince.children || []).find(item => item.name === cityName);
+            const updatedDistricts = updatedCity ? (updatedCity.children || []).map(item => item.name) : [];
+            populateSelect(districtSelect, updatedDistricts, '区/县');
+        };
+
+        if (!normalizedProvince) {
+            populateSelect(citySelect, [], '市/地区');
+            populateSelect(districtSelect, [], '区/县');
+            return;
+        }
+
+        const provinceEntry = index.find(item => item.name === normalizedProvince);
+        if (!provinceEntry) return;
+        const provinceData = await fetchChinaProvinceFile(provinceEntry.file);
+        const cities = (provinceData.children || []).map(item => item.name);
+        const municipality = isMunicipality(normalizedProvince);
+        const cityPlaceholder = municipality ? '市辖区' : '市/地区';
+        populateSelect(citySelect, cities, cityPlaceholder);
+        const normalizedCity = municipality ? (cities[0] || '') : pickRegionOption(city, cities);
+        citySelect.value = normalizedCity;
+
+        if (!normalizedCity) {
+            populateSelect(districtSelect, [], '区/县');
+        } else {
+            const cityEntry = (provinceData.children || []).find(item => item.name === normalizedCity);
+            const districts = cityEntry ? (cityEntry.children || []).map(item => item.name) : [];
+            populateSelect(districtSelect, districts, '区/县');
+            districtSelect.value = pickRegionOption(district, districts);
+        }
+
     }
 });
