@@ -9,6 +9,188 @@ from playwright.async_api import async_playwright
 LOGIN_IS_EDGE = os.getenv("LOGIN_IS_EDGE", "false").lower() == "true"
 RUNNING_IN_DOCKER = os.getenv("RUNNING_IN_DOCKER", "false").lower() == "true"
 STATE_DIR = "state"
+COOKIE_ALLOWED_DOMAINS = ("goofish.com",)
+
+def _default_context_options() -> dict:
+    return {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "viewport": {"width": 1366, "height": 768},
+        "device_scale_factor": 1,
+        "is_mobile": False,
+        "has_touch": False,
+        "locale": "zh-CN",
+        "timezone_id": "Asia/Shanghai",
+        "permissions": ["geolocation"],
+        "geolocation": {"longitude": 121.4737, "latitude": 31.2304},
+        "color_scheme": "light",
+    }
+
+
+def _normalize_same_site_value(raw_value):
+    if raw_value is None:
+        return "Lax"
+    if isinstance(raw_value, str):
+        value = raw_value.strip().lower()
+        if value in ("none", "lax", "strict"):
+            return value.capitalize() if value != "none" else "None"
+    return "Lax"
+
+def _is_allowed_cookie_domain(domain: str) -> bool:
+    if not domain:
+        return False
+    domain = domain.lstrip(".").lower()
+    for allowed in COOKIE_ALLOWED_DOMAINS:
+        allowed_domain = allowed.lstrip(".").lower()
+        if domain == allowed_domain or domain.endswith(f".{allowed_domain}"):
+            return True
+    return False
+
+def _filter_cookies_for_state(raw_cookies):
+    """过滤并标准化登录态Cookie，避免写入无关数据。"""
+    cleaned_map = {}
+    for cookie in raw_cookies or []:
+        name = str(cookie.get("name", "")).strip()
+        value = cookie.get("value")
+        domain = cookie.get("domain", "")
+        if not name or value in (None, ""):
+            continue
+        if not _is_allowed_cookie_domain(domain):
+            continue
+        expires = cookie.get("expires")
+        if not isinstance(expires, (int, float)):
+            expires = 0
+        clean_cookie = {
+            "name": name,
+            "value": value,
+            "domain": domain,
+            "path": cookie.get("path", "/"),
+            "expires": expires,
+            "httpOnly": bool(cookie.get("httpOnly")),
+            "secure": bool(cookie.get("secure")),
+            "sameSite": _normalize_same_site_value(cookie.get("sameSite")),
+        }
+        key = (clean_cookie["name"], clean_cookie["domain"], clean_cookie["path"])
+        existing = cleaned_map.get(key)
+        if not existing or (existing.get("expires", 0) or 0) < (clean_cookie.get("expires", 0) or 0):
+            cleaned_map[key] = clean_cookie
+    cleaned_list = list(cleaned_map.values())
+    cleaned_list.sort(key=lambda item: (item.get("domain", ""), item.get("name", ""), item.get("path", "")))
+    return cleaned_list
+
+async def _capture_browser_env(page):
+    """抓取浏览器环境快照，失败时返回空对象。"""
+    try:
+        return await page.evaluate('''() => {
+            // 从浏览器中获取真实的环境信息
+            const intl = (() => {
+                try {
+                    return Intl.DateTimeFormat().resolvedOptions();
+                } catch (e) {
+                    return {};
+                }
+            })();
+
+            const uaData = (() => {
+                try {
+                    return navigator.userAgentData ? navigator.userAgentData.toJSON() : null;
+                } catch (e) {
+                    return null;
+                }
+            })();
+
+            // 过滤存储数据，只保留简单的数据类型，避免保存复杂的 JavaScript 代码
+            const filterStorageData = (storage) => {
+                const filtered = {};
+                for (let i = 0; i < storage.length; i += 1) {
+                    const key = storage.key(i);
+                    if (key !== null) {
+                        try {
+                            const value = storage.getItem(key);
+                            // 过滤掉包含大量 JavaScript 代码的项
+                            if (value && typeof value === 'string') {
+                                // 检查值的大小，过滤掉过大的内容
+                                if (value.length > 1000) {
+                                    continue;
+                                }
+                                // 检查是否包含 JavaScript 代码特征
+                                const hasJsCode = value.includes('function') || value.includes('{') && value.includes('}') && value.includes(';') || value.includes('return');
+                                if (hasJsCode) {
+                                    continue;
+                                }
+                            }
+                            filtered[key] = value;
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                }
+                return filtered;
+            };
+
+            return {
+                navigator: {
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    vendor: navigator.vendor,
+                    language: navigator.language,
+                    languages: navigator.languages,
+                    hardwareConcurrency: navigator.hardwareConcurrency,
+                    deviceMemory: navigator.deviceMemory,
+                    webdriver: navigator.webdriver,
+                    doNotTrack: navigator.doNotTrack,
+                    maxTouchPoints: navigator.maxTouchPoints,
+                    userAgentData: uaData,
+                },
+                screen: {
+                    width: screen.width,
+                    height: screen.height,
+                    availWidth: screen.availWidth,
+                    availHeight: screen.availHeight,
+                    colorDepth: screen.colorDepth,
+                    pixelDepth: screen.pixelDepth,
+                    devicePixelRatio: window.devicePixelRatio,
+                },
+                intl,
+                storage: {
+                    local: (() => {
+                        try {
+                            return filterStorageData(localStorage);
+                        } catch (e) {
+                            return {};
+                        }
+                    })(),
+                    session: (() => {
+                        try {
+                            return filterStorageData(sessionStorage);
+                        } catch (e) {
+                            return {};
+                        }
+                    })(),
+                },
+            };
+        }''')
+    except Exception:
+        return {}
+
+def _build_snapshot_headers(browser_env: dict) -> dict:
+    """基于环境快照构造请求头，便于后续复用。"""
+    navigator = (browser_env or {}).get("navigator") or {}
+    headers = {
+        "User-Agent": navigator.get("userAgent", ""),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": navigator.get("language", ""),
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://www.goofish.com/",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?1",
+        "Sec-Ch-Ua-Platform": '"Android"',
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Dest": "document",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "max-age=0"
+    }
+    return {key: value for key, value in headers.items() if value}
 
 # 统一日志格式化函数
 def log_message(task_name, level, message):
@@ -49,7 +231,7 @@ async def main():
                 browser = await p.chromium.launch(channel="chrome", **launch_options)
 
         # 使用桌面版浏览器上下文（与旧版 login.py 相同）
-        context = await browser.new_context()
+        context = await browser.new_context(**_default_context_options())
         page = await context.new_page()
 
         try:
@@ -254,24 +436,7 @@ async def main():
                                 full_state = await context.storage_state()
                                 
                                 # 提取所有与goofish.com相关的cookie
-                                filtered_cookies = []
-                                for cookie in full_state.get("cookies", []):
-                                    if "goofish.com" in cookie.get("domain", ""):
-                                        filtered_cookies.append(cookie)
-                                
-                                standard_cookies = []
-                                for cookie in filtered_cookies:
-                                    clean_cookie = {
-                                        "name": cookie["name"],
-                                        "value": cookie["value"],
-                                        "domain": cookie["domain"],
-                                        "path": cookie["path"],
-                                        "expires": cookie["expires"],
-                                        "httpOnly": cookie["httpOnly"],
-                                        "secure": cookie["secure"],
-                                        "sameSite": map_same_site_value(cookie.get("sameSite"))
-                                    }
-                                    standard_cookies.append(clean_cookie)
+                                standard_cookies = _filter_cookies_for_state(full_state.get("cookies", []))
                                 
                                 # 创建增强版快照格式
                                 snapshot_data = {
@@ -357,20 +522,21 @@ async def main():
                     # 尝试手动保存状态
                     full_state = await context.storage_state()
                     
-                    filtered_cookies = []
-                    for cookie in full_state.get("cookies", []):
-                        if "goofish.com" in cookie.get("domain", ""):
-                            clean_cookie = {
-                                "name": cookie["name"],
-                                "value": cookie["value"],
-                                "domain": cookie["domain"],
-                                "path": cookie["path"],
-                                "expires": cookie["expires"],
-                                "httpOnly": cookie["httpOnly"],
-                                "secure": cookie["secure"],
-                                "sameSite": map_same_site_value(cookie.get("sameSite"))
-                            }
-                            filtered_cookies.append(clean_cookie)
+                    filtered_cookies = _filter_cookies_for_state(full_state.get("cookies", []))
+                    browser_env = await _capture_browser_env(page)
+                    headers = _build_snapshot_headers(browser_env)
+                    page_meta = {
+                        "pageUrl": page.url,
+                        "referrer": page.url,
+                        "visibilityState": "visible"
+                    }
+                    browser_env = await _capture_browser_env(page)
+                    headers = _build_snapshot_headers(browser_env)
+                    page_meta = {
+                        "pageUrl": page.url,
+                        "referrer": page.url,
+                        "visibilityState": "visible"
+                    }
                     
                     # 生成唯一账号名称并保存到state目录
                     ensure_state_dir()
@@ -384,6 +550,20 @@ async def main():
                         "risk_control_history": [],
                         "cookies": filtered_cookies
                     }
+                    if browser_env:
+                        account_data.update({
+                            "env": browser_env,
+                            "headers": headers,
+                            "page": page_meta,
+                            "storage": browser_env.get("storage")
+                        })
+                    if browser_env:
+                        account_data.update({
+                            "env": browser_env,
+                            "headers": headers,
+                            "page": page_meta,
+                            "storage": browser_env.get("storage")
+                        })
                     
                     account_file_path = os.path.join(STATE_DIR, f"{account_name}.json")
                     with open(account_file_path, 'w', encoding='utf-8') as f:
@@ -411,20 +591,7 @@ async def main():
                         return same_site_map.get(chrome_same_site.lower(), "Lax")
                     
                     # 获取所有与goofish.com相关的cookie
-                    filtered_cookies = []
-                    for cookie in full_state.get("cookies", []):
-                        if "goofish.com" in cookie.get("domain", ""):
-                            clean_cookie = {
-                                "name": cookie["name"],
-                                "value": cookie["value"],
-                                "domain": cookie["domain"],
-                                "path": cookie["path"],
-                                "expires": cookie["expires"],
-                                "httpOnly": cookie["httpOnly"],
-                                "secure": cookie["secure"],
-                                "sameSite": map_same_site_value(cookie.get("sameSite"))
-                            }
-                            filtered_cookies.append(clean_cookie)
+                    filtered_cookies = _filter_cookies_for_state(full_state.get("cookies", []))
                     
                     # 生成唯一账号名称并保存到state目录
                     ensure_state_dir()

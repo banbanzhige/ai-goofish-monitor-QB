@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import hashlib
 from datetime import datetime
 from urllib.parse import urlencode
 from typing import Optional, Dict, Any
@@ -74,7 +75,22 @@ def _looks_like_mobile(ua: str) -> Optional[bool]:
     return None
 
 
-def _build_context_overrides(snapshot: dict) -> dict:
+def _get_snapshot_user_agent(snapshot: dict) -> Optional[str]:
+    if not snapshot:
+        return None
+    env = snapshot.get("env") or {}
+    headers = snapshot.get("headers") or {}
+    navigator = env.get("navigator") or {}
+    return headers.get("User-Agent") or headers.get("user-agent") or navigator.get("userAgent")
+
+
+def _should_use_snapshot_env(snapshot: dict) -> bool:
+    ua = _get_snapshot_user_agent(snapshot)
+    mobile_flag = _looks_like_mobile(ua or "")
+    return mobile_flag is not False
+
+
+def _build_mobile_first_context_overrides(snapshot: dict, allow_device_overrides: bool) -> dict:
     env = snapshot.get("env") or {}
     headers = snapshot.get("headers") or {}
     navigator = env.get("navigator") or {}
@@ -82,9 +98,8 @@ def _build_context_overrides(snapshot: dict) -> dict:
     intl = env.get("intl") or {}
 
     overrides = {}
-
-    ua = headers.get("User-Agent") or headers.get("user-agent") or navigator.get("userAgent")
-    if ua:
+    ua = _get_snapshot_user_agent(snapshot)
+    if allow_device_overrides and ua:
         overrides["user_agent"] = ua
 
     accept_language = headers.get("Accept-Language") or headers.get("accept-language")
@@ -100,24 +115,137 @@ def _build_context_overrides(snapshot: dict) -> dict:
     if tz:
         overrides["timezone_id"] = tz
 
-    width = screen.get("width")
-    height = screen.get("height")
-    if isinstance(width, (int, float)) and isinstance(height, (int, float)):
-        overrides["viewport"] = {"width": int(width), "height": int(height)}
+    if allow_device_overrides:
+        width = screen.get("width")
+        height = screen.get("height")
+        if isinstance(width, (int, float)) and isinstance(height, (int, float)):
+            overrides["viewport"] = {"width": int(width), "height": int(height)}
 
-    dpr = screen.get("devicePixelRatio")
-    if isinstance(dpr, (int, float)):
-        overrides["device_scale_factor"] = float(dpr)
+        dpr = screen.get("devicePixelRatio")
+        if isinstance(dpr, (int, float)):
+            overrides["device_scale_factor"] = float(dpr)
 
-    touch_points = navigator.get("maxTouchPoints")
-    if isinstance(touch_points, (int, float)):
-        overrides["has_touch"] = touch_points > 0
+        touch_points = navigator.get("maxTouchPoints")
+        if isinstance(touch_points, (int, float)):
+            overrides["has_touch"] = touch_points > 0
 
-    mobile_flag = _looks_like_mobile(ua or "")
-    if mobile_flag is not None:
-        overrides["is_mobile"] = mobile_flag
+        mobile_flag = _looks_like_mobile(ua or "")
+        if mobile_flag is not None:
+            overrides["is_mobile"] = mobile_flag
 
     return _clean_kwargs(overrides)
+
+
+def _filter_headers_for_mobile_first(headers: dict, allow_ua_headers: bool) -> dict:
+    if allow_ua_headers:
+        return headers
+    drop_keys = {"user-agent", "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform"}
+    return {key: value for key, value in headers.items() if key.lower() not in drop_keys}
+
+
+def _build_mobile_init_script(snapshot: Optional[dict]) -> str:
+    snapshot_env = (snapshot or {}).get("env") or {}
+    navigator = snapshot_env.get("navigator") or {}
+    screen = snapshot_env.get("screen") or {}
+    intl = snapshot_env.get("intl") or {}
+    use_snapshot_env = _should_use_snapshot_env(snapshot or {})
+
+    payload = {
+        "useSnapshot": bool(use_snapshot_env),
+        "navigator": {
+            "platform": navigator.get("platform"),
+            "language": navigator.get("language"),
+            "languages": navigator.get("languages"),
+            "hardwareConcurrency": navigator.get("hardwareConcurrency"),
+            "deviceMemory": navigator.get("deviceMemory"),
+            "maxTouchPoints": navigator.get("maxTouchPoints"),
+            "doNotTrack": navigator.get("doNotTrack"),
+            "userAgentData": navigator.get("userAgentData"),
+        },
+        "screen": {
+            "width": screen.get("width"),
+            "height": screen.get("height"),
+            "devicePixelRatio": screen.get("devicePixelRatio"),
+            "colorDepth": screen.get("colorDepth"),
+            "pixelDepth": screen.get("pixelDepth"),
+        },
+        "intl": {
+            "timeZone": intl.get("timeZone"),
+            "locale": intl.get("locale"),
+        },
+    }
+
+    payload_json = json.dumps(payload, ensure_ascii=False)
+
+    return f"""
+        // 移除webdriver标识
+        Object.defineProperty(navigator, 'webdriver', {{get: () => undefined}});
+
+        // 模拟真实移动设备的navigator属性
+        Object.defineProperty(navigator, 'plugins', {{get: () => [1, 2, 3, 4, 5]}});
+        Object.defineProperty(navigator, 'languages', {{get: () => ['zh-CN', 'zh', 'en-US', 'en']}});
+
+        // 添加chrome对象
+        window.chrome = {{runtime: {{}}, loadTimes: function() {{}}, csi: function() {{}}}};
+
+        // 模拟触摸支持
+        Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => 5}});
+
+        // 覆盖permissions查询，避免暴露自动化
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' ?
+                Promise.resolve({{state: Notification.permission}}) :
+                originalQuery(parameters)
+        );
+
+        // 优先模拟移动端，再按快照补充环境细节
+        const snapshot = {payload_json};
+        if (snapshot && snapshot.useSnapshot) {{
+            const nav = snapshot.navigator || {{}};
+            if (nav.languages) {{
+                Object.defineProperty(navigator, 'languages', {{get: () => nav.languages}});
+            }}
+            if (nav.language) {{
+                Object.defineProperty(navigator, 'language', {{get: () => nav.language}});
+            }}
+            if (nav.platform) {{
+                Object.defineProperty(navigator, 'platform', {{get: () => nav.platform}});
+            }}
+            if (typeof nav.hardwareConcurrency === 'number') {{
+                Object.defineProperty(navigator, 'hardwareConcurrency', {{get: () => nav.hardwareConcurrency}});
+            }}
+            if (typeof nav.deviceMemory === 'number') {{
+                Object.defineProperty(navigator, 'deviceMemory', {{get: () => nav.deviceMemory}});
+            }}
+            if (typeof nav.maxTouchPoints === 'number') {{
+                Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => nav.maxTouchPoints}});
+            }}
+            if (nav.doNotTrack !== undefined && nav.doNotTrack !== null) {{
+                Object.defineProperty(navigator, 'doNotTrack', {{get: () => nav.doNotTrack}});
+            }}
+            if (nav.userAgentData) {{
+                Object.defineProperty(navigator, 'userAgentData', {{get: () => nav.userAgentData}});
+            }}
+
+            const scr = snapshot.screen || {{}};
+            if (typeof scr.width === 'number') {{
+                Object.defineProperty(screen, 'width', {{get: () => scr.width}});
+            }}
+            if (typeof scr.height === 'number') {{
+                Object.defineProperty(screen, 'height', {{get: () => scr.height}});
+            }}
+            if (typeof scr.devicePixelRatio === 'number') {{
+                Object.defineProperty(screen, 'devicePixelRatio', {{get: () => scr.devicePixelRatio}});
+            }}
+            if (typeof scr.colorDepth === 'number') {{
+                Object.defineProperty(screen, 'colorDepth', {{get: () => scr.colorDepth}});
+            }}
+            if (typeof scr.pixelDepth === 'number') {{
+                Object.defineProperty(screen, 'pixelDepth', {{get: () => scr.pixelDepth}});
+            }}
+        }}
+    """
 
 
 def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
@@ -130,6 +258,120 @@ def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
             continue
         headers[key] = value
     return headers
+
+
+COOKIE_ALLOWED_DOMAINS = ("goofish.com",)
+
+def _normalize_same_site_value(raw_value):
+    if raw_value is None:
+        return "Lax"
+    if isinstance(raw_value, str):
+        value = raw_value.strip().lower()
+        if value in ("none", "lax", "strict"):
+            return value.capitalize() if value != "none" else "None"
+    return "Lax"
+
+def _is_allowed_cookie_domain(domain: str) -> bool:
+    if not domain:
+        return False
+    domain = domain.lstrip(".").lower()
+    for allowed in COOKIE_ALLOWED_DOMAINS:
+        allowed_domain = allowed.lstrip(".").lower()
+        if domain == allowed_domain or domain.endswith(f".{allowed_domain}"):
+            return True
+    return False
+
+def _filter_cookies_for_state(raw_cookies):
+    """过滤并标准化Cookie，避免混入无关数据。"""
+    cleaned_map = {}
+    for cookie in raw_cookies or []:
+        name = str(cookie.get("name", "")).strip()
+        value = cookie.get("value")
+        domain = cookie.get("domain", "")
+        if not name or value in (None, ""):
+            continue
+        if not _is_allowed_cookie_domain(domain):
+            continue
+        expires = cookie.get("expires")
+        if not isinstance(expires, (int, float)):
+            expires = 0
+        clean_cookie = {
+            "name": name,
+            "value": value,
+            "domain": domain,
+            "path": cookie.get("path", "/"),
+            "expires": expires,
+            "httpOnly": bool(cookie.get("httpOnly")),
+            "secure": bool(cookie.get("secure")),
+            "sameSite": _normalize_same_site_value(cookie.get("sameSite")),
+        }
+        key = (clean_cookie["name"], clean_cookie["domain"], clean_cookie["path"])
+        existing = cleaned_map.get(key)
+        if not existing or (existing.get("expires", 0) or 0) < (clean_cookie.get("expires", 0) or 0):
+            cleaned_map[key] = clean_cookie
+    cleaned_list = list(cleaned_map.values())
+    cleaned_list.sort(key=lambda item: (item.get("domain", ""), item.get("name", ""), item.get("path", "")))
+    return cleaned_list
+
+def _cookie_fingerprint(cookies) -> str:
+    payload = json.dumps(
+        [
+            {
+                "name": cookie.get("name"),
+                "value": cookie.get("value"),
+                "domain": cookie.get("domain"),
+                "path": cookie.get("path"),
+                "expires": cookie.get("expires"),
+            }
+            for cookie in cookies
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+def _load_account_state(state_file_path: Optional[str]) -> dict:
+    if not state_file_path or not os.path.exists(state_file_path):
+        return {}
+    try:
+        with open(state_file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"LOG: 读取账号状态文件失败: {e}")
+        return {}
+
+def _save_account_state(state_file_path: str, state_data: dict) -> bool:
+    try:
+        with open(state_file_path, "w", encoding="utf-8") as f:
+            json.dump(state_data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"LOG: 写入账号状态文件失败: {e}")
+        return False
+
+async def refresh_account_cookies(context, state_file_path: str, last_fingerprint: Optional[str],
+                                  account_name: Optional[str], task_name: Optional[str]) -> Optional[str]:
+    """每处理一个商品尝试刷新Cookie，仅在发生变化时落盘。"""
+    try:
+        storage_state = await context.storage_state()
+    except Exception as e:
+        print(f"LOG: 获取运行中Cookie失败: {e}")
+        return last_fingerprint
+
+    filtered_cookies = _filter_cookies_for_state(storage_state.get("cookies", []))
+    fingerprint = _cookie_fingerprint(filtered_cookies)
+    if last_fingerprint and fingerprint == last_fingerprint:
+        return last_fingerprint
+
+    state_data = _load_account_state(state_file_path)
+    state_data["cookies"] = filtered_cookies
+    state_data["last_cookie_refresh_at"] = datetime.now().isoformat()
+
+    if _save_account_state(state_file_path, state_data):
+        if account_name:
+            log_time(f"[Cookie刷新] 账号 {account_name} 的Cookie已写回", task_name=task_name)
+    return fingerprint
 
 
 # 统计数据存储目录
@@ -455,6 +697,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 return 0, 0, "NO_ACCOUNT:无可用账号"
 
         snapshot_data = None
+        cookie_fingerprint = None
         try:
             if os.path.exists(state_file_path):
                 with open(state_file_path, "r", encoding="utf-8") as f:
@@ -468,12 +711,18 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
         storage_state_arg = state_file_path
 
         if isinstance(snapshot_data, dict):
+            snapshot_cookies = _filter_cookies_for_state(snapshot_data.get("cookies", []))
+            cookie_fingerprint = _cookie_fingerprint(snapshot_cookies) if snapshot_cookies else None
+            snapshot_data = snapshot_data.copy()
+            snapshot_data["cookies"] = snapshot_cookies
+            use_snapshot_env = _should_use_snapshot_env(snapshot_data)
             # 新版扩展导出的增强快照，包含环境和Header
             if any(key in snapshot_data for key in ("env", "headers", "page", "storage")):
                 print(f"检测到增强浏览器快照，应用环境参数: {state_file_path}")
-                storage_state_arg = {"cookies": snapshot_data.get("cookies", [])}
-                context_kwargs.update(_build_context_overrides(snapshot_data))
+                storage_state_arg = {"cookies": snapshot_cookies}
+                context_kwargs.update(_build_mobile_first_context_overrides(snapshot_data, use_snapshot_env))
                 extra_headers = _build_extra_headers(snapshot_data.get("headers"))
+                extra_headers = _filter_headers_for_mobile_first(extra_headers, use_snapshot_env)
                 if extra_headers:
                     context_kwargs["extra_http_headers"] = extra_headers
             else:
@@ -482,29 +731,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
         context_kwargs = _clean_kwargs(context_kwargs)
         context = await browser.new_context(storage_state=storage_state_arg, **context_kwargs)
 
-        # 增强访问策略适配脚本（模拟真实移动设备）
-        await context.add_init_script("""
-            // 移除webdriver标识
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-
-            // 模拟真实移动设备的navigator属性
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en-US', 'en']});
-
-            // 添加chrome对象
-            window.chrome = {runtime: {}, loadTimes: function() {}, csi: function() {}};
-
-            // 模拟触摸支持
-            Object.defineProperty(navigator, 'maxTouchPoints', {get: () => 5});
-
-            // 覆盖permissions查询（避免暴露自动化）
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications' ?
-                    Promise.resolve({state: Notification.permission}) :
-                    originalQuery(parameters)
-            );
-        """)
+        # 增强访问策略适配脚本（移动端优先，按快照补充）
+        init_script = _build_mobile_init_script(snapshot_data if isinstance(snapshot_data, dict) else None)
+        await context.add_init_script(init_script)
         page = await context.new_page()
 
         try:
@@ -1004,6 +1233,16 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                             
                             # 保存任务统计数据
                             save_task_stats(task_name, processed_item_count, recommended_item_count)
+
+                            # 每处理一个商品尝试刷新Cookie，保持运行期状态最新
+                            if current_account_name and state_file_path:
+                                cookie_fingerprint = await refresh_account_cookies(
+                                    context,
+                                    state_file_path,
+                                    cookie_fingerprint,
+                                    current_account_name,
+                                    task_name,
+                                )
 
                             # --- 修改: 增加单个商品处理后的主要延迟 ---
                             log_time("[请求间隔优化] 执行一次主要的随机延迟以模拟用户浏览间隔...", task_name=task_name)

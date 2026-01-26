@@ -14,6 +14,15 @@ from pydantic import BaseModel
 router = APIRouter()
 STATE_DIR = "state"
 ACTIVE_ACCOUNT_FILE = os.path.join(STATE_DIR, "_active.json")
+SYSTEM_ACCOUNT_FIELDS = {
+    "display_name",
+    "created_at",
+    "last_used_at",
+    "risk_control_count",
+    "risk_control_history",
+    "order",
+    "cookie_status",
+}
 
 
 # ============== 数据模型 ==============
@@ -60,6 +69,17 @@ class RiskControlRecord(BaseModel):
 def ensure_state_dir():
     """确保state目录存在"""
     os.makedirs(STATE_DIR, exist_ok=True)
+
+
+def _merge_state_payload(target: dict, state_data):
+    """自适应合并用户提供的状态数据，保留系统字段。"""
+    if isinstance(state_data, dict):
+        for key, value in state_data.items():
+            if key in SYSTEM_ACCOUNT_FIELDS:
+                continue
+            target[key] = value
+    elif isinstance(state_data, list):
+        target["cookies"] = state_data
 
 
 def get_account_file_path(name: str) -> str:
@@ -235,15 +255,8 @@ async def create_account(account: AccountCreate):
 
     account_data["order"] = (max(existing_orders) + 1) if existing_orders else 0
     
-    # 根据state_data的类型处理：如果是对象则合并，如果是数组则作为cookies
-    if isinstance(state_data, dict):
-        # 保存原始的state数据（cookies, env, headers等）
-        for key in ["cookies", "env", "headers", "page", "storage"]:
-            if key in state_data:
-                account_data[key] = state_data[key]
-    elif isinstance(state_data, list):
-        # 如果是数组，假设是cookies数组
-        account_data["cookies"] = state_data
+    # 根据state_data的类型处理：自适应合并
+    _merge_state_payload(account_data, state_data)
     
     await write_account_file(account.name, account_data)
     
@@ -415,9 +428,7 @@ async def update_account(name: str, update: AccountUpdate):
         try:
             state_data = json.loads(update.state_content)
             # 更新cookies和环境信息，保留其他元数据
-            for key in ["cookies", "env", "headers", "page", "storage"]:
-                if key in state_data:
-                    data[key] = state_data[key]
+            _merge_state_payload(data, state_data)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Cookie内容不是有效的JSON格式")
     
