@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import base64
 import json
 import os
@@ -22,11 +23,14 @@ from src.config import (
     IMAGE_SAVE_DIR,
     TASK_IMAGE_DIR_PREFIX,
     MODEL_NAME,
+    AI_VISION_ENABLED,
     ENABLE_RESPONSE_FORMAT,
-    SEND_URL_FORMAT_IMAGE,
     client,
 )
 from src.utils import retry_on_failure
+
+# 商品图片数量上限：站点固定最多9张，运行期用常量兜底
+MAX_PRODUCT_IMAGE_COUNT = 9
 
 # 动态加载通知配置的函数
 def get_dynamic_config():
@@ -215,12 +219,88 @@ def encode_image_to_base64(image_path):
         return None
 
 
+# 推荐等级与推荐判定集合（运行期与下游消费保持一致口径）
+RECOMMENDATION_LEVELS = {
+    "STRONG_BUY",
+    "CAUTIOUS_BUY",
+    "CONDITIONAL_BUY",
+    "NOT_RECOMMENDED",
+}
+RECOMMENDED_LEVELS = {
+    "STRONG_BUY",
+    "CAUTIOUS_BUY",
+    "CONDITIONAL_BUY",
+}
+
+
+def _is_recommended_level(level):
+    """根据推荐等级判断是否属于推荐集合。"""
+    return isinstance(level, str) and level in RECOMMENDED_LEVELS
+
+
+def _backfill_and_normalize_ai_response(parsed_response):
+    """对新结构字段做最小回填与归一化，避免下游出现空字段。"""
+    if not isinstance(parsed_response, dict):
+        return parsed_response
+
+    level = parsed_response.get("recommendation_level")
+    is_recommended = parsed_response.get("is_recommended")
+
+    # 若缺少推荐等级但有布尔推荐结论，做最小映射回填
+    if level not in RECOMMENDATION_LEVELS and isinstance(is_recommended, bool):
+        parsed_response["recommendation_level"] = "STRONG_BUY" if is_recommended else "NOT_RECOMMENDED"
+        safe_print("   [AI分析] 警告：缺少recommendation_level，已基于is_recommended回填")
+        level = parsed_response["recommendation_level"]
+
+    # 若有推荐等级但布尔值缺失或不一致，以推荐等级为准
+    if level in RECOMMENDATION_LEVELS:
+        expected_bool = _is_recommended_level(level)
+        if not isinstance(is_recommended, bool) or is_recommended != expected_bool:
+            parsed_response["is_recommended"] = expected_bool
+            safe_print("   [AI分析] 警告：is_recommended与recommendation_level不一致，已按等级修正")
+
+    # action_required/risk_tags 统一为列表，避免前端/通知类型错误
+    if not isinstance(parsed_response.get("action_required"), list):
+        parsed_response["action_required"] = []
+    if not isinstance(parsed_response.get("risk_tags"), list):
+        parsed_response["risk_tags"] = []
+
+    # 置信度统一归一化到 0-1 区间（兼容 0-100 的旧输出）
+    confidence_score = parsed_response.get("confidence_score")
+    if isinstance(confidence_score, (int, float)):
+        normalized_score = float(confidence_score)
+        if normalized_score > 1.0 and normalized_score <= 100.0:
+            normalized_score = normalized_score / 100.0
+            safe_print("   [AI分析] 警告：confidence_score疑似0-100区间，已归一化到0-1")
+        if normalized_score < 0.0 or normalized_score > 1.0:
+            normalized_score = min(1.0, max(0.0, normalized_score))
+            safe_print("   [AI分析] 警告：confidence_score超出范围，已截断到0-1")
+        parsed_response["confidence_score"] = round(normalized_score, 4)
+    else:
+        # 若缺失置信度，提供最小兜底值，避免下游空值判断异常
+        fallback_score = 0.9 if parsed_response.get("is_recommended") else 0.0
+        parsed_response["confidence_score"] = fallback_score
+        safe_print("   [AI分析] 警告：缺少confidence_score，已使用兜底值")
+
+    return parsed_response
+
+
 def validate_ai_response_format(parsed_response):
-    """验证AI响应的格式是否符合预期结构"""
+    """验证AI响应是否符合新结构要求（含最小回填与类型校验）。"""
+    if not isinstance(parsed_response, dict):
+        safe_print("   [AI分析] 警告：AI响应不是字典结构")
+        return False
+
+    # 先做一次最小回填与归一化，降低下游出现空字段的概率
+    _backfill_and_normalize_ai_response(parsed_response)
+
     required_fields = [
         "prompt_version",
+        "recommendation_level",
+        "confidence_score",
         "is_recommended",
         "reason",
+        "action_required",
         "risk_tags",
         "criteria_analysis"
     ]
@@ -243,8 +323,22 @@ def validate_ai_response_format(parsed_response):
         return False
 
     # 检查数据类型
+    recommendation_level = parsed_response.get("recommendation_level")
+    if recommendation_level not in RECOMMENDATION_LEVELS:
+        safe_print("   [AI分析] 警告：recommendation_level不在允许集合内")
+        return False
+
+    confidence_score = parsed_response.get("confidence_score")
+    if not isinstance(confidence_score, (int, float)) or not (0.0 <= float(confidence_score) <= 1.0):
+        safe_print("   [AI分析] 警告：confidence_score必须为0-1之间的数值")
+        return False
+
     if not isinstance(parsed_response.get("is_recommended"), bool):
         safe_print("   [AI分析] 警告：is_recommended字段不是布尔类型")
+        return False
+
+    if not isinstance(parsed_response.get("action_required"), list):
+        safe_print("   [AI分析] 警告：action_required字段不是列表类型")
         return False
 
     if not isinstance(parsed_response.get("risk_tags"), list):
@@ -291,14 +385,17 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
     item_info = product_data.get('商品信息', {})
     product_id = item_info.get('商品ID', 'N/A')
 
-    # 计算实际要使用的图片数量
-    if SEND_URL_FORMAT_IMAGE():
-        product_info = product_data.get('商品信息', {})
-        image_urls = product_info.get('商品图片列表', [])
-        actual_image_count = len([url for url in image_urls if url and url.startswith('http')])
-    else:
-        actual_image_count = len(image_paths or [])
-    
+    # 统一从商品图片列表字段提取URL，避免重复注入image_url导致冗余
+    product_info = product_data.get('商品信息', {})
+    raw_image_urls = product_info.get('商品图片列表', [])
+    valid_image_urls = [
+        url for url in raw_image_urls
+        if isinstance(url, str) and url.startswith('http')
+    ]
+    actual_image_count = len(valid_image_urls)
+    ai_vision_enabled = AI_VISION_ENABLED()
+    has_image_input = actual_image_count > 0 and ai_vision_enabled
+
     safe_print(f"\n   [AI分析] 开始分析商品 #{product_id} (含 {actual_image_count} 张图片)...")
     safe_print(f"   [AI分析] 标题: {item_info.get('商品标题', '无')}")
 
@@ -306,8 +403,24 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
         safe_print("   [AI分析] 错误：未提供AI分析所需的prompt文本。")
         return None
 
-    product_details_json = json.dumps(product_data, ensure_ascii=False, indent=2)
     system_prompt = prompt_text
+
+    # 为提示词构造一个可控的payload副本，必要时按上限裁剪图片URL列表
+    product_payload = copy.deepcopy(product_data)
+    payload_info = product_payload.get('商品信息', {})
+    selected_urls = []
+
+    if valid_image_urls:
+        selected_urls = valid_image_urls[:MAX_PRODUCT_IMAGE_COUNT]
+        payload_info['商品图片列表'] = selected_urls
+        safe_print(
+            f"   [AI分析] 商品图片列表已按站点上限裁剪为 {len(selected_urls)} / {MAX_PRODUCT_IMAGE_COUNT}"
+        )
+    else:
+        safe_print("   [AI分析] 商品图片列表为空或无有效URL")
+    product_payload['商品信息'] = payload_info
+
+    product_details_json = json.dumps(product_payload, ensure_ascii=False, indent=2)
 
     if AI_DEBUG_MODE():
         safe_print("\n--- [AI DEBUG] ---")
@@ -317,6 +430,19 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
         safe_print(prompt_text)
         safe_print("-------------------\n")
 
+    multimodal_instruction = ""
+    if has_image_input:
+        multimodal_instruction = (
+            "\n补充说明：商品JSON中的“商品图片列表”字段提供图片URL列表。"
+            "如可访问这些图片，请将其用于成色、瑕疵、真实性与关键细节完整性的视觉评估，"
+            "并在证据或结论中体现图片带来的判断依据；如无法访问图片，也要明确标注证据不足。"
+        )
+    elif actual_image_count > 0:
+        multimodal_instruction = (
+            "\n补充说明：已发现商品图片URL，但当前未开启AI多模态输入，请仅依据文本信息判断，"
+            "并明确标注“视觉证据不足”。"
+        )
+
     combined_text_prompt = f"""请基于你的专业知识和我的要求，分析以下完整的商品JSON数据：
 
 ```json
@@ -324,31 +450,23 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
 ```
 
 {system_prompt}
-"""
+{multimodal_instruction}
+    """
     user_content_list = []
 
-    # 先添加图片内容
-    if image_paths:
-        # 如果设置为发送URL格式图片，直接使用图片URL，跳过图片下载步骤
-        if SEND_URL_FORMAT_IMAGE():
-            # 从商品信息中获取原始图片URLs
-            product_info = product_data.get('商品信息', {})
-            image_urls = product_info.get('商品图片列表', [])
-            # 添加有效的图片URL到消息中
-            for url in image_urls:
-                if url and url.startswith('http'):
-                    user_content_list.append(
-                        {"type": "image_url", "image_url": {"url": url}})
-        else:
-            # 否则使用base64编码方式
-            for path in image_paths:
-                base64_image = encode_image_to_base64(path)
-                if base64_image:
-                    user_content_list.append(
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
+    # 多模态输入由开关控制，开启后追加image_url
 
     # 再添加文本内容
     user_content_list.append({"type": "text", "text": combined_text_prompt})
+
+    if ai_vision_enabled and selected_urls:
+        for url in selected_urls:
+            user_content_list.append({"type": "image_url", "image_url": {"url": url}})
+        safe_print(f"   [AI分析] 多模态已启用，已附加 {len(selected_urls)} 张图片")
+    elif ai_vision_enabled and actual_image_count == 0:
+        safe_print("   [AI分析] 多模态已启用，但商品图片列表为空")
+    elif not ai_vision_enabled:
+        safe_print("   [AI分析] 多模态未启用，仅发送文本给模型")
 
     messages = [{"role": "user", "content": user_content_list}]
 
@@ -389,7 +507,6 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                 "model": MODEL_NAME(),
                 "messages": messages,
                 "temperature": current_temperature,
-                "max_tokens": 4000
             }
             
             # 只有启用response_format时才添加该参数
@@ -420,6 +537,21 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                 # 验证响应格式
                 if validate_ai_response_format(parsed_response):
                     safe_print(f"   [AI分析] 第{attempt + 1}次尝试成功，响应格式验证通过")
+                    
+                    # 新增: 计算多维度推荐度
+                    try:
+                        from src.recommendation_scorer import RecommendationScorer
+                        scorer = RecommendationScorer()
+                        recommendation_result = scorer.calculate(product_data, parsed_response)
+                        parsed_response['recommendation_score_v2'] = recommendation_result
+                        safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
+                        safe_print(f"   [推荐度] 贝叶斯: {recommendation_result['bayesian']['score']*100:.1f}分 | "
+                                 f"视觉AI: {recommendation_result['visual_ai']['score']*100:.1f}分 | "
+                                 f"AI置信: {recommendation_result['fusion']['ai_score']:.1f}分")
+                    except Exception as scorer_error:
+                        safe_print(f"   [推荐度] 计算推荐度时出错(不影响主流程): {scorer_error}")
+                        # 推荐度计算失败不影响主流程，继续返回原始AI分析
+                    
                     return parsed_response
                 else:
                     safe_print(f"   [AI分析] 第{attempt + 1}次尝试格式验证失败")
@@ -428,6 +560,17 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                         continue
                     else:
                         safe_print("   [AI分析] 所有重试完成，使用最后一次结果")
+                        
+                        # 新增: 计算多维度推荐度
+                        try:
+                            from src.recommendation_scorer import RecommendationScorer
+                            scorer = RecommendationScorer()
+                            recommendation_result = scorer.calculate(product_data, parsed_response)
+                            parsed_response['recommendation_score_v2'] = recommendation_result
+                            safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
+                        except Exception as scorer_error:
+                            safe_print(f"   [推荐度] 计算推荐度时出错: {scorer_error}")
+                        
                         return parsed_response
 
             except json.JSONDecodeError:
@@ -453,6 +596,17 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                         parsed_response = json.loads(json_str)
                         if validate_ai_response_format(parsed_response):
                             safe_print(f"   [AI分析] 第{attempt + 1}次尝试清理后成功")
+                            
+                            # 新增: 计算多维度推荐度
+                            try:
+                                from src.recommendation_scorer import RecommendationScorer
+                                scorer = RecommendationScorer()
+                                recommendation_result = scorer.calculate(product_data, parsed_response)
+                                parsed_response['recommendation_score_v2'] = recommendation_result
+                                safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
+                            except Exception as scorer_error:
+                                safe_print(f"   [推荐度] 计算推荐度时出错: {scorer_error}")
+                            
                             return parsed_response
                         else:
                             if attempt < max_retries - 1:
@@ -460,6 +614,17 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                                 continue
                             else:
                                 safe_print("   [AI分析] 所有重试完成，使用清理后的结果")
+                                
+                                # 新增: 计算多维度推荐度
+                                try:
+                                    from src.recommendation_scorer import RecommendationScorer
+                                    scorer = RecommendationScorer()
+                                    recommendation_result = scorer.calculate(product_data, parsed_response)
+                                    parsed_response['recommendation_score_v2'] = recommendation_result
+                                    safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
+                                except Exception as scorer_error:
+                                    safe_print(f"   [推荐度] 计算推荐度时出错: {scorer_error}")
+                                
                                 return parsed_response
                     except json.JSONDecodeError as e:
                         safe_print(f"   [AI分析] 第{attempt + 1}次尝试清理后JSON解析仍然失败: {e}")
