@@ -5,6 +5,7 @@ import aiofiles
 import json
 import sys
 import signal
+import subprocess
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -22,7 +23,7 @@ router = APIRouter()
 CONFIG_FILE = "config.json"
 
 
-async def update_task_running_status(task_id: int, is_running: bool):
+async def update_task_running_status(task_id: int, is_running: bool, process_pid=None):
     """更新 config.json 中指定任务的 is_running 状态。"""
     try:
         async with aiofiles.open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -30,10 +31,37 @@ async def update_task_running_status(task_id: int, is_running: bool):
 
         if 0 <= task_id < len(tasks):
             tasks[task_id]['is_running'] = is_running
+            if process_pid is not None:
+                tasks[task_id]['process_pid'] = process_pid
+            elif not is_running and 'process_pid' in tasks[task_id]:
+                tasks[task_id]['process_pid'] = None
             async with aiofiles.open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 await f.write(json.dumps(tasks, ensure_ascii=False, indent=2))
     except Exception as e:
         print(f"更新任务 {task_id} 状态时出错: {e}")
+
+
+def _terminate_pid(pid: int) -> None:
+    """尽量终止指定 PID（Windows 优先 taskkill /T /F）。"""
+    if not pid:
+        return
+    if sys.platform != "win32":
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+        except Exception:
+            return
+    else:
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except Exception:
+            return
 
 
 async def start_task_process(task_id: int, task_name: str, fetcher_processes):
@@ -62,7 +90,7 @@ async def start_task_process(task_id: int, task_name: str, fetcher_processes):
         fetcher_processes[task_id] = process
         sys_log(f"启动任务 '{task_name}' (PID: {process.pid})，日志输出到 {log_file_path}")
 
-        await update_task_running_status(task_id, True)
+        await update_task_running_status(task_id, True, process.pid)
 
         async def monitor_process():
             try:
@@ -81,28 +109,42 @@ async def start_task_process(task_id: int, task_name: str, fetcher_processes):
 async def stop_task_process(task_id: int, fetcher_processes):
     """内部函数：停止一个指定的任务进程。"""
     process = fetcher_processes.get(task_id)
+    task_name = f"任务ID {task_id}"
+    process_pid = None
+    try:
+        async with aiofiles.open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            tasks = json.loads(await f.read())
+        if 0 <= task_id < len(tasks):
+            task_name = tasks[task_id].get('task_name', task_name)
+            process_pid = tasks[task_id].get('process_pid')
+    except Exception as e:
+        print(f"获取任务ID {task_id} 的任务信息时出错: {e}")
+
     if not process or process.returncode is not None:
-        sys_log(f"任务ID {task_id} 没有正在运行的进程。")
+        if process_pid:
+            _terminate_pid(process_pid)
+            sys_log(f"任务 '{task_name}' (ID: {task_id}) 已尝试强制终止遗留进程 PID: {process_pid}")
+        else:
+            sys_log(f"任务ID {task_id} 没有正在运行的进程。")
         await update_task_running_status(task_id, False)
         if task_id in fetcher_processes:
             del fetcher_processes[task_id]
         return
 
     try:
-        async with aiofiles.open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            tasks = json.loads(await f.read())
-        task_name = tasks[task_id]['task_name']
-    except Exception as e:
-        print(f"获取任务ID {task_id} 的任务名称时出错: {e}")
-        task_name = f"任务ID {task_id}"
-
-    try:
         if sys.platform != "win32":
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
         else:
-            process.terminate()
+            _terminate_pid(process.pid)
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                pass
 
-        await process.wait()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            sys_log(f"任务 '{task_name}' (ID: {task_id}) 停止等待超时，已尝试强制终止。", "WARNING")
         sys_log(f"任务进程 {process.pid} (ID: {task_id}) 已终止。")
 
         try:
@@ -140,6 +182,7 @@ async def get_tasks():
                 task.setdefault("brand_new", False)
                 task.setdefault("strict_selected", False)
                 task.setdefault("resale", False)
+                task.setdefault("bayes_profile", "bayes_v1")
             return tasks
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"配置文件 {CONFIG_FILE} 未找到。")
@@ -211,8 +254,10 @@ async def generate_task(req: TaskGenerateRequestWithReference):
         "max_price": req.max_price,
         "cron": req.cron,
         "description": req.description,
-        "ai_prompt_base_file": "prompts/base_prompt.txt",
+        # 使用用户选择的参考模板作为来源，未选择时回退到默认模板
+        "ai_prompt_base_file": req.reference_file or "prompts/base_prompt.txt",
         "ai_prompt_criteria_file": requirement_filename,
+        "bayes_profile": req.bayes_profile or "bayes_v1",
         "is_running": False,
         "free_shipping": req.free_shipping,
         "new_publish_option": req.new_publish_option,
@@ -393,6 +438,7 @@ async def create_task(task: Task):
     task.resale = bool(task.resale)
     task.new_publish_option = task.new_publish_option or None
     task.region = task.region or None
+    task.bayes_profile = task.bayes_profile or "bayes_v1"
 
     success = await add_task(task)
     if not success:
@@ -455,6 +501,8 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
         update_data["new_publish_option"] = update_data["new_publish_option"] or None
     if "region" in update_data:
         update_data["region"] = update_data["region"] or None
+    if "bayes_profile" in update_data:
+        update_data["bayes_profile"] = update_data["bayes_profile"] or "bayes_v1"
 
     if 'description' in update_data:
         update_data['generating_ai_criteria'] = True
@@ -479,6 +527,8 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
 
                     print(f"新的标准文件已保存到: {criteria_filename}")
 
+                    # 记录本次生成所使用的参考模板来源，便于前端展示
+                    task['ai_prompt_base_file'] = reference_file or "prompts/base_prompt.txt"
                     task['ai_prompt_criteria_file'] = criteria_filename
                     task['generating_ai_criteria'] = False
 
@@ -492,11 +542,16 @@ async def update_task_api(task_id: int, task_update: TaskUpdate, background_task
                 task['generating_ai_criteria'] = False
                 await update_task(task_id, task)
 
+        # 透传前端选择的参考模板；未选择时回退到默认模板
+        reference_file_to_use = update_data.get('reference_file') or "prompts/base_prompt.txt"
+        # reference_file 仅用于本次生成，不应写回任务配置
+        update_data.pop('reference_file', None)
         background_tasks.add_task(
             generate_ai_criteria_background,
             task_id,
             task.model_dump(),
-            update_data['description']
+            update_data['description'],
+            reference_file_to_use,
         )
 
     if 'enabled' in update_data and not update_data['enabled']:
