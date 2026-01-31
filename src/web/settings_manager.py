@@ -2,7 +2,7 @@ import os
 import aiofiles
 import json
 from fastapi import APIRouter, HTTPException
-from src.web.models import NotificationSettings, GenericSettings, NewPromptRequest, PromptUpdate, LoginStateUpdate
+from src.web.models import NotificationSettings, GenericSettings, NewPromptRequest, PromptUpdate, LoginStateUpdate, BayesUpdate
 from src.config import get_env_value, get_bool_env_value, save_env_settings
 
 
@@ -188,6 +188,99 @@ async def update_prompt_content(filename: str, prompt_update: PromptUpdate):
         raise HTTPException(status_code=500, detail=f"写入 Prompt 文件时出错: {e}")
 
 
+@router.get("/api/bayes")
+async def list_bayes_profiles():
+    """列出 prompts/bayes/ 目录下的所有 .json 文件。"""
+    BAYES_DIR = os.path.join("prompts", "bayes")
+    if not os.path.isdir(BAYES_DIR):
+        return []
+    return [f for f in os.listdir(BAYES_DIR) if f.endswith(".json")]
+
+
+@router.post("/api/bayes")
+async def create_bayes_profile(new_profile: NewPromptRequest):
+    """创建一个新的 Bayes 参数文件。"""
+    BAYES_DIR = os.path.join("prompts", "bayes")
+    if "/" in new_profile.filename or ".." in new_profile.filename:
+        raise HTTPException(status_code=400, detail="无效的文件名。")
+
+    if not new_profile.filename.endswith(".json"):
+        new_profile.filename += ".json"
+
+    filepath = os.path.join(BAYES_DIR, new_profile.filename)
+    if os.path.exists(filepath):
+        raise HTTPException(status_code=400, detail="该文件名已存在。")
+
+    try:
+        os.makedirs(BAYES_DIR, exist_ok=True)
+        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+            await f.write(new_profile.content)
+        return {"message": f"Bayes 文件 '{new_profile.filename}' 创建成功。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建 Bayes 文件时出错: {e}")
+
+
+@router.get("/api/bayes/{filename}")
+async def get_bayes_profile(filename: str):
+    """获取指定 Bayes 参数文件的内容。"""
+    if "/" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="无效的文件名。")
+    BAYES_DIR = os.path.join("prompts", "bayes")
+    filepath = os.path.join(BAYES_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+
+    async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
+        content = await f.read()
+    return {"filename": filename, "content": content}
+
+
+@router.put("/api/bayes/{filename}")
+async def update_bayes_profile(filename: str, bayes_update: BayesUpdate):
+    """更新指定 Bayes 参数文件的内容。"""
+    if "/" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="无效的文件名。")
+    BAYES_DIR = os.path.join("prompts", "bayes")
+    filepath = os.path.join(BAYES_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+
+    try:
+        async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+            await f.write(bayes_update.content)
+        return {"message": f"Bayes 文件 '{filename}' 更新成功。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"写入 Bayes 文件时出错: {e}")
+
+
+@router.delete("/api/bayes/{filename}")
+async def delete_bayes_profile(filename: str):
+    """删除指定的 Bayes 参数文件。"""
+    if "/" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="无效的文件名。")
+    BAYES_DIR = os.path.join("prompts", "bayes")
+    filepath = os.path.join(BAYES_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+
+    try:
+        os.remove(filepath)
+        return {"message": f"Bayes 文件 '{filename}' 删除成功。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除 Bayes 文件时出错: {e}")
+
+
+
+@router.get("/api/guides/bayes")
+async def get_bayes_guide():
+    """??Bayes??????????"""
+    guide_path = os.path.join("prompts", "guide", "bayes_guide.md")
+    if not os.path.exists(guide_path):
+        raise HTTPException(status_code=404, detail="Bayes????????")
+    async with aiofiles.open(guide_path, 'r', encoding='utf-8') as f:
+        content = await f.read()
+    return {"filename": "bayes_guide.md", "content": content}
+
 @router.delete("/api/prompts/{filename}")
 async def delete_prompt(filename: str):
     """删除指定的 prompt 文件。"""
@@ -303,13 +396,21 @@ async def update_notification_settings(settings: NotificationSettings):
 async def get_generic_settings():
     """获取通用设置。"""
     generic_keys = [
-        "LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING",
-        "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "SERVER_PORT", "WEB_USERNAME", "WEB_PASSWORD"
+        "LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE",
+        "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "AI_VISION_ENABLED",
+        "SERVER_PORT", "WEB_USERNAME", "WEB_PASSWORD"
     ]
     
     settings = {}
     for key in generic_keys:
-        if key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE"]:
+        if key in [
+            "LOGIN_IS_EDGE",
+            "RUN_HEADLESS",
+            "AI_DEBUG_MODE",
+            "ENABLE_THINKING",
+            "ENABLE_RESPONSE_FORMAT",
+            "AI_VISION_ENABLED",
+        ]:
             settings[key] = get_bool_env_value(key)
         elif key == "SERVER_PORT":
             settings[key] = int(get_env_value(key, 8000))
@@ -325,8 +426,9 @@ async def update_generic_settings(settings: GenericSettings):
     try:
         settings_dict = settings.model_dump(exclude_none=True)
         generic_keys = [
-            "LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING",
-            "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "SERVER_PORT", "WEB_USERNAME", "WEB_PASSWORD"
+            "LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE",
+            "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "AI_VISION_ENABLED",
+            "SERVER_PORT", "WEB_USERNAME", "WEB_PASSWORD"
         ]
         
         save_env_settings(settings_dict, generic_keys)
@@ -342,7 +444,14 @@ async def update_generic_settings(settings: GenericSettings):
 @router.get("/api/settings/ai")
 async def get_ai_settings():
     """获取AI模型设置。"""
-    ai_keys = ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL_NAME", "PROXY_URL"]
+    ai_keys = [
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_MODEL_NAME",
+        "PROXY_URL",
+        "AI_MAX_TOKENS_PARAM_NAME",
+        "AI_MAX_TOKENS_LIMIT",
+    ]
     
     settings = {}
     for key in ai_keys:
@@ -355,10 +464,82 @@ async def get_ai_settings():
 async def update_ai_settings(settings: dict):
     """更新AI模型设置。"""
     try:
-        ai_keys = ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL_NAME", "PROXY_URL"]
+        ai_keys = [
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENAI_MODEL_NAME",
+            "PROXY_URL",
+            "AI_MAX_TOKENS_PARAM_NAME",
+            "AI_MAX_TOKENS_LIMIT",
+        ]
         save_env_settings(settings, ai_keys)
         from src.config import reload_config
         reload_config()
         return {"message": "AI模型设置已成功更新。"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新AI模型设置时出错: {e}")
+
+
+@router.get("/api/settings/proxy")
+async def get_proxy_settings():
+    """获取代理设置。"""
+    proxy_keys = [
+        "PROXY_URL",
+        "PROXY_AI_ENABLED",
+        "PROXY_NTFY_ENABLED",
+        "PROXY_GOTIFY_ENABLED",
+        "PROXY_BARK_ENABLED",
+        "PROXY_WX_BOT_ENABLED",
+        "PROXY_WX_APP_ENABLED",
+        "PROXY_TELEGRAM_ENABLED",
+        "PROXY_WEBHOOK_ENABLED",
+        "PROXY_DINGTALK_ENABLED",
+    ]
+
+    bool_keys = {
+        "PROXY_AI_ENABLED",
+        "PROXY_NTFY_ENABLED",
+        "PROXY_GOTIFY_ENABLED",
+        "PROXY_BARK_ENABLED",
+        "PROXY_WX_BOT_ENABLED",
+        "PROXY_WX_APP_ENABLED",
+        "PROXY_TELEGRAM_ENABLED",
+        "PROXY_WEBHOOK_ENABLED",
+        "PROXY_DINGTALK_ENABLED",
+    }
+
+    settings = {}
+    for key in proxy_keys:
+        settings[key] = get_bool_env_value(key) if key in bool_keys else get_env_value(key, "")
+
+    return settings
+
+
+@router.put("/api/settings/proxy")
+async def update_proxy_settings(settings: dict):
+    """更新代理设置。"""
+    try:
+        proxy_keys = [
+            "PROXY_URL",
+            "PROXY_AI_ENABLED",
+            "PROXY_NTFY_ENABLED",
+            "PROXY_GOTIFY_ENABLED",
+            "PROXY_BARK_ENABLED",
+            "PROXY_WX_BOT_ENABLED",
+            "PROXY_WX_APP_ENABLED",
+            "PROXY_TELEGRAM_ENABLED",
+            "PROXY_WEBHOOK_ENABLED",
+            "PROXY_DINGTALK_ENABLED",
+        ]
+        save_env_settings(settings, proxy_keys)
+
+        # 代理配置会影响AI与通知渠道，两侧都需要重新加载
+        from src.config import reload_config
+        reload_config()
+
+        from src.notifier import config as notifier_config
+        notifier_config.reload()
+
+        return {"message": "代理设置已成功更新。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新代理设置时出错: {e}")
