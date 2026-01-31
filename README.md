@@ -3,9 +3,9 @@
 </a>
 
 
-# 咸鱼AI智能监控机器人
-基于 Playwright 和 AI 的闲鱼多任务实时监控工具机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
-基于原仓库地址代码：[Usagi-org/ai-goofish-monitor](https://github.com/Usagi-org/ai-goofish-monitor) 大量修改优化代码与操作逻辑调整到更舒适的使用体验风格。
+# 咸鱼AI智能推荐机器人
+基于 Playwright 和 AI 的朴素贝叶斯模型+AI人群画像判断+AI视觉判断加权推荐的闲鱼智能推荐机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
+脱胎于：[Usagi-org/ai-goofish-monitor](https://github.com/Usagi-org/ai-goofish-monitor) 大量修改优化代码与操作逻辑添加了朴素贝叶斯网模型与ai多模态视觉模型评分与人群画像评分，支持微调评分参数与长期迭代置信模型样本，且调整到更舒适的UI与使用体验。
 - 本项目仅供学习和技术研究使用，请勿用于非法用途。
 - 请遵守闲鱼的用户协议和robots.txt规则，不要进行过于频繁的请求，以免对服务器造成负担或导致账号被限制。
 
@@ -17,7 +17,8 @@
 - **Web管理界面**：提供直观清晰的Web UI，方便配置和管理，多端UI配适，支持PC端，移动端，pad端多端登录管理
 - **定时商品监控**：定时监控咸鱼平台上的商品信息与新上，支持验货宝 / 验号担保 / 包邮 / 新发布时间 / 区域等筛选逻辑
 - **高度可定制**: 每个监控任务均可配置独立的关键词、价格范围、个性需求，筛选条件和AI分析指令 (Prompt)。
-- **AI智能分析**：利用AI自动分析商品信息，结合商品图文和卖家画像进行深度分析，精准筛选符合条件的商品，并且给出个性化建议
+- **AI评分体系**：有完善评分标准利用AI自动分析商品信息，结合商品图文和卖家画像进行深度分析，精准筛选符合条件的商品，在推荐分数计分板ai推荐显示逻辑更透明。
+- **贝叶斯模型评分体系**综合卖家注册时长，卖家好评率，卖家信用等级，销售比例，商品使用年限，发布新鲜度，担保服务八个维度参数进行模型先验计算，与ai评分体系加权推荐。
 - **多种通知方式**：企业微信群机器人、企业微信应用通知、钉钉机器人、支持Ntfy、Gotify、Bark、Telegram等多种通知渠道
 - **多任务管理**：支持配置多个监控任务，每个任务可以设置不同的关键词、价格范围等、支持并发运行
 - **多账号管理**：支持多咸鱼账号管理界面，支持任务绑定账号，风控自动切换账号保证任务续航
@@ -35,24 +36,16 @@
   </p>
 </div>
 
-<div align="center" style="margin: 2em 0;">
-  <img src="images/Example/0.9.8/结果查看.png" 
-       style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
-       alt="新结果管理界面">
-  <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
-    新结果管理界面
-  </p>
 
-</div>
-
-<details>
-<summary>其他界面展示</summary>
-
-| 账号管理界面 | 定时任务界面 |
+| 结果管理界面 | AI评分界面 |
 |:---:|:---:|
-| ![账号管理界面](images/Example/0.9.8/账号管理.png) | ![定时任务界面](images/Example/0.9.8/定时任务.png) |
+| ![结果管理界面](images/Example/0.9.9/结果查看01.png) | ![AI打分界面](images/Example/0.9.9/结果查看02.png) |
 
-</details>
+
+
+
+
+
 
 
 <details open>
@@ -60,7 +53,7 @@
 
 | 账号管理-移动端 | 任务管理-移动端 | 结果查看-移动端 |定时任务-移动端 |
 |:---:|:---:|:---:|:---:|
-| ![账号管理-移动端效果](images/Example/0.9.8/账号管理-移动端.jpg) | ![任务管理-移动端效果](images/Example/0.9.8/任务管理-移动端.jpg) | ![结果查看-移动端效果](images/Example/0.9.8/结果查看-移动端.jpg) |![定时任务-移动端效果](images/Example/0.9.8/定时任务-移动端.jpg) |
+| ![账号管理-移动端效果](images/Example/0.9.8/账号管理-移动端.jpg) | ![任务管理-移动端效果](images/Example/0.9.8/任务管理-移动端.jpg) | ![结果查看-移动端效果](images/Example/0.9.9/结果查看-移动端.jpg) |![定时任务-移动端效果](images/Example/0.9.8/定时任务-移动端.jpg) |
 
 </details>
 
@@ -72,6 +65,23 @@
 | ![微信应用通知渠道效果](images/Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](images/Example/0.9.2/微信群机器人通知渠道0101.jpg) | ![Telegram通知渠道效果](images/Example/0.9.2/Telegram通知渠道0101.jpg) |![Telegram通知渠道效果](images/Example/0.9.7/钉钉.jpg) |
 
 </details>
+
+
+
+
+</div>
+
+<details>
+<summary>其他界面展示</summary>
+
+| 账号管理界面 | 定时任务界面 |
+|:---:|:---:|
+| ![账号管理界面](images/Example/0.9.8/账号管理.png) | ![定时任务界面](images/Example/0.9.8/定时任务.png) |
+
+![贝叶斯模型管理界面](images/Example/0.9.9/贝叶斯模型管理.png)
+</details>
+
+
 
 # token消耗
 
@@ -99,7 +109,23 @@
 
 # 🆕 新特性
 **近期更新：**
+
 <details open>
+<summary>v0.9.9 更新日志 - 2026-01-31</summary>
+
+  <ul>
+    <li><strong>推荐策略重构升级</strong>：重构了ai推荐模型，现在使用朴素贝叶斯网模型先验+ai视觉模型判断+ai综合融合加权评分，现在我们有完整的评分体系和推荐分数了</li>
+    <li><strong>添加了代理设置tab</strong>：对模型和渠道都单独设置了代理开关</li>
+    <li><strong>多模态功能强化升级</strong>：强化启用了多模态模型的ai视觉功能，在推荐和评分中发挥重要的作用</li>
+    <li><strong>更新了base_prompt</strong>：配适0.9.9推荐模型和工作流</li>
+    <li><strong>新添bayes管理tab</strong>：能更加细致定制筛选和推荐模型</li>
+    <li><strong>优化了cookie容易失效情况</strong>：优化了cookie容易失效的情况，添加了cookie回填功能</li>
+    <li><strong>修复了其他一些已知问题</strong>
+
+</details>
+
+
+<details>
 <summary>v0.9.8 更新日志 - 2026-01-25</summary>
 
   <ul>
@@ -266,8 +292,10 @@
 -  **自然语言定制推荐**：每个任务都可以单独给 ai 分析配备独立的判断逻辑和分析思路，可以单独制定一条纯自然语言的推荐逻辑，可以通过编辑`prompt`列本来定制。**例如**：从卖家曾经的评论和出售的商品**判断**是否是二手贩子还是个人卖家，我要个人卖家的推荐
 -  **多线程**：下图描述了单个监控任务从启动到完成的核心处理逻辑。在实际使用中，`web_server.py` 会作为主服务，根据用户操作或定时调度来启动一个或多个这样的任务进程。
 
+<div style="width: 500px; margin: 0 auto;">
 
 ```mermaid
+
 graph TD
     %% 1. 定义节点和形状，提高可读性
     A([开始]) --> B["搜索商品"]
@@ -297,44 +325,99 @@ graph TD
     B --> L{触发风控/异常?};
     L -- 是 --> M[账号轮换并重试];
     M --> B;
+
 ```
+
+</div>
+
 
 
 **多维度**：ai会根据`collector.py`获取回来的数据进行分类分析，再加上定制化需求判断后得出推荐/不推荐结论，最后所有数据存储入jsonl里，并且条件满足就会触发通知渠道。
 
+<div style="width: 800px; margin: 0 auto;">
+
 ```mermaid
 mindmap
-  root((<b>AI分析记录解读</b>))
-    卖家人群画像分析
-      交易时间维度
-        <b>结论</b>：符合个人卖家特征
-        <b>依据</b>：交易记录横跨数年，间隔期长
-      售卖行为维度
-        <b>结论</b>：售卖个人闲置
-        <b>依据</b>：商品品类多元，无批量同类型商品
-      购买行为维度
-        <b>结论</b>：佐证个人消费属性
-        <b>依据</b>：购买记录为个人闲置物品，无进货迹象
-      行为逻辑总结
-        <b>结论</b>：个人卖家身份可信度高
-        <b>依据</b>：行为逻辑链完整，售卖个人闲置
-    其他分析维度
+  root((<b>推荐模型</b>))
+    <b>贝叶斯模型处理用户评分40%</b>
+      卖家人群画像分析
+        交易时间维度
+          <b>依据</b>：交易记录横跨数年，间隔期长
+            <b>结论</b>：符合个人卖家特征
+        售卖行为维度
+          <b>依据</b>：商品品类多元，无批量同类型商品
+            <b>结论</b>：售卖个人闲置
+        购买行为维度
+          <b>依据</b>：购买记录为个人闲置物品，无进货迹象
+            <b>结论</b>：佐证个人消费属性
+        行为逻辑总结
+          <b>依据</b>：行为逻辑链完整，售卖个人闲置
+            <b>结论</b>：个人卖家身份可信度高
+        卖家信用资质评估
+          <b>信用等级：</b>极好
+          <b>合规情况：</b>无违规记录
+          <b>近期差评：</b>近期无差评
+          <b>卖家好评率：</b>好评比例        
+       其他分析维度
+    <b>ai视觉模型处理产品评分35%</b>
       商品本身分析
-        <b>商品型号</b>
-        <b>基站匹配度</b>
-        <b>功能完整性</b>
-      卖家信用资质评估
-        <b>信用等级：</b>极好
-        <b>合规情况：</b>无违规记录
-        <b>近期差评：</b>近期无差评
+        <b>图片质量</b>
+          <b>图片清晰度和拍摄质量</b>        
+        <b>商品成色</b>
+          <b>商品成色 全新/9成新/8成新等</b>      
+        <b>功图片真实性</b>
+          <b>商品成色 图片真实性 实拍/PS/网图</b>           
+        <b>图片完整性</b>       
+          <b>商品成色 图片完整性 数量是否充足</b>   
+       其他分析维度          
+    <b>AI置信度分析25%</b>
+      证据链
+        官方凭证
+        实物证据
+        第三方证明
+        文字描述
+        关键维度需**≥2个独立证据源**相互印证
+
       用户定制化需求
         <b>身份鉴别：</b>二手贩子/个人卖家/其他
         <b>性别标签：</b>男性/女性
         <b>职业属性：</b>学生/白领/其他
+       其他分析维度
     <b>总结</b>
       首要结论：<font color="#ffffffff">个人卖家，可信度高</font>
 ```
 
+</div>
+
+
+
+**多模型**：
+
+<div style="width: 500px; margin: 0 auto;">
+
+```mermaid
+graph TD
+    A[商品数据] --> B[AI分析]
+    B --> C{recommendation_scorer.py}
+    
+    C --> D1[贝叶斯用户评分<br/>7个特征×权重]
+    C --> D2[视觉AI产品评分<br/>4个维度×权重]
+    C --> D3[AI分析置信度<br/>confidence_score]
+    
+    D1 --> E[加权融合算法]
+    D2 --> E
+    D3 --> E
+    
+    E --> F[风险标签惩罚]
+    F --> G[最终推荐度<br/>0-100分]
+    
+    G --> H1[前端商品卡]
+    G --> H2[通知推送]
+    G --> H3[数据存储]
+```
+
+
+</div>
 
 
 # 🚀 快速部署
@@ -351,8 +434,9 @@ docker项目地址
 
   - 提前下载`.env.example`并改名成`.env`放在`/工作文件夹根目录`下或者手动填入`.env.example`内的参数到你自己创建的`.env`文件内
   - 提前在`/工作文件夹根目录/config/`内创建空的`config.json`文件，以持久化管理你的监控任务
-  - 推荐下载`/prompts/base_prompt.txt`，并挂载`/app/prompts`卷，提前创建好`/工作目录文件夹/prompts`文件夹并且复制一份`base_prompt.txt`在你的`/prompts`内，不挂载不影响正常使用，但是每次更新自定义的prompt内容会消失，如无需求可以不需要挂载。
-  - `/state`是储存咸鱼cookie文件的文件夹，一般情况下不需要挂载
+  - 在0.9.9版本后更新了`prompts`文件夹，所有挂载`prompts`的旧用户<b>必须</b>重新拉取一份`prompts`文件夹内所有的文件到你挂载的文件夹内，不然会导致bayes模型失效导致推荐不合理,如果有需要微调模型参数且持久化可以挂载`prompts`文件夹。
+
+docker compose:
   - 支持 amd64架构和arm64架构
 ```yaml
 services:
@@ -372,14 +456,12 @@ services:
    # - ./prompts:/app/prompts 
    # - ./state:/app/state 
    restart: unless-stopped
-
 ```
 
 **方式二**:  
 备用链接：支持 amd64架构和arm64架构
 ```
 docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:latest
-
 ```
 
 ## 💻 Windows部署
@@ -458,6 +540,8 @@ python web_server.py
 | `OPENAI_API_KEY` | AI 模型 API Key | 是 |
 | `OPENAI_BASE_URL` | API 接口地址（兼容 OpenAI 格式） | 是 |
 | `OPENAI_MODEL_NAME` | 多模态模型名称（如 `gpt-4o``doubao-seed-1-8-251228`） | 是 |
+| `tokens上限字段名` | 多模态模型的token输出上限字段（如 豆包：`max_completion_tokens`，openAI：`max_tokens`） | 是 |
+| `tokens上限` | `0.9.9`更新后ai分析能力增强，必须要拓展输出token字段，大部分模型都支持比默认跟高的输出字段，推荐10000起 | 是 |
 | `闲鱼账号` | 需要手机扫码或者[Chrome插件](https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa)获取登录 | 是 |
 | `通知渠道token` | 企业微信机器人，Telegram，钉钉等 | 否|
 
@@ -556,6 +640,11 @@ python web_server.py
 - 或等待定时任务自动执行
 
 
+### 8. base_prompt与bayes配置
+
+- 待补充
+
+
 ### ⏰ Cron表达式
 
 Cron表达式用于配置任务的执行频率，格式：
@@ -634,10 +723,13 @@ Cron表达式用于配置任务的执行频率，格式：
 <summary>点击展开核心组件</summary>
 
 1. **登录模块 (login.py)**：处理咸鱼账号登录，生成登录状态文件（可选，大部分情况下浏览器插件即可满足）
-2. **数据收集模块 (collector.py)**：执行商品监控任务，采集商品数据
-3. **Web服务器核心 (src/web/)**：提供Web管理界面和API，包含以下模块：
+2. **服务启动入口 (web_server.py)**：启动FastAPI服务与任务调度
+3. **任务执行入口 (collector.py)**：加载任务配置与Prompt，驱动单次或批量监控流程
+4. **采集与解析模块 (src/scraper.py / src/parsers.py)**：商品抓取、字段解析与清洗
+5. **AI分析与推荐评分 (src/ai_handler.py / src/bayes.py / src/recommendation_scorer.py)**：AI判定与贝叶斯/融合推荐度计算
+6. **Web服务器核心 (src/web/)**：提供Web管理界面与API，包含以下模块：
    - **main.py**：FastAPI应用入口
-   - **auth.py**：认证模块（替代浏览器Basic Auth的Cookie Session方案）
+   - **auth.py**：认证模块（Cookie Session方案）
    - **scheduler.py**：定时任务调度器
    - **task_manager.py**：任务管理接口
    - **log_manager.py**：日志管理
@@ -646,15 +738,14 @@ Cron表达式用于配置任务的执行频率，格式：
    - **notification_manager.py**：通知管理
    - **ai_manager.py**：AI管理接口
    - **account_manager.py**：账号管理接口
+   - **bayes_api.py**：贝叶斯配置接口
    - **models.py**：数据模型
-4. **AI分析模块 (src/ai_handler.py)**：利用AI分析商品信息
-5. **通知模块 (src/notifier/)**：处理各种通知渠道（企业微信、钉钉、Telegram等）
-6. **配置模块 (src/config.py)**：统一管理系统配置
-7. **任务管理模块 (src/task.py)**：处理任务的增删改查
-8. **文件操作模块 (src/file_operator.py)**：处理文件的读写操作
-9. **数据解析模块 (src/parsers.py)**：解析采集到的商品数据
-10. **工具函数模块 (src/utils.py)**：提供通用工具函数
-11. **版本管理模块 (src/version.py)**：管理项目版本信息
+7. **通知模块 (src/notifier/)**：处理各种通知渠道（企业微信、钉钉、Telegram等）
+8. **配置模块 (src/config.py)**：统一管理系统配置与环境读取
+9. **任务模型与调度 (src/task.py / src/web/scheduler.py)**：任务结构定义与调度执行
+10. **规则与Prompt资源 (criteria/ / requirement/ / prompts/)**：AI标准与Prompt模板管理
+11. **工具与文件操作 (src/utils.py / src/file_operator.py / src/prompt_utils.py)**：通用工具与文件读写
+12. **版本管理模块 (src/version.py)**：管理项目版本信息
 
 </details>
 
@@ -671,29 +762,40 @@ Cron表达式用于配置任务的执行频率，格式：
 │   ├── .env.example              # 环境变量配置示例文件
 │   ├── config.json               # 任务配置文件
 │   ├── Dockerfile                # Docker配置文件
+│   ├── docker-compose.yaml       # Docker Compose配置
 │   ├── .dockerignore             # Docker忽略文件配置
 │   ├── login.py                  # 登录模块
 │   ├── prompt_generator.py       # AI Prompt生成工具
 │   ├── requirements.txt          # 项目依赖
-│   ├── collector.py              # 数据收集模块
+│   ├── collector.py              # 任务执行入口
 │   ├── web_server.py             # Web服务器入口
 │   ├── check_env.py              # 环境检查脚本
 │   ├── start_web_server.bat      # Windows一键启动脚本
 │   ├── README.md                 # 项目说明文档
-│   ├── LICENSE                   # 许可证文件
+│   ├── License                   # 许可证文件
 │   ├── DISCLAIMER.md             # 免责声明
 │   ├── gitattributes             # Git属性配置
 │   ├── .gitignore                # Git忽略文件配置
 │   ├── chrome-extension/         # Chrome扩展
 │   ├── images/                   # 项目图片资源
-│   ├── prompts/                  # AI Prompt模板
+│   │   ├── Example/              # 示例截图
+│   │   └── logo/                 # Logo与Banner
+│   ├── prompts/                  # AI Prompt与Bayes配置
+│   │   ├── base_prompt.txt
+│   │   ├── bayes/
+│   │   │   └── bayes_v1.json
+│   │   └── guide/
+│   │       ├── bayes_guide.md
+│   │       └── weight_framework_guide.md
 │   ├── src/                      # 核心源代码
 │   │   ├── __init__.py
 │   │   ├── ai_handler.py         # AI分析模块
+│   │   ├── bayes.py              # 贝叶斯模型
 │   │   ├── config.py             # 配置模块（统一配置管理）
 │   │   ├── file_operator.py      # 文件操作模块
 │   │   ├── parsers.py            # 解析器模块
 │   │   ├── prompt_utils.py       # Prompt工具
+│   │   ├── recommendation_scorer.py # 推荐度评分
 │   │   ├── scraper.py            # 数据收集核心
 │   │   ├── task.py               # 任务管理
 │   │   ├── utils.py              # 工具函数
@@ -714,12 +816,35 @@ Cron表达式用于配置任务的执行频率，格式：
 │   │       ├── notification_manager.py # 通知管理
 │   │       ├── ai_manager.py     # AI管理接口
 │   │       ├── account_manager.py # 账号管理接口
+│   │       ├── bayes_api.py      # 贝叶斯配置接口
 │   │       └── models.py         # 数据模型
 │   ├── static/                   # 静态文件
 │   │   ├── css/                  # 样式文件
-│   │   │   └── style.css
-│   │   └── js/                   # JavaScript文件
-│   │       └── main.js
+│   │   │   ├── style.css
+│   │   │   └── bayes_visual.css
+│   │   ├── js/                   # JavaScript文件
+│   │   │   ├── main.js
+│   │   │   ├── bayes_init.js
+│   │   │   ├── score_modal.js
+│   │   │   └── modules/          # 前端模块拆分
+│   │   │       ├── api.js
+│   │   │       ├── app_interactions.js
+│   │   │       ├── app_state.js
+│   │   │       ├── accounts_view.js
+│   │   │       ├── bayes_visual_manager.js
+│   │   │       ├── logs_view.js
+│   │   │       ├── navigation.js
+│   │   │       ├── notifications_view.js
+│   │   │       ├── region.js
+│   │   │       ├── render.js
+│   │   │       ├── reorder.js
+│   │   │       ├── results_view.js
+│   │   │       ├── settings_view.js
+│   │   │       ├── tasks_editor.js
+│   │   │       ├── templates.js
+│   │   │       └── ui_shell.js
+│   │   └── china/                # 省市区数据
+│   │       └── index.json
 │   ├── templates/                # HTML模板
 │   │   ├── index.html
 │   │   └── login.html
