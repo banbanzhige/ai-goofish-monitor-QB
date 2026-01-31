@@ -77,6 +77,16 @@
 |:---:|:---:|
 | ![结果管理界面](images/Example/0.9.9/结果查看01.png) | ![AI 评分界面](images/Example/0.9.9/结果查看02.png) |
 
+<details open>
+<summary>📱通知渠道效果展示</summary>
+
+| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 | 钉钉通知渠道效果 | Telegram通知渠道效果*|
+|:---:|:---:|:---:|:---:|
+| ![微信应用通知渠道效果](images/Example/0.9.9/企业微信应用机器人渠道.jpg) | ![微信群机器人通知渠道效果](images/Example/0.9.9/企业微信群聊机器人渠道.jpg) |![钉钉渠道通知效果](images/Example/0.9.9/钉钉通知渠道.jpg) | ![Telegram通知渠道效果](images/Example/0.9.2/Telegram通知渠道0101.jpg) |
+
+</details>
+
+
 <details>
 <summary>📱 移动端界面展示</summary>
 
