@@ -2,6 +2,7 @@ import os
 import sys
 from dotenv import load_dotenv, dotenv_values
 from openai import AsyncOpenAI
+import httpx
 
 # Load .env file at the very beginning
 load_dotenv(override=True)
@@ -59,8 +60,36 @@ def BASE_URL():
 def MODEL_NAME():
     return os.getenv("OPENAI_MODEL_NAME")
 
+
 def PROXY_URL():
     return os.getenv("PROXY_URL")
+
+def PROXY_AI_ENABLED():
+    return get_bool_env_value("PROXY_AI_ENABLED", False)
+
+def PROXY_NTFY_ENABLED():
+    return get_bool_env_value("PROXY_NTFY_ENABLED", False)
+
+def PROXY_GOTIFY_ENABLED():
+    return get_bool_env_value("PROXY_GOTIFY_ENABLED", False)
+
+def PROXY_BARK_ENABLED():
+    return get_bool_env_value("PROXY_BARK_ENABLED", False)
+
+def PROXY_WX_BOT_ENABLED():
+    return get_bool_env_value("PROXY_WX_BOT_ENABLED", False)
+
+def PROXY_WX_APP_ENABLED():
+    return get_bool_env_value("PROXY_WX_APP_ENABLED", False)
+
+def PROXY_TELEGRAM_ENABLED():
+    return get_bool_env_value("PROXY_TELEGRAM_ENABLED", False)
+
+def PROXY_WEBHOOK_ENABLED():
+    return get_bool_env_value("PROXY_WEBHOOK_ENABLED", False)
+
+def PROXY_DINGTALK_ENABLED():
+    return get_bool_env_value("PROXY_DINGTALK_ENABLED", False)
 
 def NTFY_TOPIC_URL():
     return os.getenv("NTFY_TOPIC_URL")
@@ -128,6 +157,21 @@ def RUNNING_IN_DOCKER():
 def AI_DEBUG_MODE():
     return get_bool_env_value("AI_DEBUG_MODE", False)
 
+def AI_MAX_TOKENS_PARAM_NAME():
+    """获取最大输出tokens字段名，允许用户按模型自定义（如max_tokens/max_completion_tokens）。"""
+    return (get_env_value("AI_MAX_TOKENS_PARAM_NAME", "max_tokens") or "").strip()
+
+def AI_MAX_TOKENS_LIMIT():
+    """获取最大输出tokens上限，做最小容错以避免非法值导致请求失败。"""
+    # 默认上限提升到20000，贴合当前多模态与长输出场景
+    limit = get_env_value("AI_MAX_TOKENS_LIMIT", 20000, int)
+    try:
+        limit_int = int(limit)
+    except (TypeError, ValueError):
+        return 20000
+    # 非正数视为未配置，回退到安全默认值
+    return limit_int if limit_int > 0 else 20000
+
 def SKIP_AI_ANALYSIS():
     return get_bool_env_value("SKIP_AI_ANALYSIS", False)
 
@@ -137,8 +181,8 @@ def ENABLE_THINKING():
 def ENABLE_RESPONSE_FORMAT():
     return get_bool_env_value("ENABLE_RESPONSE_FORMAT", True)
 
-def SEND_URL_FORMAT_IMAGE():
-    return get_bool_env_value("SEND_URL_FORMAT_IMAGE", True)
+def AI_VISION_ENABLED():
+    return get_bool_env_value("AI_VISION_ENABLED", False)
 
 def SERVER_PORT():
     return int(get_env_value("SERVER_PORT", 8000))
@@ -155,6 +199,7 @@ def initialize_ai_client():
         base_url = os.getenv("OPENAI_BASE_URL")
         model_name = os.getenv("OPENAI_MODEL_NAME")
         proxy_url = os.getenv("PROXY_URL")
+        proxy_ai_enabled = get_bool_env_value("PROXY_AI_ENABLED", False)
 
         # 检查配置是否齐全
         if not all([base_url, model_name]):
@@ -162,15 +207,19 @@ def initialize_ai_client():
             client = None
             return False
 
-        # 配置代理
-        if proxy_url:
-            # 设置环境变量，httpx会自动使用这些代理设置
-            os.environ['HTTP_PROXY'] = proxy_url
-            os.environ['HTTPS_PROXY'] = proxy_url
+        # 仅在开启AI代理时为AI客户端显式注入代理，避免影响其他请求
+        client_params = {
+            "api_key": api_key,
+            "base_url": base_url,
+        }
+        if proxy_ai_enabled and proxy_url:
+            client_params["http_client"] = httpx.AsyncClient(proxy=proxy_url, timeout=30.0)
             print(f"正在为AI请求使用HTTP/S代理: {proxy_url}")
+        elif proxy_url and not proxy_ai_enabled:
+            print("检测到代理地址但AI代理开关未开启，AI请求将直连。")
 
         # 创建客户端
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        client = AsyncOpenAI(**client_params)
         print(f"AI客户端已成功初始化 (BASE_URL: {base_url}, MODEL_NAME: {model_name})")
         return True
     except Exception as e:
@@ -195,10 +244,31 @@ def save_env_settings(settings: dict, setting_keys: list):
 
     existing_settings.update(settings)
 
+    bool_keys = {
+        "LOGIN_IS_EDGE",
+        "RUN_HEADLESS",
+        "AI_DEBUG_MODE",
+        "ENABLE_THINKING",
+        "ENABLE_RESPONSE_FORMAT",
+        "AI_VISION_ENABLED",
+        "PCURL_TO_MOBILE",
+        "NOTIFY_AFTER_TASK_COMPLETE",
+        # 代理相关开关
+        "PROXY_AI_ENABLED",
+        "PROXY_NTFY_ENABLED",
+        "PROXY_GOTIFY_ENABLED",
+        "PROXY_BARK_ENABLED",
+        "PROXY_WX_BOT_ENABLED",
+        "PROXY_WX_APP_ENABLED",
+        "PROXY_TELEGRAM_ENABLED",
+        "PROXY_WEBHOOK_ENABLED",
+        "PROXY_DINGTALK_ENABLED",
+    }
+
     with open(env_file, 'w', encoding='utf-8') as f:
         for key in setting_keys:
             value = existing_settings.get(key, "")
-            if key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"]:
+            if key in bool_keys:
                 f.write(f"{key}={str(value).lower()}\n")
             else:
                 f.write(f"{key}={value}\n")
@@ -209,7 +279,7 @@ def save_env_settings(settings: dict, setting_keys: list):
     
     # 更新 os.environ 中的值
     for key, value in settings.items():
-        os.environ[key] = str(value).lower() if key in ["LOGIN_IS_EDGE", "RUN_HEADLESS", "AI_DEBUG_MODE", "ENABLE_THINKING", "ENABLE_RESPONSE_FORMAT", "SEND_URL_FORMAT_IMAGE", "PCURL_TO_MOBILE", "NOTIFY_AFTER_TASK_COMPLETE"] else str(value)
+        os.environ[key] = str(value).lower() if key in bool_keys else str(value)
 
 def reload_config():
     """Reload all configuration and restart AI client if needed"""
@@ -245,5 +315,11 @@ def get_ai_request_params(**kwargs):
     # 如果禁用response_format，则移除该参数
     if not get_bool_env_value("ENABLE_RESPONSE_FORMAT", True) and "response_format" in kwargs:
         del kwargs["response_format"]
+
+    # 统一注入tokens上限配置：允许用户自定义字段名，且不覆盖调用方显式传入的值
+    tokens_param_name = AI_MAX_TOKENS_PARAM_NAME()
+    tokens_limit = AI_MAX_TOKENS_LIMIT()
+    if tokens_param_name and tokens_param_name not in kwargs:
+        kwargs[tokens_param_name] = tokens_limit
     
     return kwargs
