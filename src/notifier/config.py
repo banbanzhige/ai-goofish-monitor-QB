@@ -11,6 +11,17 @@ class NotificationConfig:
         """加载配置"""
         # 从.env文件加载配置
         return {
+            # 代理总开关与分渠道开关
+            "PROXY_URL": get_env_value("PROXY_URL", ""),
+            "PROXY_AI_ENABLED": get_bool_env_value("PROXY_AI_ENABLED", False),
+            "PROXY_NTFY_ENABLED": get_bool_env_value("PROXY_NTFY_ENABLED", False),
+            "PROXY_GOTIFY_ENABLED": get_bool_env_value("PROXY_GOTIFY_ENABLED", False),
+            "PROXY_BARK_ENABLED": get_bool_env_value("PROXY_BARK_ENABLED", False),
+            "PROXY_WX_BOT_ENABLED": get_bool_env_value("PROXY_WX_BOT_ENABLED", False),
+            "PROXY_WX_APP_ENABLED": get_bool_env_value("PROXY_WX_APP_ENABLED", False),
+            "PROXY_TELEGRAM_ENABLED": get_bool_env_value("PROXY_TELEGRAM_ENABLED", False),
+            "PROXY_WEBHOOK_ENABLED": get_bool_env_value("PROXY_WEBHOOK_ENABLED", False),
+            "PROXY_DINGTALK_ENABLED": get_bool_env_value("PROXY_DINGTALK_ENABLED", False),
             # 通知渠道配置
             "NTFY_TOPIC_URL": get_env_value("NTFY_TOPIC_URL", ""),
             "NTFY_ENABLED": get_bool_env_value("NTFY_ENABLED", False),
