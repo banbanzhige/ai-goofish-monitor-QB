@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json
 import os
 import random
@@ -13,8 +13,8 @@ from playwright.async_api import (
     async_playwright,
 )
 
+from src.bayes import build_bayes_precalc
 from src.ai_handler import (
-    download_all_images,
     get_ai_analysis,
     send_all_notifications,
     cleanup_task_images,
@@ -27,7 +27,6 @@ from src.config import (
     LOGIN_IS_EDGE,
     RUN_HEADLESS,
     RUNNING_IN_DOCKER,
-    SEND_URL_FORMAT_IMAGE,
 )
 from src.parsers import (
     _parse_search_results_json,
@@ -44,6 +43,20 @@ from src.utils import (
     save_to_jsonl,
     log_time,
 )
+
+# 新结构下推荐等级的推荐集合（与运行期口径一致）
+RECOMMENDED_LEVELS = {"STRONG_BUY", "CAUTIOUS_BUY", "CONDITIONAL_BUY"}
+
+
+def _is_ai_recommended(ai_analysis: Optional[Dict[str, Any]]) -> bool:
+    """优先基于recommendation_level判断是否推荐，缺失时回退到is_recommended。"""
+    if not isinstance(ai_analysis, dict):
+        return False
+    level = ai_analysis.get("recommendation_level")
+    if isinstance(level, str):
+        return level in RECOMMENDED_LEVELS
+    return ai_analysis.get("is_recommended") is True
+
 
 def _default_context_options() -> dict:
     return {
@@ -543,6 +556,39 @@ async def fetch_user_profile(context, user_id: str) -> dict:
     return profile_data
 
 
+async def _try_passport_quick_entry(page, task_name: str) -> bool:
+    """检测登录确认页并尝试点击“快速进入”，避免卡在passport页面导致后续超时。"""
+    try:
+        current_url = page.url or ""
+        quick_entry_btn = page.locator("text=快速进入").first
+        needs_handle = "passport.goofish.com" in current_url
+
+        # 未跳转到passport域时，也短暂探测一次按钮是否出现
+        if not needs_handle:
+            try:
+                await quick_entry_btn.wait_for(state="visible", timeout=2000)
+                needs_handle = True
+            except PlaywrightTimeoutError:
+                return False
+
+        log_time("检测到登录确认页，准备点击“快速进入”...", task_name=task_name)
+        await random_sleep(1, 3)
+        try:
+            await quick_entry_btn.click(timeout=5000)
+        except PlaywrightTimeoutError:
+            # 按钮可能短暂不可点，退化为坐标点击兜底
+            box = await quick_entry_btn.bounding_box()
+            if box:
+                await page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        await page.wait_for_load_state("domcontentloaded", timeout=20000)
+        await random_sleep(1, 2)
+        log_time("已尝试通过“快速进入”返回站点，继续原流程...", task_name=task_name)
+        return True
+    except Exception as e:
+        print(f"LOG: 处理登录确认页时出错（忽略继续）：{e}")
+        return False
+
+
 async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: str = None):
     """
     【核心执行器】
@@ -740,6 +786,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
             # 步骤 0 - 模拟真实用户：先访问首页（重要的访问策略适配措施）
             log_time("步骤 0 - 模拟真实用户访问首页...", task_name=task_name)
             await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=30000)
+            # 手动导入Cookie更容易被引导到登录确认页，先做一次兜底处理
+            await _try_passport_quick_entry(page, task_name)
             log_time("[请求间隔优化] 在首页停留，模拟浏览...", task_name=task_name)
             await random_sleep(3, 6)
 
@@ -754,10 +802,25 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
             log_time(f"学习用公开平台URL: {search_url}", task_name=task_name)
 
             # 使用 expect_response 在导航的同时捕获初始搜索的API数据
-            async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=30000) as response_info:
-                await page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
-
-            initial_response = await response_info.value
+            # 若被引导到登录确认页导致超时，则尝试“快速进入”后重试一次
+            initial_response = None
+            for attempt in (1, 2):
+                try:
+                    async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=30000) as response_info:
+                        await page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
+                    initial_response = await response_info.value
+                    break
+                except PlaywrightTimeoutError as e:
+                    log_time(
+                        f"搜索页导航等待响应超时（第{attempt}次），尝试处理登录确认页...",
+                        task_name=task_name,
+                    )
+                    handled = await _try_passport_quick_entry(page, task_name)
+                    if attempt == 1 and handled:
+                        log_time("已处理登录确认页，准备重试搜索页导航...", task_name=task_name)
+                        await random_sleep(2, 4)
+                        continue
+                    raise e
 
             # 等待页面加载出关键筛选元素，以确认已成功进入搜索结果页
             await page.wait_for_selector('text=新发布', timeout=15000)
@@ -1077,10 +1140,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
 
                             # --- START: 新增代码块 ---
 
-                            # 1. 提取卖家的芝麻信用信息
-                            zhima_credit_text = await safe_get(seller_do, 'zhimaLevelInfo', 'levelName')
-
-                            # 2. 提取该商品的完整图片列表
+                            # 1. 提取该商品的完整图片列表
                             image_infos = await safe_get(item_do, 'imageInfos', default=[])
                             if image_infos:
                                 # 使用列表推导式获取所有有效的图片URL
@@ -1090,6 +1150,29 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                     item_data['商品图片列表'] = all_image_urls
                                     # (可选) 仍然保留主图链接，以防万一
                                     item_data['商品主图链接'] = all_image_urls[0]
+
+                            # 2. 提取“已用年限”（优先结构化字段，兜底标签拼接）
+                            used_years = ""
+                            cpv_labels = await safe_get(item_do, 'cpvLabels', default=[])
+                            if isinstance(cpv_labels, list):
+                                for label in cpv_labels:
+                                    if not isinstance(label, dict):
+                                        continue
+                                    if label.get('propertyName') == "已用年限":
+                                        used_years = (label.get('valueName') or '').strip()
+                                        break
+                            if not used_years:
+                                item_label_ext_list = await safe_get(item_do, 'itemLabelExtList', default=[])
+                                if isinstance(item_label_ext_list, list):
+                                    for label in item_label_ext_list:
+                                        if not isinstance(label, dict):
+                                            continue
+                                        props = str(label.get('properties') or '')
+                                        if "已用年限:" in props:
+                                            used_years = props.split("已用年限:", 1)[1].split("##", 1)[0].strip()
+                                            break
+                            if used_years:
+                                item_data['已用年限'] = used_years
 
                             # --- END: 新增代码块 ---
                             item_data['“想要”人数'] = await safe_get(item_do, 'wantCnt', default=item_data.get('“想要”人数', 'NaN'))
@@ -1104,7 +1187,11 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 user_profile_data = await fetch_user_profile(context, str(user_id))
                             else:
                                 print("   [警告] 未能从详情API中获取到卖家ID。")
-                            user_profile_data['卖家芝麻信用'] = zhima_credit_text
+                            seller_credit_level_text = user_profile_data.get('卖家信用等级')
+                            if not seller_credit_level_text:
+                                seller_credit_level_text = await safe_get(seller_do, 'zhimaLevelInfo', 'levelName')
+                                if seller_credit_level_text:
+                                    user_profile_data['卖家信用等级'] = seller_credit_level_text
                             user_profile_data['卖家注册时长'] = registration_duration_text
 
                             # 构建基础记录，包含任务元数据
@@ -1127,28 +1214,23 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 "卖家信息": user_profile_data
                             }
 
+                            # Bayes先验预计算，供后续AI分析使用（失败不影响主流程）
+                            try:
+                                bayes_profile = task_config.get("bayes_profile", "bayes_v1")
+                                bayes_precalc = build_bayes_precalc(final_record, bayes_profile)
+                                if bayes_precalc:
+                                    final_record["ml_precalc"] = {"bayes": bayes_precalc}
+                            except Exception as e:
+                                log_time(f"Bayes预计算失败: {e}", task_name=task_name)
+
                             # --- START: 实时AI分析和通知 ---
                             from src.config import SKIP_AI_ANALYSIS
                             
                             # 检查是否跳过AI分析并直接发送通知
                             if SKIP_AI_ANALYSIS():
                                 log_time("环境变量 SKIP_AI_ANALYSIS 已设置，跳过AI分析并直接发送通知...", task_name=task_name)
-                                
-                                # 当SEND_URL_FORMAT_IMAGE为True时，不需要下载图片
+                                # 跳过AI分析时不需要下载图片，避免无意义的IO开销
                                 downloaded_image_paths = []
-                                if not SEND_URL_FORMAT_IMAGE():
-                                    # 1. 下载图片
-                                    image_urls = item_data.get('商品图片列表', [])
-                                    downloaded_image_paths = await download_all_images(item_data['商品ID'], image_urls, task_config.get('task_name', 'default'))
-                                    
-                                    # 删除下载的图片文件，节省空间
-                                    for img_path in downloaded_image_paths:
-                                        try:
-                                            if os.path.exists(img_path):
-                                                os.remove(img_path)
-                                                print(f"   [图片] 已删除临时图片文件: {img_path}")
-                                        except Exception as e:
-                                            print(f"   [图片] 删除图片文件时出错: {e}")
                                 
                                 # 直接发送通知，将所有商品标记为推荐
                                 log_time("商品已跳过AI分析，准备发送通知...", task_name=task_name)
@@ -1156,12 +1238,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                             else:
                                 log_time(f"开始对商品 #{item_data['商品ID']} 进行实时AI分析...", task_name=task_name)
                                 
-                                # 当SEND_URL_FORMAT_IMAGE为True时，不需要下载图片，直接传递空列表
+                                # 方案2：不再注入image_url/base64，避免为多模态下载冗余图片
                                 downloaded_image_paths = []
-                                if not SEND_URL_FORMAT_IMAGE():
-                                    # 1. 下载图片
-                                    image_urls = item_data.get('商品图片列表', [])
-                                    downloaded_image_paths = await download_all_images(item_data['商品ID'], image_urls, task_config.get('task_name', 'default'))
 
                                 # 2. 获取AI分析
                                 ai_analysis_result = None
@@ -1171,7 +1249,14 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                         ai_analysis_result = await get_ai_analysis(final_record, downloaded_image_paths, prompt_text=ai_prompt_text)
                                         if ai_analysis_result:
                                             final_record['ai_analysis'] = ai_analysis_result
-                                            log_time(f"AI分析完成。推荐状态: {ai_analysis_result.get('is_recommended')}", task_name=task_name)
+                                            level = ai_analysis_result.get("recommendation_level", "未知")
+                                            score = ai_analysis_result.get("confidence_score")
+                                            score_text = f"{float(score):.2f}" if isinstance(score, (int, float)) else "未知"
+                                            recommended_flag = _is_ai_recommended(ai_analysis_result)
+                                            log_time(
+                                                f"AI分析完成。推荐等级: {level}，置信度: {score_text}，是否推荐: {recommended_flag}",
+                                                task_name=task_name,
+                                            )
                                         else:
                                             final_record['ai_analysis'] = {'error': 'AI分析经过多次重试后返回None。'}
                                     except AICallFailureException as e:
@@ -1212,7 +1297,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                         print(f"   [图片] 删除图片文件时出错: {e}")
 
                                 # 3. 如果商品被推荐则发送通知
-                                if ai_analysis_result and ai_analysis_result.get('is_recommended'):
+                                if _is_ai_recommended(ai_analysis_result):
                                     log_time("商品被AI推荐，准备发送通知...", task_name=task_name)
                                     # 创建item_data的副本并将ai_analysis添加到其中
                                     item_data_with_analysis = item_data.copy()
@@ -1227,7 +1312,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                             processed_item_count += 1
                             # 如果商品被推荐，增加推荐计数
                             from src.config import SKIP_AI_ANALYSIS
-                            if SKIP_AI_ANALYSIS() or (ai_analysis_result and ai_analysis_result.get('is_recommended')):
+                            if SKIP_AI_ANALYSIS() or _is_ai_recommended(ai_analysis_result):
                                 recommended_item_count += 1
                             log_time(f"商品处理流程完毕。累计处理 {processed_item_count} 个新商品，其中 {recommended_item_count} 个被推荐。", task_name=task_name)
                             
@@ -1291,3 +1376,5 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     cleanup_task_images(task_config.get('task_name', 'default'))
 
     return processed_item_count, recommended_item_count, end_reason
+
+
