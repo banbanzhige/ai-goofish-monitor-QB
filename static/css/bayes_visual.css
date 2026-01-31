@@ -1,0 +1,1059 @@
+/* Bayes可视化管理器样式 */
+
+/* 主容器 */
+#bayes-visual-manager-container {
+    padding: 16px;
+    --bayes-input-height: 30px;
+}
+
+/* Bayes 管理内输入框文字居中 */
+#bayes-visual-manager-container input[type="text"],
+#bayes-visual-manager-container input[type="number"] {
+    text-align: center;
+    height: var(--bayes-input-height);
+    line-height: var(--bayes-input-height);
+    box-sizing: border-box;
+}
+
+/* 去除数字输入框步进按钮 */
+#bayes-visual-manager-container input[type="number"]::-webkit-outer-spin-button,
+#bayes-visual-manager-container input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+#bayes-visual-manager-container input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* 工具栏 */
+.bayes-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.bayes-toolbar select {
+    flex: 1;
+    max-width: 300px;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.bayes-toolbar button {
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.bayes-toolbar button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 卡片容器 */
+#bayes-cards-container {
+    display: grid;
+    gap: 32px;
+}
+
+/* 配置分组 */
+.config-group {
+    display: grid;
+    gap: 24px;
+}
+
+.config-group-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2c3e50;
+    padding: 12px 0;
+    border-bottom: 3px solid #667eea;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.config-group-title::before {
+    content: '';
+    width: 4px;
+    height: 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 2px;
+}
+
+/* 卡片基础样式 */
+.bayes-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s;
+    border: 1px solid #e9ecef;
+}
+
+.bayes-card:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+/* 卡片标题 */
+.bayes-card-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #2fa8a1 0%, #2b6cb0 100%);
+    color: white;
+}
+
+.bayes-card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* 折叠卡片样式 */
+.collapsible-card summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.collapsible-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible-card:not([open]) .bayes-card-header {
+    border-radius: 12px;
+}
+
+.collapsible-card[open] .bayes-card-header {
+    border-radius: 12px 12px 0 0;
+}
+
+.collapsible-card .bayes-card-body {
+    border-radius: 0 0 12px 12px;
+}
+
+/* 卡片内容 */
+.bayes-card-body {
+    padding: 24px 28px;
+}
+
+/* 卡片内分隔 */
+.card-section {
+    margin-bottom: 24px;
+}
+
+.card-section:last-child {
+    margin-bottom: 0;
+}
+
+.card-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 12px;
+    padding-left: 12px;
+    border-left: 3px solid #667eea;
+}
+
+/* 提示文本 */
+.hint {
+    margin: 0 0 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-left: 3px solid #667eea;
+    font-size: 13px;
+    color: #495057;
+}
+
+/* 权重表格 */
+.weights-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.weights-table th,
+.weights-table td {
+    padding: 14px 16px;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.weights-table th {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    font-weight: 600;
+    color: #495057;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.weights-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.weights-table tbody tr:hover {
+    background: #f8f9fa;
+    transition: background 0.2s;
+}
+
+.weights-table td {
+    font-size: 14px;
+}
+
+.weights-table td:first-child {
+    text-align: center;
+    font-weight: 600;
+    color: #495057;
+}
+
+.weights-table td:not(:first-child) {
+    text-align: center;
+}
+
+.weights-table td {
+    vertical-align: middle;
+}
+
+.weights-table th,
+.weights-table td {
+    text-align: center;
+}
+
+.weights-table td input[type="number"] {
+    margin: 0 auto;
+}
+
+.sum-cell {
+    text-align: center;
+}
+
+.weights-table input[type="number"] {
+    width: 100%;
+    max-width: 140px;
+    padding: 4px 8px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.3s;
+    background: white;
+    height: var(--bayes-input-height);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.weights-table td .sum-value,
+.weights-table td .sum-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.weights-table input[type="number"]:hover {
+    border-color: #b0b0b0;
+}
+
+.weights-table input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    background: #fafbff;
+}
+
+/* 评分规则折叠面板 */
+.scoring-rule-panel {
+    margin-bottom: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.scoring-rule-panel summary {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #2f3437;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.2s;
+}
+
+.scoring-rule-panel summary strong {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+}
+
+.scoring-rule-panel summary:hover {
+    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+.scoring-rule-panel[open] summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.scoring-rule-panel[open] summary .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+/* 瑙嗚AI璇勫垎缁嗗垯涓庡叾浠栭潰鏉垮悓绛夋牱寮忥紝淇濇寔涓€鑷?*/
+.visual-ai-panel {
+    overflow: visible;
+}
+
+.visual-ai-panel .rule-content {
+    padding-bottom: 24px;
+    overflow: visible;
+}
+
+.visual-ai-panel .scoring-rule-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.visual-ai-panel .scoring-rule-table th,
+.visual-ai-panel .scoring-rule-table td {
+    word-break: break-word;
+    overflow: hidden;
+}
+
+.visual-ai-panel .scoring-rule-table input[type="text"],
+.visual-ai-panel .scoring-rule-table input[type="number"] {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+/* 规则内容区 */
+.rule-content {
+    padding: 16px;
+    background: white;
+}
+
+.rule-description {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-left: 3px solid #667eea;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #495057;
+}
+
+/* 评分规则表格 */
+.scoring-rule-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 12px;
+    font-size: 13px;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.scoring-rule-table thead {
+    background: #f1f3f5;
+}
+
+.scoring-rule-table th {
+    padding: 12px 12px;
+    text-align: left;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.scoring-rule-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e9ecef;
+    background: #ffffff;
+}
+
+.scoring-rule-table th,
+.scoring-rule-table td {
+    text-align: center;
+}
+
+.scoring-rule-table input[type="text"],
+.scoring-rule-table input[type="number"] {
+    width: 100%;
+    height: var(--bayes-input-height);
+    padding: 4px 8px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    font-size: 12px;
+    background: #ffffff;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.scoring-rule-table input[type="text"]:focus,
+.scoring-rule-table input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    background: #fafbff;
+}
+
+.scoring-rule-table tbody tr:hover td {
+    background: #fafbff;
+}
+
+/* 添加规则按钮 */
+.add-rule-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.add-rule-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.delete-rule-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.danger-btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+    background: #dc3545;
+    color: white;
+}
+
+.danger-btn-sm:hover {
+    background: #c82333;
+}
+
+/* 规则默认值设置 */
+.rule-defaults {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #dee2e6;
+    flex-wrap: wrap;
+}
+
+.form-group.inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group.inline label {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.form-group.inline input[type="number"] {
+    width: 96px;
+    height: var(--bayes-input-height);
+    padding: 4px 8px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    font-size: 12px;
+    background: #ffffff;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.form-group.inline input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    background: #fafbff;
+}
+
+/* 徽章样式 */
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-primary {
+    background: #667eea;
+    color: white;
+}
+
+.badge-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.badge-success {
+    background: #28a745;
+    color: white;
+}
+
+.badge-warning {
+    background: #ffc107;
+    color: #212529;
+}
+
+.badge-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.badge-danger {
+    background: #dc3545;
+    color: white;
+}
+
+/* 参数配置区域 */
+.param-section {
+    margin-top: 20px;
+    padding: 16px;
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.param-section:first-of-type {
+    margin-top: 0;
+}
+
+.param-title {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.param-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.param-item label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.param-item .regex-input {
+    padding: 6px 10px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    background: #f8f9fa;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    color: #495057;
+    cursor: not-allowed;
+}
+
+.param-hint {
+    font-size: 11px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.param-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #dee2e6;
+}
+
+.param-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #495057;
+    white-space: nowrap;
+}
+
+.param-input {
+    padding: 4px 8px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    width: 92px;
+    transition: all 0.3s;
+    height: var(--bayes-input-height);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.param-input:hover {
+    border-color: #b0b0b0;
+}
+
+.param-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.param-input[readonly] {
+    background: #f8f9fa;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+
+.param-input.param-input-wide {
+    width: 100%;
+    max-width: 100%;
+}
+
+.param-table .param-input {
+    width: 100%;
+    max-width: 160px;
+    margin: 0 auto;
+}
+
+/* 参数表格 */
+.param-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+}
+
+.param-table tr {
+    transition: background 0.2s;
+}
+
+.param-table tr:hover {
+    background: #f8f9fa;
+}
+
+.param-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.param-table tr:last-child td {
+    border-bottom: none;
+}
+
+.param-table .param-name {
+    font-weight: 600;
+    color: #495057;
+    width: 25%;
+    background: linear-gradient(90deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.param-table .param-desc {
+    color: #6c757d;
+    font-size: 12px;
+    width: 50%;
+}
+
+/* 公式样式 */
+.formula {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    color: #495057;
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe5cc 100%);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 4px solid #ff9800;
+    margin: 8px 0;
+}
+
+.formula-steps {
+    margin: 8px 0;
+    padding-left: 24px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    color: #495057;
+}
+
+.formula-steps li {
+    margin: 6px 0;
+    padding: 4px 0;
+}
+
+/* 示例框 */
+.example-box {
+    margin-top: 16px;
+    padding: 12px;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-radius: 6px;
+    border-left: 4px solid #4caf50;
+}
+
+.example-box strong {
+    color: #2e7d32;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.example-box ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.example-box li {
+    margin: 4px 0;
+    font-size: 13px;
+    color: #33691e;
+}
+
+.example-box li strong {
+    display: inline;
+    color: #1b5e20;
+    font-weight: 700;
+}
+
+/* 表格样式增强 */
+.scoring-rule-table.detailed {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.scoring-rule-table.detailed thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.scoring-rule-table.detailed th {
+    color: white;
+    border-bottom-color: rgba(255, 255, 255, 0.2);
+}
+
+.scoring-rule-table .desc-cell {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.scoring-rule-table .example-cell {
+    font-family: 'Consolas', 'Monaco', monospace;
+    color: #495057;
+    background: #f8f9fa;
+    font-weight: 500;
+}
+
+.scoring-rule-table .highlight-row {
+    background: linear-gradient(90deg, #fff3e0 0%, #ffe0b2 100%);
+}
+
+.scoring-rule-table .highlight-row td {
+    font-weight: 600;
+    color: #e65100;
+}
+
+/* 提示文字 */
+.hint-sm {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* 训练样本管理面板 */
+.sample-panel {
+    margin-bottom: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.sample-panel summary {
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.2s;
+}
+
+.sample-panel summary:hover {
+    background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+}
+
+.sample-panel[open] summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.sample-panel[open] summary .badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.sample-content {
+    padding: 16px;
+    background: white;
+}
+
+.sample-description {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-left: 3px solid #667eea;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #495057;
+}
+
+/* 贝叶斯和视觉特征表格 */
+.bayes-feature-table,
+.bayes-weight-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.bayes-feature-table th,
+.bayes-feature-table td,
+.bayes-weight-table th,
+.bayes-weight-table td {
+    vertical-align: middle;
+    text-align: center;
+}
+
+/* 风险惩罚配置表格 */
+.bayes-config-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 12px;
+}
+
+.bayes-config-table th,
+.bayes-config-table td {
+    padding: 12px 14px;
+    text-align: center;
+    vertical-align: middle;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 13px;
+}
+
+.bayes-config-table thead {
+    background: #f1f3f5;
+}
+
+.bayes-config-table tr:last-child td {
+    border-bottom: none;
+}
+
+.bayes-config-table td:first-child {
+    font-weight: 600;
+    color: #495057;
+}
+
+.bayes-config-table td:last-child {
+    color: #6c757d;
+}
+
+.bayes-config-table input[type="number"] {
+    width: 100%;
+    max-width: 140px;
+    height: var(--bayes-input-height);
+    padding: 8px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #ffffff;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.bayes-config-table input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    background: #fafbff;
+}
+
+.bayes-feature-table td:first-child {
+    font-weight: 600;
+    color: #495057;
+}
+
+.bayes-weight-table td:first-child {
+    font-weight: 600;
+    color: #495057;
+}
+
+.bayes-feature-table td:last-child {
+    text-align: center;
+    color: #6c757d;
+}
+
+.bayes-feature-table tfoot .sum-row td {
+    text-align: center;
+}
+
+.bayes-feature-table td:last-child strong {
+    color: #495057;
+}
+
+.bayes-weight-table input[type="number"] {
+    margin: 0 auto;
+}
+
+.bayes-weight-table input[type="number"],
+.bayes-feature-table input[type="number"],
+.bayes-config-table input[type="number"] {
+    height: var(--bayes-input-height);
+    line-height: var(--bayes-input-height);
+    padding: 4px 8px;
+    font-size: 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+    background: #ffffff;
+}
+
+.bayes-feature-input,
+.visual-feature-input {
+    height: var(--bayes-input-height);
+    line-height: var(--bayes-input-height);
+    padding: 4px 8px;
+}
+
+/* 训练样本表格 */
+.sample-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.sample-table thead {
+    background: #f8f9fa;
+}
+
+.sample-table th {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.sample-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.sample-table input[type="text"] {
+    width: 100%;
+    padding: 4px 8px;
+    height: var(--bayes-input-height);
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: border-color 0.2s;
+}
+
+.sample-table input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+.sample-table .empty-row {
+    text-align: center;
+    padding: 20px;
+    color: #909399;
+    font-style: italic;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+    .bayes-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bayes-toolbar select,
+    .bayes-toolbar button {
+        max-width: 100%;
+    }
+
+    .weights-table,
+    .scoring-rule-table,
+    .sample-table {
+        font-size: 12px;
+    }
+
+    .weights-table th,
+    .weights-table td,
+    .scoring-rule-table th,
+    .scoring-rule-table td,
+    .sample-table th,
+    .sample-table td {
+        padding: 8px;
+    }
+}
