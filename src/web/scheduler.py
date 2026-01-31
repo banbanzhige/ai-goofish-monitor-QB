@@ -16,8 +16,6 @@ async def run_single_task(task_id: int, task_name: str, fetcher_processes, updat
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 定时任务触发: 正在为任务 '{task_name}' 启动公开内容查看脚本...")
     log_file_handle = None
     try:
-        await update_task_running_status(task_id, True)
-
         os.makedirs("logs", exist_ok=True)
         log_file_path = os.path.join("logs", "fetcher.log")
         log_file_handle = open(log_file_path, 'a', encoding='utf-8')
@@ -36,6 +34,7 @@ async def run_single_task(task_id: int, task_name: str, fetcher_processes, updat
         )
 
         fetcher_processes[task_id] = process
+        await update_task_running_status(task_id, True, process.pid)
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 定时任务 '{task_name}' (PID: {process.pid}) 已添加到进程管理中")
 
         async def monitor_process():
