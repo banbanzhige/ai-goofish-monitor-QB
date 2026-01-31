@@ -8,6 +8,19 @@ from src.web.models import DeleteResultItemRequest, DeleteResultsBatchRequest
 
 router = APIRouter()
 
+# 新结构下推荐等级的推荐集合（与运行期口径一致）
+RECOMMENDED_LEVELS = {"STRONG_BUY", "CAUTIOUS_BUY", "CONDITIONAL_BUY"}
+
+
+def _is_ai_recommended(ai_analysis: dict) -> bool:
+    """优先基于recommendation_level判断是否推荐，缺失时回退到is_recommended。"""
+    if not isinstance(ai_analysis, dict):
+        return False
+    level = ai_analysis.get("recommendation_level")
+    if isinstance(level, str):
+        return level in RECOMMENDED_LEVELS
+    return ai_analysis.get("is_recommended") is True
+
 
 def _extract_item_id(item):
     link = item.get("商品信息", {}).get("商品链接", "")
@@ -20,7 +33,7 @@ def _matches_filters(record, filters):
         return True
 
     if filters.recommended_only:
-        if record.get("ai_analysis", {}).get("is_recommended") is not True:
+        if not _is_ai_recommended(record.get("ai_analysis", {})):
             return False
 
     if filters.task_name and filters.task_name != "all":
@@ -326,7 +339,7 @@ async def get_result_file_content(filename: str, page: int = 1, limit: int = 20,
         match = True
 
         if recommended_only:
-            if record.get("ai_analysis", {}).get("is_recommended") is not True:
+            if not _is_ai_recommended(record.get("ai_analysis", {})):
                 match = False
 
         if task_name and task_name != "all":
