@@ -31,7 +31,7 @@ start_web_server.bat
 config.json
 docs/
 AGENTS.md
-
+images/logo/banner.psd
 
 #.md
 docker-build-guide.md
