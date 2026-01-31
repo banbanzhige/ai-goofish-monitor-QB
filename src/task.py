@@ -20,6 +20,7 @@ class Task(BaseModel):
     cron: Optional[str] = None
     ai_prompt_base_file: str
     ai_prompt_criteria_file: str
+    bayes_profile: Optional[str] = "bayes_v1"
     is_running: Optional[bool] = False
     generating_ai_criteria: Optional[bool] = False  # New field for AI criteria generation status
     bound_account: Optional[str] = None
@@ -48,6 +49,7 @@ class TaskUpdate(BaseModel):
     cron: Optional[str] = None
     ai_prompt_base_file: Optional[str] = None
     ai_prompt_criteria_file: Optional[str] = None
+    bayes_profile: Optional[str] = None
     is_running: Optional[bool] = None
     generating_ai_criteria: Optional[bool] = None  # New field for AI criteria generation status
     bound_account: Optional[str] = None
@@ -167,6 +169,7 @@ async def get_task(task_id: int) -> Task | None:
     task_data.setdefault("resale", False)
     task_data.setdefault("bound_account", None)
     task_data.setdefault("auto_switch_on_risk", False)
+    task_data.setdefault("bayes_profile", "bayes_v1")
 
     # Convert dictionary to Task object before returning
     return Task(**task_data)
