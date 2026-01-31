@@ -7,6 +7,65 @@ from src.notifier.base import BaseNotifier
 from src.notifier.config import config
 
 
+def _get_channel_proxies(enabled_key: str) -> Optional[Dict[str, str]]:
+    """按渠道构建requests代理配置，仅在该渠道代理开关开启时生效。"""
+    proxy_url = config.get("PROXY_URL", "")
+    if proxy_url and config.get(enabled_key, False):
+        return {"http": proxy_url, "https": proxy_url}
+    return None
+
+
+_RECOMMENDATION_LEVEL_TEXT = {
+    "STRONG_BUY": "强烈推荐",
+    "CAUTIOUS_BUY": "谨慎推荐",
+    "CONDITIONAL_BUY": "有条件推荐",
+    "NOT_RECOMMENDED": "不推荐",
+}
+
+
+def _format_recommendation_extra(ai_analysis: Optional[Dict[str, Any]]) -> str:
+    """提取推荐等级与推荐度分数，返回可直接拼接到文案中的额外行。"""
+    if not isinstance(ai_analysis, dict):
+        return ""
+    lines = []
+    
+    # 推荐等级
+    level = ai_analysis.get("recommendation_level")
+    if isinstance(level, str) and level:
+        lines.append(f"🏷️ 推荐等级: {_RECOMMENDATION_LEVEL_TEXT.get(level, level)}")
+    
+    # 新版推荐度系统 (v2) - 优先使用
+    rec_v2 = ai_analysis.get("recommendation_score_v2")
+    if isinstance(rec_v2, dict):
+        final_score = rec_v2.get("recommendation_score")
+        fusion = rec_v2.get("fusion", {})
+        bayes = fusion.get("bayesian_score", 0)
+        visual = fusion.get("visual_score", 0)
+        ai_conf = fusion.get("ai_score", 0)
+        
+        if isinstance(final_score, (int, float)):
+            # 评分徽章
+            if final_score >= 80:
+                badge = "⭐⭐⭐"
+            elif final_score >= 60:
+                badge = "⭐⭐"
+            else:
+                badge = "⭐"
+            
+            lines.append(f"📊 综合推荐度: {final_score:.1f}分 {badge}")
+            lines.append(f"   └ 贝叶斯{bayes:.0f} | 视觉{visual:.0f} | AI{ai_conf:.0f}")
+    else:
+        # 降级到旧版置信度显示
+        score = ai_analysis.get("confidence_score")
+        if isinstance(score, (int, float)):
+            lines.append(f"📊 置信度: {float(score):.2f}")
+    
+    if not lines:
+        return ""
+    # 以换行开头，方便直接拼接在发布时间等行尾
+    return "\n" + "\n".join(lines)
+
+
 class NtfyNotifier(BaseNotifier):
     """ntfy通知渠道"""
     
@@ -18,6 +77,7 @@ class NtfyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证ntfy配置是否正确。\n\n如果您收到这条消息，说明ntfy配置已经生效！"
             
@@ -31,7 +91,8 @@ class NtfyNotifier(BaseNotifier):
                         "Priority": "urgent",
                         "Tags": "bell,vibration"
                     },
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -44,6 +105,7 @@ class NtfyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
             product_info = self._get_product_info(product)
             actual_product = product_info['actual_product']
             main_image = product_info['main_image']
@@ -52,10 +114,11 @@ class NtfyNotifier(BaseNotifier):
             title = actual_product.get('商品标题', 'N/A')
             price = actual_product.get('当前售价', 'N/A')
             publish_time = actual_product.get('发布时间', 'N/A')
+            rec_extra = _format_recommendation_extra(product_info.get('ai_analysis'))
             
             # 构建和Telegram一样的文案逻辑
             notification_title = f"🚨 新推荐!"
-            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}\n📝 推荐理由: {reason}\n"
+            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}{rec_extra}\n📝 推荐理由: {reason}\n"
             
             # 构建请求头
             headers = {
@@ -75,7 +138,8 @@ class NtfyNotifier(BaseNotifier):
                     config["NTFY_TOPIC_URL"],
                     data=message.encode('utf-8'),
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -88,6 +152,7 @@ class NtfyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
             notification_title = "🚀 任务开始"
             message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
@@ -101,7 +166,8 @@ class NtfyNotifier(BaseNotifier):
                         "Priority": "normal",
                         "Tags": "rocket"
                     },
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -114,6 +180,7 @@ class NtfyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
             notification_title = "✅ 任务完成"
             message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
@@ -129,7 +196,8 @@ class NtfyNotifier(BaseNotifier):
                         "Priority": "normal",
                         "Tags": "check-circle,white_check_mark"
                     },
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -149,6 +217,7 @@ class GotifyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_GOTIFY_ENABLED")
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Gotify配置是否正确。\n\n如果您收到这条消息，说明Gotify配置已经生效！"
             
@@ -165,7 +234,8 @@ class GotifyNotifier(BaseNotifier):
                 lambda: requests.post(
                     gotify_url_with_token,
                     files=payload,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -178,16 +248,18 @@ class GotifyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_GOTIFY_ENABLED")
             product_info = self._get_product_info(product)
             actual_product = product_info['actual_product']
             
             title = actual_product.get('商品标题', 'N/A')
             price = actual_product.get('当前售价', 'N/A')
             publish_time = actual_product.get('发布时间', 'N/A')
+            rec_extra = _format_recommendation_extra(product_info.get('ai_analysis'))
             
             # 构建和Telegram一样的文案逻辑
             notification_title = f"🚨 新推荐!"
-            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}\n📝 推荐理由: {reason}\n"
+            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}{rec_extra}\n📝 推荐理由: {reason}\n"
             
             payload = {
                 'title': (None, notification_title),
@@ -202,7 +274,8 @@ class GotifyNotifier(BaseNotifier):
                 lambda: requests.post(
                     gotify_url_with_token,
                     files=payload,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -215,6 +288,7 @@ class GotifyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_GOTIFY_ENABLED")
             notification_title = "🚀 任务开始"
             message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
@@ -231,7 +305,8 @@ class GotifyNotifier(BaseNotifier):
                 lambda: requests.post(
                     gotify_url_with_token,
                     files=payload,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -244,6 +319,7 @@ class GotifyNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_GOTIFY_ENABLED")
             notification_title = "✅ 任务完成"
             message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
@@ -262,7 +338,8 @@ class GotifyNotifier(BaseNotifier):
                 lambda: requests.post(
                     gotify_url_with_token,
                     files=payload,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -282,6 +359,7 @@ class BarkNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_BARK_ENABLED")
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Bark配置是否正确。\n\n如果您收到这条消息，说明Bark配置已经生效！"
             
@@ -300,7 +378,8 @@ class BarkNotifier(BaseNotifier):
                     config["BARK_URL"],
                     json=bark_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -313,6 +392,7 @@ class BarkNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_BARK_ENABLED")
             product_info = self._get_product_info(product)
             actual_product = product_info['actual_product']
             main_image = product_info['main_image']
@@ -321,10 +401,11 @@ class BarkNotifier(BaseNotifier):
             title = actual_product.get('商品标题', 'N/A')
             price = actual_product.get('当前售价', 'N/A')
             publish_time = actual_product.get('发布时间', 'N/A')
+            rec_extra = _format_recommendation_extra(product_info.get('ai_analysis'))
             
             # 构建和Telegram一样的文案逻辑
             notification_title = f"🚨 新推荐!"
-            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}\n📝 推荐理由: {reason}\n"
+            message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}{rec_extra}\n📝 推荐理由: {reason}\n"
             
             bark_payload = {
                 "title": notification_title,
@@ -347,7 +428,8 @@ class BarkNotifier(BaseNotifier):
                     config["BARK_URL"],
                     json=bark_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -359,6 +441,7 @@ class BarkNotifier(BaseNotifier):
         if not config["BARK_URL"] or not config["BARK_ENABLED"]:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_BARK_ENABLED")
             notification_title = "🚀 任务开始"
             message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
@@ -377,7 +460,8 @@ class BarkNotifier(BaseNotifier):
                     config["BARK_URL"],
                     json=bark_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -389,6 +473,7 @@ class BarkNotifier(BaseNotifier):
         if not config["BARK_URL"] or not config["BARK_ENABLED"]:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_BARK_ENABLED")
             notification_title = "✅ 任务完成"
             message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
@@ -409,7 +494,8 @@ class BarkNotifier(BaseNotifier):
                     config["BARK_URL"],
                     json=bark_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -434,6 +520,7 @@ class WeChatBotNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_WX_BOT_ENABLED")
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证企业微信机器人配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
             
@@ -454,7 +541,8 @@ class WeChatBotNotifier(BaseNotifier):
                     wx_bot_url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -481,6 +569,7 @@ class WeChatBotNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_WX_BOT_ENABLED")
             product_info = self._get_product_info(product)
             notification_title, message = self._format_notification_content(product_info, reason)
             main_image = product_info['main_image']
@@ -501,7 +590,8 @@ class WeChatBotNotifier(BaseNotifier):
                     wx_bot_url,
                     json=text_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -543,7 +633,8 @@ class WeChatBotNotifier(BaseNotifier):
                             wx_bot_url,
                             json=news_payload,
                             headers=headers,
-                            timeout=10
+                            timeout=10,
+                            proxies=proxies
                         )
                     )
                     
@@ -571,6 +662,7 @@ class WeChatBotNotifier(BaseNotifier):
         if not wx_bot_url or not wx_bot_enabled:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_WX_BOT_ENABLED")
             notification_title = "🚀 任务开始"
             message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
@@ -589,7 +681,8 @@ class WeChatBotNotifier(BaseNotifier):
                     wx_bot_url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -615,6 +708,7 @@ class WeChatBotNotifier(BaseNotifier):
         if not wx_bot_url or not wx_bot_enabled:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_WX_BOT_ENABLED")
             notification_title = "✅ 任务完成"
             message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
@@ -635,7 +729,8 @@ class WeChatBotNotifier(BaseNotifier):
                     wx_bot_url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -711,6 +806,7 @@ class WeChatAppNotifier(BaseNotifier):
             
             # Check if there's more detailed analysis available
             ai_analysis = product_info['ai_analysis']
+            rec_extra = _format_recommendation_extra(ai_analysis)
             
             # Include risk tags if available
             risk_tags = ai_analysis.get('risk_tags', [])
@@ -725,7 +821,7 @@ class WeChatAppNotifier(BaseNotifier):
             if ai_reason:
                 content = f"""
 价格：{actual_product.get('当前售价', '未知')}
-发布时间：{actual_product.get('发布时间', '未知')}
+发布时间：{actual_product.get('发布时间', '未知')}{rec_extra}
 
 推荐理由：
 {ai_reason}
@@ -733,7 +829,7 @@ class WeChatAppNotifier(BaseNotifier):
             else:
                 content = f"""
 价格：{actual_product.get('当前售价', '未知')}
-发布时间：{actual_product.get('发布时间', '未知')}
+发布时间：{actual_product.get('发布时间', '未知')}{rec_extra}
 
 AI推荐商品，查看详情了解更多...
 """
@@ -842,7 +938,8 @@ AI推荐商品，查看详情了解更多...
         url = f"https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid={config['WX_CORP_ID']}&corpsecret={config['WX_SECRET']}"
         
         try:
-            response = requests.get(url)
+            proxies = _get_channel_proxies("PROXY_WX_APP_ENABLED")
+            response = requests.get(url, proxies=proxies, timeout=15)
             response.raise_for_status()
             result = response.json()
             
@@ -866,7 +963,13 @@ AI推荐商品，查看详情了解更多...
         url = f"https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={access_token}"
         
         try:
-            response = requests.post(url, data=json.dumps(message_data, ensure_ascii=False).encode('utf-8'))
+            proxies = _get_channel_proxies("PROXY_WX_APP_ENABLED")
+            response = requests.post(
+                url,
+                data=json.dumps(message_data, ensure_ascii=False).encode('utf-8'),
+                proxies=proxies,
+                timeout=15
+            )
             response.raise_for_status()
             result = response.json()
             
@@ -893,6 +996,7 @@ class TelegramNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_TELEGRAM_ENABLED")
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证Telegram配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
             
@@ -916,7 +1020,8 @@ class TelegramNotifier(BaseNotifier):
                     telegram_api_url,
                     json=telegram_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -929,6 +1034,7 @@ class TelegramNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_TELEGRAM_ENABLED")
             product_info = self._get_product_info(product)
             actual_product = product_info['actual_product']
             pc_link = product_info['pc_link']
@@ -938,6 +1044,7 @@ class TelegramNotifier(BaseNotifier):
             title = actual_product.get('商品标题', 'N/A')
             price = actual_product.get('当前售价', 'N/A')
             publish_time = actual_product.get('发布时间', 'N/A')
+            rec_extra = _format_recommendation_extra(product_info.get('ai_analysis'))
             
             # 选择合适的链接
             product_link = mobile_link if config["PCURL_TO_MOBILE"] else pc_link
@@ -947,10 +1054,13 @@ class TelegramNotifier(BaseNotifier):
             caption += f"<b>{title}</b>\n\n"
             caption += f"💰 价格: {price}\n"
             caption += f"⏰ 发布时间: {publish_time}\n"
+            if rec_extra:
+                caption += f"{rec_extra}\n"
             caption += f"📝 推荐理由: {reason}\n"
             
             # 构建 Telegram 图片消息
             telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendPhoto"
+            headers = {"Content-Type": "application/json"}
             
             # 如果有商品图片，发送图片+按钮
             if main_image:
@@ -979,7 +1089,8 @@ class TelegramNotifier(BaseNotifier):
                         telegram_api_url,
                         json=telegram_payload,
                         headers=headers,
-                        timeout=10
+                        timeout=10,
+                        proxies=proxies
                     )
                 )
             else:
@@ -1006,7 +1117,8 @@ class TelegramNotifier(BaseNotifier):
                         f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage",
                         json=telegram_payload,
                         headers=headers,
-                        timeout=10
+                        timeout=10,
+                        proxies=proxies
                     )
                 )
             
@@ -1019,6 +1131,7 @@ class TelegramNotifier(BaseNotifier):
         if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"] or not config["TELEGRAM_ENABLED"]:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_TELEGRAM_ENABLED")
             telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage"
             notification_title = "🚀 任务开始"
             message = f"<b>🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}</b>"
@@ -1038,7 +1151,8 @@ class TelegramNotifier(BaseNotifier):
                     telegram_api_url,
                     json=telegram_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -1050,6 +1164,7 @@ class TelegramNotifier(BaseNotifier):
         if not config["TELEGRAM_BOT_TOKEN"] or not config["TELEGRAM_CHAT_ID"] or not config["TELEGRAM_ENABLED"]:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_TELEGRAM_ENABLED")
             telegram_api_url = f"https://api.telegram.org/bot{config['TELEGRAM_BOT_TOKEN']}/sendMessage"
             notification_title = "✅ 任务完成"
             message = f"<b>🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}</b>"
@@ -1071,7 +1186,8 @@ class TelegramNotifier(BaseNotifier):
                     telegram_api_url,
                     json=telegram_payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             return True
@@ -1160,6 +1276,7 @@ class WebhookNotifier(BaseNotifier):
         
         headers = config["WEBHOOK_HEADERS"].copy()
         final_url = config["WEBHOOK_URL"]
+        proxies = _get_channel_proxies("PROXY_WEBHOOK_ENABLED")
         
         if config["WEBHOOK_METHOD"] == "GET":
             if config["WEBHOOK_QUERY_PARAMETERS"]:
@@ -1175,7 +1292,7 @@ class WebhookNotifier(BaseNotifier):
                 except json.JSONDecodeError:
                     print(f"   -> [警告] Webhook 查询参数格式错误，请检查 .env 中的 WEBHOOK_QUERY_PARAMETERS。")
             
-            requests.get(final_url, headers=headers, timeout=15)
+            requests.get(final_url, headers=headers, timeout=15, proxies=proxies)
         
         elif config["WEBHOOK_METHOD"] == "POST":
             data = None
@@ -1197,7 +1314,14 @@ class WebhookNotifier(BaseNotifier):
                 except json.JSONDecodeError:
                     print(f"   -> [警告] Webhook 请求体格式错误，请检查 .env 中的 WEBHOOK_BODY。")
             
-            requests.post(final_url, headers=headers, json=json_payload, data=data, timeout=15)
+            requests.post(
+                final_url,
+                headers=headers,
+                json=json_payload,
+                data=data,
+                timeout=15,
+                proxies=proxies
+            )
 
 
 class DingTalkNotifier(BaseNotifier):
@@ -1236,6 +1360,7 @@ class DingTalkNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_DINGTALK_ENABLED")
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证钉钉机器人配置是否正确。\n\n如果您收到这条消息，说明配置已经生效！"
             
@@ -1260,7 +1385,8 @@ class DingTalkNotifier(BaseNotifier):
                     url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -1280,6 +1406,7 @@ class DingTalkNotifier(BaseNotifier):
             return False
             
         try:
+            proxies = _get_channel_proxies("PROXY_DINGTALK_ENABLED")
             product_info = self._get_product_info(product)
             actual_product = product_info['actual_product']
             pc_link = product_info['pc_link']
@@ -1289,6 +1416,7 @@ class DingTalkNotifier(BaseNotifier):
             title = actual_product.get('商品标题', '未知商品')
             price = actual_product.get('当前售价', '未知价格')
             publish_time = actual_product.get('发布时间', '未知时间')
+            rec_extra = _format_recommendation_extra(product_info.get('ai_analysis'))
             
             # 选择合适的链接
             product_link = mobile_link if config["PCURL_TO_MOBILE"] else pc_link
@@ -1298,6 +1426,8 @@ class DingTalkNotifier(BaseNotifier):
             markdown_text += f"**{title}**\n\n"
             markdown_text += f"💰 价格: {price}\n\n"
             markdown_text += f"⏰ 发布时间: {publish_time}\n\n"
+            if rec_extra:
+                markdown_text += f"{rec_extra.strip()}\n\n"
             markdown_text += f"📝 推荐理由: {reason}\n\n"
             
             if main_image:
@@ -1324,7 +1454,8 @@ class DingTalkNotifier(BaseNotifier):
                     url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -1343,6 +1474,7 @@ class DingTalkNotifier(BaseNotifier):
         if not config["DINGTALK_WEBHOOK"] or not config["DINGTALK_ENABLED"]:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_DINGTALK_ENABLED")
             notification_title = "🚀 任务开始"
             message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
             
@@ -1364,7 +1496,8 @@ class DingTalkNotifier(BaseNotifier):
                     url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
@@ -1383,6 +1516,7 @@ class DingTalkNotifier(BaseNotifier):
         if not config["DINGTALK_WEBHOOK"] or not config["DINGTALK_ENABLED"]:
             return False
         try:
+            proxies = _get_channel_proxies("PROXY_DINGTALK_ENABLED")
             notification_title = "✅ 任务完成"
             message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
@@ -1406,7 +1540,8 @@ class DingTalkNotifier(BaseNotifier):
                     url,
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=10,
+                    proxies=proxies
                 )
             )
             
