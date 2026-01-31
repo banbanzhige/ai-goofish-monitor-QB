@@ -39,6 +39,7 @@ class Task(BaseModel):
     cron: Optional[str] = None
     ai_prompt_base_file: str
     ai_prompt_criteria_file: str
+    bayes_profile: Optional[str] = "bayes_v1"
     is_running: Optional[bool] = False
     generating_ai_criteria: Optional[bool] = False
     bound_account: Optional[str] = None  # 绑定的咸鱼账号名
@@ -66,6 +67,7 @@ class TaskUpdate(BaseModel):
     enabled: Optional[bool] = None
     keyword: Optional[str] = None
     description: Optional[str] = None
+    reference_file: Optional[str] = None
     max_pages: Optional[int] = None
     personal_only: Optional[bool] = None
     min_price: Optional[Union[str, int, float]] = None
@@ -73,6 +75,7 @@ class TaskUpdate(BaseModel):
     cron: Optional[str] = None
     ai_prompt_base_file: Optional[str] = None
     ai_prompt_criteria_file: Optional[str] = None
+    bayes_profile: Optional[str] = None
     is_running: Optional[bool] = None
     generating_ai_criteria: Optional[bool] = None
     bound_account: Optional[str] = None
@@ -103,6 +106,7 @@ class TaskGenerateRequest(BaseModel):
     max_price: Optional[str] = None
     max_pages: int = 3
     cron: Optional[str] = None
+    bayes_profile: Optional[str] = "bayes_v1"
     free_shipping: bool = False
     inspection_service: bool = False
     account_assurance: bool = False
@@ -130,6 +134,7 @@ class TaskGenerateRequestWithReference(BaseModel):
     max_pages: int = 3
     cron: Optional[str] = None
     reference_file: Optional[str] = None
+    bayes_profile: Optional[str] = "bayes_v1"
     free_shipping: bool = False
     inspection_service: bool = False
     account_assurance: bool = False
@@ -156,6 +161,10 @@ class PromptUpdate(BaseModel):
 
 
 class LoginStateUpdate(BaseModel):
+    content: str
+
+
+class BayesUpdate(BaseModel):
     content: str
 
 
@@ -221,7 +230,7 @@ class GenericSettings(BaseModel):
     AI_DEBUG_MODE: Optional[bool] = None
     ENABLE_THINKING: Optional[bool] = None
     ENABLE_RESPONSE_FORMAT: Optional[bool] = None
-    SEND_URL_FORMAT_IMAGE: Optional[bool] = None
+    AI_VISION_ENABLED: Optional[bool] = None
     SERVER_PORT: Optional[int] = None
     WEB_USERNAME: Optional[str] = None
     WEB_PASSWORD: Optional[str] = None
