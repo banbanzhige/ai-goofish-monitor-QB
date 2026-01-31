@@ -70,6 +70,16 @@ def ensure_state_dir():
     """确保state目录存在"""
     os.makedirs(STATE_DIR, exist_ok=True)
 
+def _is_account_expired(cookies: list, current_time: float) -> bool:
+    """基于Cookie过期时间判断账号是否已失效（与列表页判定保持一致）"""
+    if not cookies:
+        return True
+    for cookie in cookies:
+        expires = cookie.get("expires", 0)
+        if expires > 0 and expires < current_time:
+            return True
+    return False
+
 
 def _merge_state_payload(target: dict, state_data):
     """自适应合并用户提供的状态数据，保留系统字段。"""
@@ -215,6 +225,64 @@ async def reorder_accounts(payload: AccountOrderUpdate):
         await write_account_file(name, data)
 
     return {"message": "账号排序更新成功"}
+
+
+@router.post("/api/accounts/cleanup-expired")
+async def cleanup_expired_accounts():
+    """批量清理已失效账号：删除state目录下已过期账号文件"""
+    ensure_state_dir()
+    import time
+    import asyncio
+
+    current_time = time.time()
+    active_account = await get_active_account_name()
+    deleted_names = []
+
+    for filename in os.listdir(STATE_DIR):
+        if not filename.endswith(".json") or filename.startswith("_"):
+            continue
+        name = filename[:-5]
+        filepath = get_account_file_path(name)
+        try:
+            data = await read_account_file(name)
+        except HTTPException:
+            continue
+        except Exception:
+            continue
+
+        cookies = data.get("cookies", [])
+        if not _is_account_expired(cookies, current_time):
+            continue
+
+        # 账号已失效，删除账号文件；若为当前激活账号则一并清理激活标记
+        try:
+            removed = False
+            for attempt in range(3):
+                try:
+                    os.remove(filepath)
+                    removed = True
+                    break
+                except PermissionError:
+                    if attempt == 2:
+                        raise
+                    await asyncio.sleep(0.05)
+            if not removed:
+                continue
+            deleted_names.append(name)
+            if name == active_account and os.path.exists(ACTIVE_ACCOUNT_FILE):
+                os.remove(ACTIVE_ACCOUNT_FILE)
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"清理失效账号失败: {e}")
+
+    if not deleted_names:
+        return {"message": "未发现可清理的失效账号", "deleted": [], "count": 0}
+    return {
+        "message": f"已清理 {len(deleted_names)} 个失效账号",
+        "deleted": deleted_names,
+        "count": len(deleted_names),
+    }
 
 
 @router.post("/api/accounts")
