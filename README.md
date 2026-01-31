@@ -106,16 +106,17 @@
 <summary>v0.9.9 更新日志 - 2026-01-31</summary>
 
   <ul>
-    <li><strong>推荐策略重构升级</strong>：重构了ai推荐模型，现在使用朴素贝叶斯网模型先验+ai视觉模型判断+ai综合融合加权评分，现在我们有完整的评分体系和推荐分数了</li>
-    <li><strong>添加了代理设置tab</strong>：对模型和渠道都单独设置了代理开关</li>
-    <li><strong>多模态功能强化升级</strong>：强化启用了多模态模型的ai视觉功能，在推荐和评分中发挥重要的作用</li>
-    <li><strong>更新了base_prompt</strong>：配适0.9.9推荐模型和工作流</li>
-    <li><strong>新添bayes管理tab</strong>：能更加细致定制筛选和推荐模型</li>
-    <li><strong>优化了cookie容易失效情况</strong>：优化了cookie容易失效的情况，添加了cookie回填功能</li>
-    <li><strong>修复了其他一些已知问题</strong>
+    <li><strong>添加了解锁API输出token上限功能</strong>：本次更新后AI分析能力增强，需拓展输出token字段，大部分模型支持比默认更高的输出字段设置，详情见详情见[上限设置与判断](#如何判断你的ai-api默认输出token上限是否足够)</li>
+    <li><strong>推荐策略重构升级</strong>：重构了AI推荐模型，现使用朴素贝叶斯网模型先验+AI视觉模型判断+AI综合融合加权评分，已实现完整的评分体系和推荐分数</li>
+    <li><strong>添加了代理设置tab</strong>：对模型和渠道单独设置了代理开关</li>
+    <li><strong>多模态功能强化升级</strong>：强化启用多模态模型的AI视觉功能，在推荐和评分中发挥重要作用</li>
+    <li><strong>更新了base_prompt</strong>：适配0.9.9版本的推荐模型和工作流</li>
+    <li><strong>新添bayes管理tab</strong>：可更细致定制筛选和推荐模型</li>
+    <li><strong>优化了cookie容易失效情况</strong>：优化cookie易失效问题，新增cookie回填功能</li>
+    <li><strong>修复了其他一些已知问题</strong></li>
+  </ul>
 
 </details>
-
 
 <details>
 <summary>v0.9.8 更新日志 - 2026-01-25</summary>
@@ -554,7 +555,6 @@ python web_server.py
   <li>  3.登录完成后会自动刷新获取cookie，请不要手动关闭网页</li>
   <li>  4.获取登录信息完成后网页会自动关->登录成功->填写好账号名称即可</li>
  <img src="images/Example/0.9.7/自动获取账号.png" alt="自动登录按钮">
- <img src="images/Example/0.9.7/账号管理.png" alt="账号管理界面.png">
 </details>
 
 
