@@ -28,6 +28,7 @@ from src.web.settings_manager import router as settings_router
 from src.web.notification_manager import router as notification_router
 from src.web.ai_manager import router as ai_router
 from src.web.account_manager import router as account_router
+from src.web.bayes_api import router as bayes_router
 
 
 # 日志写入函数
@@ -253,6 +254,7 @@ app.include_router(settings_router)
 app.include_router(notification_router)
 app.include_router(ai_router)
 app.include_router(account_router)
+app.include_router(bayes_router)
 
 
 if __name__ == "__main__":
