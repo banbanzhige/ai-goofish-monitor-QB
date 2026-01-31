@@ -5,6 +5,7 @@
 
 # 咸鱼AI智能推荐机器人
 基于 Playwright 和 AI 的朴素贝叶斯模型+AI人群画像判断+AI视觉判断加权推荐的闲鱼智能推荐机器人，提供完整的 Web 管理界面，调用ai帮助用户过滤商品链接，自动个性化挑选商品，支持多种通知方式即时触达。
+
 脱胎于：[Usagi-org/ai-goofish-monitor](https://github.com/Usagi-org/ai-goofish-monitor) 大量修改优化代码与操作逻辑添加了朴素贝叶斯网模型与ai多模态视觉模型评分与人群画像评分，支持微调评分参数与长期迭代置信模型样本，且调整到更舒适的UI与使用体验。
 - 本项目仅供学习和技术研究使用，请勿用于非法用途。
 - 请遵守闲鱼的用户协议和robots.txt规则，不要进行过于频繁的请求，以免对服务器造成负担或导致账号被限制。
@@ -54,15 +55,6 @@
 | 账号管理-移动端 | 任务管理-移动端 | 结果查看-移动端 |定时任务-移动端 |
 |:---:|:---:|:---:|:---:|
 | ![账号管理-移动端效果](images/Example/0.9.8/账号管理-移动端.jpg) | ![任务管理-移动端效果](images/Example/0.9.8/任务管理-移动端.jpg) | ![结果查看-移动端效果](images/Example/0.9.9/结果查看-移动端.jpg) |![定时任务-移动端效果](images/Example/0.9.8/定时任务-移动端.jpg) |
-
-</details>
-
-<details open>
-<summary>通知渠道效果展示</summary>
-
-| 微信应用通知渠道效果 | 微信群机器人通知渠道效果 | Telegram通知渠道效果 |钉钉通知渠道效果 |
-|:---:|:---:|:---:|:---:|
-| ![微信应用通知渠道效果](images/Example/0.9.0/微信应用通知渠道.jpg) | ![微信群机器人通知渠道效果](images/Example/0.9.2/微信群机器人通知渠道0101.jpg) | ![Telegram通知渠道效果](images/Example/0.9.2/Telegram通知渠道0101.jpg) |![Telegram通知渠道效果](images/Example/0.9.7/钉钉.jpg) |
 
 </details>
 
@@ -292,7 +284,7 @@
 -  **自然语言定制推荐**：每个任务都可以单独给 ai 分析配备独立的判断逻辑和分析思路，可以单独制定一条纯自然语言的推荐逻辑，可以通过编辑`prompt`列本来定制。**例如**：从卖家曾经的评论和出售的商品**判断**是否是二手贩子还是个人卖家，我要个人卖家的推荐
 -  **多线程**：下图描述了单个监控任务从启动到完成的核心处理逻辑。在实际使用中，`web_server.py` 会作为主服务，根据用户操作或定时调度来启动一个或多个这样的任务进程。
 
-<div style="width: 500px; margin: 0 auto;">
+<div style="width: 450px; margin: 0 auto;">
 
 ```mermaid
 
@@ -334,7 +326,7 @@ graph TD
 
 **多维度**：ai会根据`collector.py`获取回来的数据进行分类分析，再加上定制化需求判断后得出推荐/不推荐结论，最后所有数据存储入jsonl里，并且条件满足就会触发通知渠道。
 
-<div style="width: 800px; margin: 0 auto;">
+<div style="width: 1000px; margin: 0 auto;">
 
 ```mermaid
 mindmap
@@ -541,7 +533,7 @@ python web_server.py
 | `OPENAI_BASE_URL` | API 接口地址（兼容 OpenAI 格式） | 是 |
 | `OPENAI_MODEL_NAME` | 多模态模型名称（如 `gpt-4o``doubao-seed-1-8-251228`） | 是 |
 | `tokens上限字段名` | 多模态模型的token输出上限字段（如 豆包：`max_completion_tokens`，openAI：`max_tokens`） | 是 |
-| `tokens上限` | `0.9.9`更新后ai分析能力增强，必须要拓展输出token字段，大部分模型都支持比默认跟高的输出字段，推荐10000起 | 是 |
+| `tokens上限` | `0.9.9`更新后ai分析能力增强，必须要拓展输出token字段大部分模型都支持比默认跟高的输出字段，推荐10000起 | 是 |
 | `闲鱼账号` | 需要手机扫码或者[Chrome插件](https://chromewebstore.google.com/detail/xianyu-login-state-extrac/eidlpfjiodpigmfcahkmlenhppfklcoa)获取登录 | 是 |
 | `通知渠道token` | 企业微信机器人，Telegram，钉钉等 | 否|
 
@@ -597,16 +589,32 @@ python web_server.py
   推荐进入WEB界面直接填写保存配置
   默认配置存储在工作路径下的`.env`文件内，可以直接配置，前后端保存同步
   #### AI模型配置 
-  - API Key *：你的AI模型服务商提供的API Key
-  - API Base URL *：AI模型的API接口地址，必须兼容OpenAI格式
-  - 模型名称 *：你要使用的具体模型名称，必须支持图片分析（推荐doubao-seed模型）
+  - API Key ：你的AI模型服务商提供的API Key
+  - API Base URL ：AI模型的API接口地址，必须兼容OpenAI格式
+  - 模型名称 ：你要使用的具体模型名称，必须支持图片分析（推荐doubao-seed模型）
+  - tokens上限字段名 ：多模态模型的token输出上限字段（如 豆包：`max_completion_tokens`，openAI：`max_tokens`）
+| - tokens上限：`0.9.9`更新后ai分析能力增强，必须要拓展输出token字段大部分模型都支持比默认跟高的输出字段，推荐10000起
+
+  #### 如何判断你的ai API默认输出token上限是否足够
+  使用默认的`base_prompt`生成一次ai标准，然后检查ai标准最低下的文案，如果存在时间戳则表示完整的ai标准输出完成，反之亦然
+| 被截断的ai标准 | 完整的ai标准 |
+|:---:|:---:|
+| ![被截断的ai标准](images/Example/0.9.9/截断.png) | ![完整的ai标准](images/Example/0.9.9/完整.png) |
+
+
 
   #### Prompt 管理
   - 使用默认即可，熟悉相关的知识可以根据模板自行新建编辑，不推荐直接改动模板
 
+ ### bayes配置
+
+  - 待补充
+
+
+
   #### 通用配置
   - 保持默认即可，可以根据模型调整需求，默认配置满足大部分模型和场景
-  - **发送URL格式图片：如果模型允许尽量开启这个，能节省大理IO资源，节省大量模型api运算消耗token，未勾选时使用base64编码格式发送图片，相比直接发送URL可能增加的token消耗多300%或以上。**
+
   #### 服务器端口
   - 默认即可
   #### Web服务用户名
@@ -638,11 +646,6 @@ python web_server.py
 
 - 可以手动启动任务
 - 或等待定时任务自动执行
-
-
-### 8. base_prompt与bayes配置
-
-- 待补充
 
 
 ### ⏰ Cron表达式
