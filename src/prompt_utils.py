@@ -1,11 +1,30 @@
-import asyncio
+﻿import asyncio
 import json
 import os
 import sys
+from pathlib import Path
 
 import aiofiles
 
 from src import config
+
+# 权重框架指导文件路径（策略资产，不作为硬编码权重依赖）
+WEIGHT_GUIDE_PATH = Path("prompts/guide/weight_framework_guide.md")
+
+
+def get_weight_framework_guide() -> str:
+    """读取权重框架指导文本，缺失时提供最小兜底版本。"""
+    if WEIGHT_GUIDE_PATH.exists():
+        try:
+            return WEIGHT_GUIDE_PATH.read_text(encoding="utf-8")
+        except OSError:
+            pass
+    # 兜底指导：强调必须输出权重表与应用规则
+    return (
+        "请为评估维度提供权重分配表（总和100%）以及权重应用规则，"
+        "并确保高权重维度会影响推荐等级上限与置信度。"
+    )
+
 
 # 用于指导AI的元提示词
 META_PROMPT_TEMPLATE = """
@@ -26,11 +45,18 @@ META_PROMPT_TEMPLATE = """
 ```
 ---
 
+这是本次需要遵循的【权重框架指导】：
+```text
+{weight_instruction}
+```
+---
+
 请现在开始生成全新的【分析标准】文本。请注意：
 1.  **只输出新生成的文本内容**，不要包含任何额外的解释、标题或代码块标记。
 2.  保留范例中的 `[V6.3 核心升级]`、`[V6.4 逻辑修正]` 等版本标记，这有助于保持格式一致性。
 3.  将范例中所有与 "MacBook" 相关的内容，替换为与用户需求商品相关的内容。
 4.  思考并生成针对新商品类型的“一票否决硬性原则”和“危险信号清单”。
+5.  必须包含“评估维度权重分配表（总和100%）”以及“权重应用规则”两个片段。
 """
 
 
@@ -51,9 +77,11 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
         raise IOError(f"读取参考文件失败: {e}")
 
     print("正在构建发送给AI的指令...")
+    weight_instruction = get_weight_framework_guide()
     prompt = META_PROMPT_TEMPLATE.format(
         reference_text=reference_text,
-        user_description=user_description
+        user_description=user_description,
+        weight_instruction=weight_instruction,
     )
 
     print("正在调用AI生成新的分析标准，请稍候...")
@@ -108,3 +136,4 @@ async def update_config_with_new_task(new_task: dict, config_file: str = "config
     except IOError as e:
         sys.stderr.write(f"错误: 读写配置文件失败: {e}\n")
         return False
+
