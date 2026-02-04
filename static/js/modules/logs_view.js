@@ -1,4 +1,4 @@
-﻿﻿// 日志视图
+﻿﻿// 日志视图 - 增强版
 async function initializeLogsView() {
     const logContainer = document.getElementById('log-content-container');
     const refreshBtn = document.getElementById('refresh-logs-btn');
@@ -6,30 +6,133 @@ async function initializeLogsView() {
     const clearBtn = document.getElementById('clear-logs-btn');
     const taskFilter = document.getElementById('log-task-filter');
     const limitFilter = document.getElementById('log-display-limit');
+    const fileSelector = document.getElementById('log-file-selector');
+    const levelFilter = document.getElementById('log-level-filter');
+    const exportBtn = document.getElementById('export-logs-btn');
     let currentLogSize = 0;
+    let hasRenderedContent = false;
+    let lastRenderedLevel = '';
+
+    const escapeHtml = (text) => {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    };
+
+    const isSeparatorLine = (line) => {
+        const trimmed = line ? line.trim() : '';
+        if (!trimmed) return false;
+        return /^[-=]{6,}$/.test(trimmed);
+    };
+
+    const detectLogLevel = (line) => {
+        if (!line) return '';
+        if (isSeparatorLine(line)) {
+            return 'separator';
+        }
+        const bracketMatch = line.match(/\[(DEBUG|INFO|WARNING|ERROR|CRITICAL)\]/i);
+        if (bracketMatch && bracketMatch[1]) {
+            return bracketMatch[1].toLowerCase();
+        }
+        const jsonMatch = line.match(/"level"\s*:\s*"(DEBUG|INFO|WARNING|ERROR|CRITICAL)"/i);
+        if (jsonMatch && jsonMatch[1]) {
+            return jsonMatch[1].toLowerCase();
+        }
+        const prefixMatch = line.match(/^\s*(LOG|WARN|WARNING|ERR|ERROR)\s*[:：]/i);
+        if (prefixMatch && prefixMatch[1]) {
+            const normalized = prefixMatch[1].toLowerCase();
+            if (normalized === 'log') {
+                return 'info';
+            }
+            if (normalized === 'warn' || normalized === 'warning') {
+                return 'warning';
+            }
+            if (normalized === 'err' || normalized === 'error') {
+                return 'error';
+            }
+        }
+        if (/^\s*(->|→)/.test(line)) {
+            return 'info';
+        }
+        if (/(失败|异常|错误|超时|无法|不可用|未找到)/.test(line)) {
+            return 'error';
+        }
+        if (/(警告|注意|告警|风险)/.test(line)) {
+            return 'warning';
+        }
+        if (/(提示|请在|请先|开始|结束|完成|加载|加入执行队列|发送成功|通知)/.test(line)) {
+            return 'info';
+        }
+        return '';
+    };
+
+    const buildLogHtml = (rawText, lastLevel = '') => {
+        if (!rawText) return '';
+        const rawLines = rawText.split('\n');
+        let previousLevel = lastLevel;
+        const htmlLines = rawLines.map((line) => {
+            const detectedLevel = detectLogLevel(line);
+            let effectiveLevel = detectedLevel;
+            if (!effectiveLevel && previousLevel && previousLevel !== 'separator') {
+                effectiveLevel = previousLevel;
+            }
+            if (detectedLevel && detectedLevel !== 'separator') {
+                previousLevel = detectedLevel;
+            }
+            const levelClass = effectiveLevel ? ` log-level-${effectiveLevel}` : '';
+            const safeLine = escapeHtml(line);
+            return `<span class="log-line${levelClass}">${safeLine}</span>`;
+        });
+        return { html: htmlLines.join('<br>'), lastLevel: previousLevel };
+    };
 
     const updateLogs = async (isFullRefresh = false) => {
         // 对于增量更新，在添加新内容之前检查用户是否在底部。
         const shouldAutoScroll = isFullRefresh || (logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 5);
         const selectedTaskName = taskFilter ? taskFilter.value : '';
+        const selectedFile = fileSelector ? fileSelector.value : 'fetcher';
+        const selectedLevel = levelFilter ? levelFilter.value : '';
 
         if (isFullRefresh) {
             currentLogSize = 0;
             logContainer.textContent = '正在加载...';
+            hasRenderedContent = false;
+            lastRenderedLevel = '';
         }
 
-        const logData = await fetchLogs(currentLogSize, selectedTaskName, parseInt(limitFilter ? limitFilter.value : 100));
+        const logData = await fetchLogs(
+            currentLogSize, 
+            selectedTaskName, 
+            parseInt(limitFilter ? limitFilter.value : 100),
+            selectedFile,
+            selectedLevel
+        );
 
         if (isFullRefresh) {
             // 如果日志为空，显示消息而不是空白屏幕。
-            logContainer.textContent = logData.new_content || '日志为空，等待内容...';
+            if (logData.new_content) {
+                const rendered = buildLogHtml(logData.new_content, '');
+                logContainer.innerHTML = rendered.html;
+                lastRenderedLevel = rendered.lastLevel;
+                hasRenderedContent = true;
+            } else {
+                logContainer.textContent = '日志为空，等待内容...';
+                hasRenderedContent = false;
+                lastRenderedLevel = '';
+            }
         } else if (logData.new_content) {
             // 如果它正在显示空消息，替换它。
-            if (logContainer.textContent === '正在加载...' || logContainer.textContent === '日志为空，等待内容...') {
-                logContainer.textContent = logData.new_content;
+            const rendered = buildLogHtml(logData.new_content, lastRenderedLevel);
+            if (!hasRenderedContent || logContainer.textContent === '正在加载...' || logContainer.textContent === '日志为空，等待内容...') {
+                logContainer.innerHTML = rendered.html;
+                hasRenderedContent = true;
             } else {
-                logContainer.textContent += logData.new_content;
+                logContainer.innerHTML += `<br>${rendered.html}`;
             }
+            lastRenderedLevel = rendered.lastLevel;
         }
         currentLogSize = logData.new_pos;
 
@@ -46,12 +149,48 @@ async function initializeLogsView() {
         limitFilter.addEventListener('change', () => updateLogs(true));
     }
 
+    // 文件选择器change事件
+    if (fileSelector) {
+        fileSelector.addEventListener('change', () => updateLogs(true));
+    }
+
+    // 日志等级筛选器change事件
+    if (levelFilter) {
+        levelFilter.addEventListener('change', () => updateLogs(true));
+    }
+
+    // 导出诊断包按钮
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            exportBtn.disabled = true;
+            exportBtn.textContent = '⏳ 导出中...';
+            try {
+                const result = await exportDiagnosticLogs();
+                if (result) {
+                    Notification.success('诊断包导出成功');
+                }
+            } catch (e) {
+                Notification.error('导出失败: ' + e.message);
+            } finally {
+                exportBtn.disabled = false;
+                exportBtn.textContent = '📦 导出';
+            }
+        });
+    }
+
     clearBtn.addEventListener('click', async () => {
-        if (confirm('你确定要清空所有运行日志吗？此操作不可恢复。')) {
-            const result = await clearLogs();
-            if (result) {
+        const selectedFile = fileSelector ? fileSelector.value : 'fetcher';
+        const fileNames = {
+            'fetcher': '运行日志',
+            'system': '系统日志',
+            'error': '错误日志'
+        };
+        const confirmResult = await Notification.confirm(`你确定要清空${fileNames[selectedFile] || selectedFile}吗？此操作不可恢复。`);
+        if (confirmResult.isConfirmed) {
+            const clearResult = await clearLogs(selectedFile);
+            if (clearResult) {
                 await updateLogs(true);
-                alert('日志已清空。');
+                Notification.info('日志已清空。');
             }
         }
     });
@@ -131,4 +270,3 @@ async function initializeLogsView() {
     autoRefreshHandler();
     await updateLogs(true);
 }
-

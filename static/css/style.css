@@ -914,6 +914,35 @@ input:checked+.slider:before {
     line-height: 1.6;
 }
 
+#log-content-container .log-line {
+    white-space: pre-wrap;
+}
+
+#log-content-container .log-level-debug {
+    color: #9cdcfe;
+}
+
+#log-content-container .log-level-info {
+    color: #7be26d;
+}
+
+#log-content-container .log-level-warning {
+    color: #ffd666;
+}
+
+#log-content-container .log-level-error {
+    color: #ff7875;
+}
+
+#log-content-container .log-level-critical {
+    color: #ff4d4f;
+    font-weight: 600;
+}
+
+#log-content-container .log-level-separator {
+    color: #8c8c8c;
+}
+
 /* 按钮的旋转加载图�?*/
 .spinner {
     display: inline-block;
