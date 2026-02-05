@@ -1,4 +1,4 @@
-﻿﻿// --- 各部分的模板 ---
+﻿// --- 各部分的模板 ---
 var templates = {
     tasks: () => `
             <section id="tasks-section" class="content-section">
@@ -111,6 +111,23 @@ var templates = {
                             </label>
                         </div>
                         <div class="filter-group">
+                            <select id="log-file-selector" title="选择日志文件">
+                                <option value="fetcher" selected>运行日志</option>
+                                <option value="system">系统日志</option>
+                                <option value="error">错误日志</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <select id="log-level-filter" title="日志等级">
+                                <option value="">所有等级</option>
+                                <option value="DEBUG">DEBUG</option>
+                                <option value="INFO">INFO</option>
+                                <option value="WARNING">WARNING</option>
+                                <option value="ERROR">ERROR</option>
+                                <option value="CRITICAL">CRITICAL</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
                             <select id="log-task-filter">
                                 <option value="">所有任务</option>
                             </select>
@@ -127,7 +144,10 @@ var templates = {
                             <button id="refresh-logs-btn" class="control-button">🔄 刷新</button>
                         </div>
                         <div class="filter-group">
-                            <button id="clear-logs-btn" class="control-button danger-btn">🗑️ 清空日志</button>
+                            <button id="export-logs-btn" class="control-button" style="background-color: #1890ff; border-color: #1890ff; color: white;" title="导出诊断包">📦 导出</button>
+                        </div>
+                        <div class="filter-group">
+                            <button id="clear-logs-btn" class="control-button danger-btn">🗑️ 清空</button>
                         </div>
                     </div>
                 </div>
