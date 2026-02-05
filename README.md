@@ -159,6 +159,15 @@
 
 ### 推荐引擎架构
 
+
+![推荐引擎](images/readme/推荐引擎.png)
+
+
+
+<details>
+<summary>推荐引擎</summary>
+
+
 ```mermaid
 mindmap
   root((推荐引擎))
@@ -198,8 +207,16 @@ mindmap
         性别标签
         职业属性
 ```
+</details>
+
 
 ### 任务执行流程
+
+![任务执行流程](images/readme/幻灯片11.png)
+
+
+<details>
+<summary>任务执行流程</summary>
 
 ```mermaid
 graph TD
@@ -227,7 +244,19 @@ graph TD
     L --> B
 ```
 
+
+</details>
+
+
+
+
 ### 评分融合算法
+
+![评分融合算法](images/readme/幻灯片4.png)
+
+
+<details>
+<summary>评分融合算法</summary>
 
 ```mermaid
 graph TD
@@ -249,6 +278,10 @@ graph TD
     G --> H2[通知推送]
     G --> H3[JSONL 存储]
 ```
+
+</details>
+
+
 
 ---
 
