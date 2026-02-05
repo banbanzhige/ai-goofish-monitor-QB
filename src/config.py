@@ -187,6 +187,32 @@ def AI_VISION_ENABLED():
 def SERVER_PORT():
     return int(get_env_value("SERVER_PORT", 8000))
 
+# --- Logging Configuration ---
+def LOG_LEVEL():
+    return get_env_value("LOG_LEVEL", "INFO").upper()
+
+def LOG_CONSOLE_LEVEL():
+    return get_env_value("LOG_CONSOLE_LEVEL", "INFO").upper()
+
+def LOG_DIR():
+    return get_env_value("LOG_DIR", "logs")
+
+def LOG_MAX_BYTES():
+    return int(get_env_value("LOG_MAX_BYTES", 10485760))  # 10MB
+
+def LOG_BACKUP_COUNT():
+    return int(get_env_value("LOG_BACKUP_COUNT", 10))
+
+def LOG_RETENTION_DAYS():
+    return int(get_env_value("LOG_RETENTION_DAYS", 7))
+
+def LOG_JSON_FORMAT():
+    return get_bool_env_value("LOG_JSON_FORMAT", True)
+
+def LOG_ENABLE_LEGACY():
+    return get_bool_env_value("LOG_ENABLE_LEGACY", True)
+
+
 # --- Client Initialization ---
 def initialize_ai_client():
     """
