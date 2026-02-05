@@ -315,6 +315,9 @@ async def start_manual_login():
     import sys
 
     try:
+        if not os.path.exists("login.py"):
+            raise HTTPException(status_code=500, detail="未找到 login.py，无法启动自动登录程序。")
+
         if login_process is not None and login_process.returncode is None:
             return {"message": "已有登录进程在运行中，请等待其完成或关闭后再尝试。"}
 
