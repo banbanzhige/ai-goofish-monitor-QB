@@ -7,9 +7,13 @@ from pathlib import Path
 import aiofiles
 
 from src import config
+from src.logging_config import get_logger
 
 # 权重框架指导文件路径（策略资产，不作为硬编码权重依赖）
 WEIGHT_GUIDE_PATH = Path("prompts/guide/weight_framework_guide.md")
+
+# 统一日志输出
+logger = get_logger(__name__, service="system")
 
 
 def get_weight_framework_guide() -> str:
@@ -67,7 +71,10 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
     if not config.client:
         raise RuntimeError("AI客户端未初始化，无法生成分析标准。请检查.env配置。")
 
-    print(f"正在读取参考文件: {reference_file_path}")
+    logger.info(
+        f"正在读取参考文件: {reference_file_path}",
+        extra={"event": "criteria_reference_read", "reference_file": reference_file_path}
+    )
     try:
         with open(reference_file_path, 'r', encoding='utf-8') as f:
             reference_text = f.read()
@@ -76,7 +83,7 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
     except IOError as e:
         raise IOError(f"读取参考文件失败: {e}")
 
-    print("正在构建发送给AI的指令...")
+    logger.info("正在构建发送给AI的指令...", extra={"event": "criteria_prompt_build"})
     weight_instruction = get_weight_framework_guide()
     prompt = META_PROMPT_TEMPLATE.format(
         reference_text=reference_text,
@@ -84,7 +91,7 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
         weight_instruction=weight_instruction,
     )
 
-    print("正在调用AI生成新的分析标准，请稍候...")
+    logger.info("正在调用AI生成新的分析标准，请稍候...", extra={"event": "criteria_request"})
     try:
         response = await config.client.chat.completions.create(
             **config.get_ai_request_params(
@@ -94,7 +101,7 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
             )
         )
         generated_text = response.choices[0].message.content
-        print("AI已成功生成内容。")
+        logger.info("AI已成功生成内容。", extra={"event": "criteria_response"})
         
         # 处理content可能为None的情况
         if generated_text is None:
@@ -102,7 +109,7 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
         
         return generated_text.strip()
     except Exception as e:
-        print(f"调用 OpenAI API 时出错: {e}")
+        logger.error(f"调用AI接口时出错: {e}", extra={"event": "criteria_request_error"})
         raise e
 
 
@@ -110,7 +117,10 @@ async def update_config_with_new_task(new_task: dict, config_file: str = "config
     """
     将一个新任务添加到指定的JSON配置文件中。
     """
-    print(f"正在更新配置文件: {config_file}")
+    logger.info(
+        f"正在更新配置文件: {config_file}",
+        extra={"event": "config_update_start", "config_file": config_file}
+    )
     try:
         # 读取现有配置
         config_data = []
@@ -128,12 +138,21 @@ async def update_config_with_new_task(new_task: dict, config_file: str = "config
         async with aiofiles.open(config_file, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(config_data, ensure_ascii=False, indent=2))
 
-        print(f"成功！新任务 '{new_task.get('task_name')}' 已添加到 {config_file} 并已启用。")
+        logger.info(
+            f"新任务 '{new_task.get('task_name')}' 已添加到 {config_file} 并已启用。",
+            extra={"event": "config_update_success", "task_name": new_task.get("task_name"), "config_file": config_file}
+        )
         return True
     except json.JSONDecodeError:
-        sys.stderr.write(f"错误: 配置文件 {config_file} 格式错误，无法解析。\n")
+        logger.error(
+            f"配置文件 {config_file} 格式错误，无法解析。",
+            extra={"event": "config_update_invalid", "config_file": config_file}
+        )
         return False
     except IOError as e:
-        sys.stderr.write(f"错误: 读写配置文件失败: {e}\n")
+        logger.error(
+            f"读写配置文件失败: {e}",
+            extra={"event": "config_update_io_error", "config_file": config_file}
+        )
         return False
 
