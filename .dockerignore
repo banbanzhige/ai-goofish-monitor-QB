@@ -8,9 +8,6 @@ __pycache__/
 *$py.class
 src/__pycache__/
 
-# 项目依赖（在Dockerfile中会重新安装）
-#requirements.txt
-
 # Git版本控制文件
 .git/
 .gitignore
@@ -36,10 +33,9 @@ AGENTS.md
 images/logo/banner.psd
 .aider*
 installed_packages.txt
-qrcode.png
 
 #.md
-docker-build-guide.md
+
 
 #.使用产生的文件
 chrome-extension/
@@ -48,7 +44,6 @@ logs/
 criteria/
 archive/
 jsonl/
-xianyu_state.json
 state/
 example/
 task_stats/
@@ -56,6 +51,5 @@ task_stats/
 *.spec
 dist/
 build/
-升级.txt
 upgrade.txt
 
