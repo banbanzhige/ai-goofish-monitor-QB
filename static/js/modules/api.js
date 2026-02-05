@@ -523,13 +523,13 @@ async function fetchLogs(fromPos = 0, taskName = '', limit = 100, file = 'fetche
     }
 }
 
-async function exportDiagnosticLogs(days = 7) {
+async function exportLogs(days = 7) {
     try {
         const params = new URLSearchParams({ days: days });
         const response = await fetch(`/api/logs/export?${params}`, { method: 'POST' });
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.detail || '导出诊断包失败');
+            throw new Error(err.detail || '导出日志包失败');
         }
         // 下载文件
         const blob = await response.blob();
@@ -537,7 +537,7 @@ async function exportDiagnosticLogs(days = 7) {
         const a = document.createElement('a');
         a.href = url;
         const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'diagnostic_report.zip';
+        let filename = 'logs_export.zip';
         if (contentDisposition) {
             const match = contentDisposition.match(/filename="?(.+)"?/);
             if (match) filename = match[1];
@@ -549,7 +549,7 @@ async function exportDiagnosticLogs(days = 7) {
         document.body.removeChild(a);
         return true;
     } catch (error) {
-        console.error("无法导出诊断包:", error);
+        console.error("无法导出日志包:", error);
         Notification.error(`错误: ${error.message}`);
         return null;
     }

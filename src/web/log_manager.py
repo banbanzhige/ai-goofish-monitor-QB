@@ -249,19 +249,14 @@ async def clear_task_logs(task_id: int):
 
 
 @router.post("/api/logs/export")
-async def export_diagnostic_package(
+async def export_logs(
     days: int = Query(7, description="包含最近N天的日志"),
     max_size_mb: int = Query(50, description="最大导出大小(MB)")
 ):
     """
-    导出诊断日志包
+    导出日志包
     
-    生成一个包含以下内容的ZIP文件：
-    - 系统信息
-    - 近N天的日志文件
-    - 脱敏后的config.json
-    - 脱敏后的.env
-    - 版本信息
+    生成一个包含近N天日志文件的ZIP包
     """
     from src.log_exporter import export_logs_package, cleanup_old_exports
     from fastapi.responses import FileResponse
@@ -274,7 +269,7 @@ async def export_diagnostic_package(
         )
         
         if not zip_path or not os.path.exists(zip_path):
-            raise HTTPException(status_code=500, detail="导出诊断包失败")
+            raise HTTPException(status_code=500, detail="导出日志包失败")
         
         # 清理旧的导出文件
         cleanup_old_exports(keep_count=5)
@@ -288,20 +283,20 @@ async def export_diagnostic_package(
         )
         
     except Exception as e:
-        logger.error(f"导出诊断包时出错: {e}", extra={"event": "export_api_error"})
-        raise HTTPException(status_code=500, detail=f"导出诊断包时出错: {e}")
+        logger.error(f"导出日志包时出错: {e}", extra={"event": "export_api_error"})
+        raise HTTPException(status_code=500, detail=f"导出日志包时出错: {e}")
 
 
 @router.get("/api/logs/exports")
 async def list_exports():
-    """列出已导出的诊断包"""
+    """列出已导出的日志包"""
     export_dir = os.path.join(LOG_DIR, "exports")
     
     if not os.path.exists(export_dir):
         return {"exports": []}
     
     exports = []
-    for f in Path(export_dir).glob("diagnostic_report_*.zip"):
+    for f in Path(export_dir).glob("logs_export_*.zip"):
         stat = f.stat()
         exports.append({
             "filename": f.name,
@@ -321,7 +316,7 @@ async def download_export(filename: str):
     from fastapi.responses import FileResponse
     
     # 安全检查：确保文件名格式正确
-    if not filename.startswith("diagnostic_report_") or not filename.endswith(".zip"):
+    if not filename.startswith("logs_export_") or not filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="无效的文件名")
     
     export_path = os.path.join(LOG_DIR, "exports", filename)
@@ -340,7 +335,7 @@ async def download_export(filename: str):
 async def delete_export(filename: str):
     """删除指定的导出文件"""
     # 安全检查
-    if not filename.startswith("diagnostic_report_") or not filename.endswith(".zip"):
+    if not filename.startswith("logs_export_") or not filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="无效的文件名")
     
     export_path = os.path.join(LOG_DIR, "exports", filename)

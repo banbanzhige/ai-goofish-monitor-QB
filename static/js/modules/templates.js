@@ -144,7 +144,7 @@ var templates = {
                             <button id="refresh-logs-btn" class="control-button">🔄 刷新</button>
                         </div>
                         <div class="filter-group">
-                            <button id="export-logs-btn" class="control-button" style="background-color: #1890ff; border-color: #1890ff; color: white;" title="导出诊断包">📦 导出</button>
+                            <button id="export-logs-btn" class="control-button" style="background-color: #1890ff; border-color: #1890ff; color: white;" title="导出日志">📦 导出</button>
                         </div>
                         <div class="filter-group">
                             <button id="clear-logs-btn" class="control-button danger-btn">🗑️ 清空</button>

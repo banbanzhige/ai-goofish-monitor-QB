@@ -104,8 +104,8 @@ async function initializeLogsView() {
         }
 
         const logData = await fetchLogs(
-            currentLogSize, 
-            selectedTaskName, 
+            currentLogSize,
+            selectedTaskName,
             parseInt(limitFilter ? limitFilter.value : 100),
             selectedFile,
             selectedLevel
@@ -159,15 +159,15 @@ async function initializeLogsView() {
         levelFilter.addEventListener('change', () => updateLogs(true));
     }
 
-    // 导出诊断包按钮
+    // 导出日志包按钮
     if (exportBtn) {
         exportBtn.addEventListener('click', async () => {
             exportBtn.disabled = true;
             exportBtn.textContent = '⏳ 导出中...';
             try {
-                const result = await exportDiagnosticLogs();
+                const result = await exportLogs();
                 if (result) {
-                    Notification.success('诊断包导出成功');
+                    Notification.success('日志导出成功');
                 }
             } catch (e) {
                 Notification.error('导出失败: ' + e.message);
