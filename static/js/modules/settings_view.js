@@ -181,13 +181,13 @@ async function initializeSettingsView() {
                 });
 
                 if (response.ok) {
-                    alert('通用配置已保存！');
+                    Notification.success('通用配置已保存！');
                 } else {
                     const errorData = await response.json();
-                    alert('保存失败: ' + (errorData.detail || '未知错误'));
+                    Notification.error('保存失败: ' + (errorData.detail || '未知错误'));
                 }
             } catch (error) {
-                alert('保存失败: ' + error.message);
+                Notification.error('保存失败: ' + error.message);
             } finally {
                 saveBtn.disabled = false;
                 saveBtn.textContent = originalText;
@@ -414,7 +414,7 @@ async function initializeSettingsView() {
 
             const result = await saveProxySettingsNow();
             if (result) {
-                alert(result.message || '代理设置已保存！');
+                Notification.success(result.message || '代理设置已保存！');
             }
 
             saveBtn.disabled = false;
@@ -459,7 +459,7 @@ async function initializeSettingsView() {
             return await response.json();
         } catch (error) {
             console.error('无法更新AI通用开关:', error);
-            alert(`错误: ${error.message}`);
+            Notification.error(`错误: ${error.message}`);
             return null;
         }
     };
@@ -498,7 +498,7 @@ async function initializeSettingsView() {
 
             const result = await updateAISettings(settings);
             if (result) {
-                alert(result.message || "AI设置已保存！");
+                Notification.success(result.message || "AI设置已保存！");
                 await updateAiGenericToggleSettings(genericToggleSettings);
 
                 // 刷新系统状态检查
@@ -539,9 +539,12 @@ async function initializeSettingsView() {
                 testBtn.disabled = true;
                 testBtn.textContent = '测试中...';
                 const results = [];
+                let browserOk = false;
+                let backendOk = false;
 
                 const browserResult = await testAISettings(settings, { silent: true });
                 if (browserResult && browserResult.success) {
+                    browserOk = true;
                     results.push(`浏览器测试成功：${browserResult.message || '连接正常'}`);
                 } else if (browserResult) {
                     results.push(`浏览器测试失败：${browserResult.message || '未知错误'}`);
@@ -571,6 +574,7 @@ async function initializeSettingsView() {
 
                         const backendResult = await response.json();
                         if (backendResult.success) {
+                            backendOk = true;
                             results.push(`后端容器测试成功：${backendResult.message || '连接正常'}`);
                         } else {
                             results.push(`后端容器测试失败：${backendResult.message || '未知错误'}`);
@@ -590,7 +594,15 @@ async function initializeSettingsView() {
                     }
                 }
 
-                alert(results.join('\n'));
+                const successLines = [
+                    '浏览器测试成功：AI模型连接测试成功！',
+                    '后端容器测试成功：后端AI模型连接测试成功！',
+                    '容器网络正常！系统已经准备好运行！'
+                ];
+                const message = (browserOk && backendOk)
+                    ? successLines.join('\n')
+                    : results.join('\n');
+                Notification.infoMultiline(message);
             });
         }
     }
@@ -670,7 +682,7 @@ async function initializeModelManagementPanels() {
             const selectedFile = promptSelector.value;
             const content = promptEditor.value;
             if (!selectedFile) {
-                alert("请先选择一个要保存的Prompt文件。");
+                Notification.warning("请先选择一个要保存的Prompt文件。");
                 return;
             }
 
@@ -679,7 +691,7 @@ async function initializeModelManagementPanels() {
 
             const result = await updatePrompt(selectedFile, content);
             if (result) {
-                alert(result.message || "保存成功！");
+                Notification.success(result.message || "保存成功！");
             }
 
 
@@ -691,11 +703,11 @@ async function initializeModelManagementPanels() {
         deletePromptBtn.addEventListener('click', async () => {
             const selectedFile = promptSelector.value;
             if (!selectedFile) {
-                alert("请先选择一个要删除的Prompt文件。");
+                Notification.warning("请先选择一个要删除的Prompt文件。");
                 return;
             }
 
-            if (!confirm(`你确定要删除Prompt文件 "${selectedFile}" 吗？此操作不可恢复。`)) {
+            const result = await Notification.confirmDelete(`你确定要删除Prompt文件 "${selectedFile}" 吗？此操作不可恢复。`); if (!result.isConfirmed) {
                 return;
             }
 
@@ -713,7 +725,7 @@ async function initializeModelManagementPanels() {
                 }
 
                 const result = await response.json();
-                alert(result.message || '删除成功！');
+                Notification.success(result.message || '删除成功！');
 
 
                 const newPrompts = await fetchPrompts();
@@ -727,7 +739,7 @@ async function initializeModelManagementPanels() {
 
             } catch (error) {
                 console.error('删除Prompt失败:', error);
-                alert('删除失败: ' + error.message);
+                Notification.error('删除失败: ' + error.message);
             } finally {
                 deletePromptBtn.disabled = false;
                 deletePromptBtn.textContent = '删除模板';
@@ -802,7 +814,7 @@ async function initializeModelManagementPanels() {
 
 
                 if (newFileName.includes('/') || newFileName.includes('..')) {
-                    alert('无效的文件名');
+                    Notification.warning('无效的文件名');
                     return;
                 }
 
@@ -819,7 +831,7 @@ async function initializeModelManagementPanels() {
                 })
                     .then(response => response.json())
                     .then(data => {
-                        alert(data.message || '新建模板成功！');
+                        Notification.success(data.message || '新建模板成功！');
                         closeModal();
 
                         return fetchPrompts();
@@ -832,7 +844,7 @@ async function initializeModelManagementPanels() {
                     })
                     .catch(error => {
                         console.error('创建新模板失败:', error);
-                        alert('创建新模板失败，请稍后重试。');
+                        Notification.error('创建新模板失败，请稍后重试。');
                     });
             });
         });
@@ -916,14 +928,14 @@ async function initializeModelManagementPanels() {
             const selectedFile = bayesSelector.value;
             const content = bayesEditor.value;
             if (!selectedFile) {
-                alert("请先选择一个要保存的Bayes文件。");
+                Notification.warning("请先选择一个要保存的Bayes文件。");
                 return;
             }
             saveBayesBtn.disabled = true;
             saveBayesBtn.textContent = '保存中...';
             const result = await updateBayes(selectedFile, content);
             if (result) {
-                alert(`Bayes 文件 ${selectedFile} 更新成功！`);
+                Notification.success(`Bayes 文件 ${selectedFile} 更新成功！`);
             }
             saveBayesBtn.disabled = false;
             saveBayesBtn.textContent = '保存更改';
@@ -932,10 +944,10 @@ async function initializeModelManagementPanels() {
         deleteBayesBtn.addEventListener('click', async () => {
             const selectedFile = bayesSelector.value;
             if (!selectedFile) {
-                alert("请先选择一个要删除的Bayes文件。");
+                Notification.warning("请先选择一个要删除的Bayes文件。");
                 return;
             }
-            if (!confirm(`你确定要删除Bayes文件 "${selectedFile}" 吗？此操作不可恢复。`)) {
+            const result = await Notification.confirmDelete(`你确定要删除Bayes文件 "${selectedFile}" 吗？此操作不可恢复。`); if (!result.isConfirmed) {
                 return;
             }
             deleteBayesBtn.disabled = true;
@@ -943,7 +955,7 @@ async function initializeModelManagementPanels() {
             try {
                 const response = await deleteBayesProfile(selectedFile);
                 if (response) {
-                    alert(`Bayes 文件 ${selectedFile} 删除成功！`);
+                    Notification.success(`Bayes 文件 ${selectedFile} 删除成功！`);
                 }
                 await refreshBayesList();
 
@@ -954,7 +966,7 @@ async function initializeModelManagementPanels() {
                 deleteBayesBtn.disabled = true;
             } catch (error) {
                 console.error('删除Bayes失败:', error);
-                alert('删除失败，请稍后重试。');
+                Notification.error('删除失败，请稍后重试。');
             } finally {
                 deleteBayesBtn.disabled = false;
                 deleteBayesBtn.textContent = '删除模板';
@@ -1016,18 +1028,18 @@ async function initializeModelManagementPanels() {
                 const newFileName = document.getElementById('new-bayes-name').value.trim();
                 const content = document.getElementById('new-bayes-content').value;
                 if (!newFileName) {
-                    alert('请输入模板名称。');
+                    Notification.warning('请输入模板名称。');
                     return;
                 }
                 if (newFileName.includes('/') || newFileName.includes('..')) {
-                    alert('无效的文件名');
+                    Notification.warning('无效的文件名');
                     return;
                 }
                 saveBtn.disabled = true;
                 saveBtn.textContent = '保存中...';
                 const result = await createBayesProfile(newFileName, content);
                 if (result) {
-                    alert(`Bayes 文件 ${newFileName} 创建成功！`);
+                    Notification.success(`Bayes 文件 ${newFileName} 创建成功！`);
                     await refreshBayesList();
 
                     await loadBayesGuide();

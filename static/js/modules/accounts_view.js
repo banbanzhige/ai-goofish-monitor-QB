@@ -17,9 +17,10 @@ async function initializeAccountsView() {
         container.querySelectorAll('.activate-account-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const name = btn.dataset.name;
-                if (confirm(`确定要激活账号 "${name}" 吗？`)) {
-                    const result = await activateAccount(name);
-                    if (result) {
+                const confirmResult = await Notification.confirm(`确定要激活账号 "${name}" 吗？`);
+                if (confirmResult.isConfirmed) {
+                    const activateResult = await activateAccount(name);
+                    if (activateResult) {
                         await refreshAccounts();
                     }
                 }
@@ -42,9 +43,10 @@ async function initializeAccountsView() {
             btn.addEventListener('click', async () => {
                 const name = btn.dataset.name;
                 const displayName = btn.dataset.displayName;
-                if (confirm(`确定要删除账号 "${displayName}" 吗？此操作不可恢复！`)) {
-                    const result = await deleteAccount(name);
-                    if (result) {
+                const confirmResult = await Notification.confirmDelete(`确定要删除账号 "${displayName}" 吗？此操作不可恢复！`);
+                if (confirmResult.isConfirmed) {
+                    const deleteResult = await deleteAccount(name);
+                    if (deleteResult) {
                         await refreshAccounts();
                     }
                 }
@@ -83,7 +85,7 @@ async function initializeAccountsView() {
                         if (statusCell) {
                             statusCell.innerHTML = '<span class="status-badge status-ok" style="background:#52c41a;">有效</span>';
                         }
-                        alert(`✓ ${result.message}`);
+                        Notification.success(`✓ ${result.message}`);
                     } else {
                         if (statusCell) {
                             statusCell.innerHTML = '<span class="status-badge status-error" style="background:#ff4d4f;">已过期</span>';
@@ -95,7 +97,8 @@ async function initializeAccountsView() {
                             const prefix = `账号 '${name}' `;
                             const reason = rawMessage.startsWith(prefix) ? rawMessage.slice(prefix.length) : rawMessage;
                             const confirmMessage = `账号 "${displayName}" 已失效。\n${reason}\n是否删除该账号？`;
-                            if (confirm(confirmMessage)) {
+                            const confirmResult = await Notification.confirm(confirmMessage);
+                            if (confirmResult.isConfirmed) {
                                 const deleteResult = await deleteAccount(name);
                                 if (deleteResult) {
                                     await refreshAccounts();
@@ -103,14 +106,14 @@ async function initializeAccountsView() {
                             }
                         } else {
                             const errorMessage = result?.detail || result?.message || '未知错误';
-                            alert(`测试账号 '${name}' 失败: ${errorMessage}`);
+                            Notification.error(`测试账号 '${name}' 失败: ${errorMessage}`);
                         }
                     }
                 } catch (error) {
                     if (statusCell) {
                         statusCell.innerHTML = '<span class="status-badge" style="background:#999;">检测失败</span>';
                     }
-                    alert(`测试账号 '${name}' 失败: ${error.message}`);
+                    Notification.error(`测试账号 '${name}' 失败: ${error.message}`);
                 } finally {
                     btn.disabled = false;
                     btn.textContent = '测试';
@@ -136,10 +139,10 @@ async function initializeAccountsView() {
                         await refreshAccounts();
                     } else {
                         const result = await response.json();
-                        alert(`复制失败: ${result.detail || '未知错误'}`);
+                        Notification.error(`复制失败: ${result.detail || '未知错误'}`);
                     }
                 } catch (error) {
-                    alert(`复制失败: ${error.message}`);
+                    Notification.error(`复制失败: ${error.message}`);
                 } finally {
                     btn.disabled = false;
                     btn.textContent = '复制';
@@ -150,7 +153,8 @@ async function initializeAccountsView() {
 
     if (cleanupExpiredBtn) {
         cleanupExpiredBtn.addEventListener('click', async () => {
-            if (!confirm('将删除所有已失效账号，是否继续？')) return;
+            const confirmResult = await Notification.confirmDelete('将删除所有已失效账号，是否继续？');
+            if (!confirmResult.isConfirmed) return;
             const originalText = cleanupExpiredBtn.textContent;
             cleanupExpiredBtn.disabled = true;
             cleanupExpiredBtn.textContent = '清理中...';
@@ -158,7 +162,7 @@ async function initializeAccountsView() {
             try {
                 const result = await cleanupExpiredAccounts();
                 if (result) {
-                    alert(result.message || '批量清理完成');
+                    Notification.success(result.message || '批量清理完成');
                     await refreshAccounts();
                 }
             } finally {
@@ -184,7 +188,7 @@ async function initializeAccountsView() {
             const stateContentTextarea = document.getElementById('login-state-content');
 
             if (!modal) {
-                alert('无法找到添加账号模态框');
+                Notification.info('无法找到添加账号模态框');
                 return;
             }
 
@@ -209,13 +213,13 @@ async function initializeAccountsView() {
                 const stateContent = stateContentTextarea?.value?.trim();
 
                 if (!accountName) {
-                    alert('请输入账号名称');
+                    Notification.warning('请输入账号名称');
                     accountNameInput?.focus();
                     return;
                 }
 
                 if (!stateContent) {
-                    alert('请粘贴Cookie JSON内容');
+                    Notification.warning('请粘贴Cookie JSON内容');
                     stateContentTextarea?.focus();
                     return;
                 }
@@ -224,7 +228,7 @@ async function initializeAccountsView() {
                 try {
                     JSON.parse(stateContent);
                 } catch (e) {
-                    alert('Cookie内容不是有效的JSON格式');
+                    Notification.info('Cookie内容不是有效的JSON格式');
                     return;
                 }
 
@@ -244,10 +248,10 @@ async function initializeAccountsView() {
                         await refreshAccounts();
                     } else {
                         const result = await response.json();
-                        alert(`添加失败: ${result.detail || '未知错误'}`);
+                        Notification.error(`添加失败`);
                     }
                 } catch (error) {
-                    alert(`添加失败: ${error.message}`);
+                    Notification.error(`添加失败: ${error.message}`);
                 }
             };
 
@@ -272,7 +276,7 @@ async function initializeAccountsView() {
             // 显示自动登录确认模态框
             const confirmModal = document.getElementById('manual-login-confirm-modal');
             if (!confirmModal) {
-                alert('无法找到登录确认模态框');
+                Notification.info('无法找到登录确认模态框');
                 return;
             }
 
@@ -294,7 +298,7 @@ async function initializeAccountsView() {
                     const response = await fetch('/api/manual-login', { method: 'POST' });
                     if (!response.ok) {
                         const errorData = await response.json();
-                        alert('启动失败: ' + (errorData.detail || '未知错误'));
+                        Notification.error('启动失败: ' + (errorData.detail || '未知错误'));
                         closeModal();
                         return;
                     }
@@ -332,7 +336,7 @@ async function initializeAccountsView() {
                     }, pollInterval);
 
                 } catch (error) {
-                    alert('启动失败: ' + error.message);
+                    Notification.error('启动失败: ' + error.message);
                 } finally {
                     closeModal();
                 }
@@ -592,7 +596,7 @@ function setupAccountModals(refreshCallback) {
             const stateContent = document.getElementById('account-state-content').value.trim();
 
             if (!displayName || !stateContent) {
-                alert('请填写所有必填字段');
+                Notification.warning('请填写所有必填字段');
                 return;
             }
 
@@ -630,7 +634,7 @@ function setupAccountModals(refreshCallback) {
             const stateContent = document.getElementById('edit-account-state-content').value.trim();
 
             if (!displayName) {
-                alert('显示名称不能为空');
+                Notification.warning('显示名称不能为空');
                 return;
             }
 

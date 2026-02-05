@@ -136,35 +136,42 @@ class BayesVisualManager {
      */
     async copyCurrentVersion() {
         if (!this.config) {
-            alert('配置尚未加载完成，无法复制。');
+            Notification.warning('配置尚未加载完成');
             return;
         }
 
         const defaultName = `${this.currentVersion}_copy`;
-        const inputName = prompt('请输入新版本名称（仅支持字母/数字/下划线/短横线）', defaultName);
-        if (inputName === null) {
+        const inputResult = await Notification.input('请输入新版本名称（仅支持字母/数字/下划线/短横线）', {
+            title: '复制版本',
+            defaultValue: defaultName
+        });
+        if (!inputResult.isConfirmed) {
             return;
         }
+        const inputName = (inputResult.value || '').toString();
 
         const newVersion = this.normalizeVersionName(inputName);
         if (!newVersion) {
-            alert('版本名称不能为空。');
+            Notification.warning('版本名称不能为空。');
             return;
         }
 
         if (!this.isValidVersionName(newVersion)) {
-            alert('版本名称仅支持字母、数字、下划线和短横线。');
+            Notification.info('版本名称仅支持字母、数字、下划线和短横线。');
             return;
         }
 
         const versions = await this.fetchVersions().catch(() => this.availableVersions);
         if (versions && versions.includes(newVersion)) {
-            alert('该版本名称已存在，请更换名称。');
+            Notification.warning('该版本名称已存在，请更换名称。');
             return;
         }
 
-        if (this.isDirty && !confirm('当前有未保存的更改，复制将基于当前编辑内容继续，确定要继续吗？')) {
-            return;
+        if (this.isDirty) {
+            const confirmResult = await Notification.confirm('当前有未保存的更改，复制将基于当前编辑内容继续，确定要继续吗？');
+            if (!confirmResult.isConfirmed) {
+                return;
+            }
         }
 
         this.collectDataFromUI();
@@ -190,10 +197,10 @@ class BayesVisualManager {
             await this.loadConfig(newVersion);
             this.render();
             this.setupEventListeners();
-            alert('✅ 复制成功！');
+            Notification.success('✅ 复制成功');
         } catch (error) {
             console.error('Copy failed:', error);
-            alert(`❌ 复制失败: ${error.message}`);
+            Notification.error(`❌ 复制失败: ${error.message}`);
         }
     }
 
@@ -203,21 +210,25 @@ class BayesVisualManager {
     async deleteCurrentVersion() {
         const versions = await this.fetchVersions().catch(() => this.availableVersions);
         if (!Array.isArray(versions) || versions.length <= 1) {
-            alert('至少保留一个 Bayes 版本，无法删除。');
+            Notification.info('至少保留一个 Bayes 版本，无法删除。');
             return;
         }
 
         const versionToDelete = this.currentVersion;
         if (!versionToDelete) {
-            alert('未选择版本，无法删除。');
+            Notification.info('未选择版本，无法删除。');
             return;
         }
 
-        if (this.isDirty && !confirm('当前有未保存的更改，删除后无法恢复，确定要继续吗？')) {
-            return;
+        if (this.isDirty) {
+            const confirmDirtyResult = await Notification.confirmDelete('当前有未保存的更改，删除后无法恢复，确定要继续吗？');
+            if (!confirmDirtyResult.isConfirmed) {
+                return;
+            }
         }
 
-        if (!confirm(`确定要删除版本 "${versionToDelete}" 吗？此操作不可恢复。`)) {
+        const confirmResult = await Notification.confirmDelete(`确定要删除版本 "${versionToDelete}" 吗？此操作不可恢复。`);
+        if (!confirmResult.isConfirmed) {
             return;
         }
 
@@ -238,10 +249,10 @@ class BayesVisualManager {
             await this.loadConfig(this.currentVersion);
             this.render();
             this.setupEventListeners();
-            alert('✅ 删除成功！');
+            Notification.success('✅ 删除成功');
         } catch (error) {
             console.error('Delete failed:', error);
-            alert(`❌ 删除失败: ${error.message}`);
+            Notification.error(`❌ 删除失败: ${error.message}`);
         }
     }
 
@@ -357,12 +368,13 @@ class BayesVisualManager {
         // 验证配置
         const errors = this.validateConfig();
         if (errors.length > 0) {
-            alert('配置验证失败:\n' + errors.join('\n'));
+            Notification.error('配置验证失败:\n' + errors.join('\n'));
             return false;
         }
 
         // 确认保存
-        if (!confirm('确定要保存配置吗？')) {
+        const confirmResult = await Notification.confirm('确定要保存配置吗？');
+        if (!confirmResult.isConfirmed) {
             return false;
         }
 
@@ -389,11 +401,11 @@ class BayesVisualManager {
             }
 
             this.isDirty = false;
-            alert('✅ 配置保存成功！');
+            Notification.success('✅ 配置保存成功');
             return true;
         } catch (error) {
             console.error('Save failed:', error);
-            alert('❌ 保存失败: ' + error.message);
+            Notification.error('❌ 保存失败: ' + error.message);
             return false;
         } finally {
             saveBtn.textContent = originalText;
@@ -1905,22 +1917,25 @@ class BayesVisualManager {
     /**
      * 删除样本
      */
-    deleteSample(type, index) {
+    async deleteSample(type, index) {
         if (!this.config._samples) return;
 
-        if (confirm('确定要删除这个样本吗？')) {
-            if (type === 'trusted') {
-                this.config._samples.trusted.splice(index, 1);
-                this.sampleLegacyCache.trusted.splice(index, 1);
-            } else {
-                this.config._samples.untrusted.splice(index, 1);
-                this.sampleLegacyCache.untrusted.splice(index, 1);
-            }
-
-            // 重新渲染
-            this.isDirty = true;
-            this.render();
+        const confirmResult = await Notification.confirmDelete('确定要删除这个样本吗？');
+        if (!confirmResult.isConfirmed) {
+            return;
         }
+
+        if (type === 'trusted') {
+            this.config._samples.trusted.splice(index, 1);
+            this.sampleLegacyCache.trusted.splice(index, 1);
+        } else {
+            this.config._samples.untrusted.splice(index, 1);
+            this.sampleLegacyCache.untrusted.splice(index, 1);
+        }
+
+        // 重新渲染
+        this.isDirty = true;
+        this.render();
     }
 
     /**
@@ -2065,8 +2080,11 @@ class BayesVisualManager {
         const resetBtn = document.getElementById('bayes-reset-btn');
         if (resetBtn && !resetBtn.dataset.bound) {
             resetBtn.addEventListener('click', async () => {
-                if (this.isDirty && !confirm('有未保存的更改，确定要重置吗？')) {
-                    return;
+                if (this.isDirty) {
+                    const confirmResult = await Notification.confirm('有未保存的更改，确定要重置吗？');
+                    if (!confirmResult.isConfirmed) {
+                        return;
+                    }
                 }
                 await this.initialize();
             });
@@ -2091,9 +2109,12 @@ class BayesVisualManager {
         const versionSelect = document.getElementById('bayes-version-select');
         if (versionSelect && !versionSelect.dataset.bound) {
             versionSelect.addEventListener('change', async (e) => {
-                if (this.isDirty && !confirm('有未保存的更改，确定要切换版本吗？')) {
-                    e.target.value = this.currentVersion;
-                    return;
+                if (this.isDirty) {
+                    const confirmResult = await Notification.confirm('有未保存的更改，确定要切换版本吗？');
+                    if (!confirmResult.isConfirmed) {
+                        e.target.value = this.currentVersion;
+                        return;
+                    }
                 }
                 await this.loadConfig(e.target.value);
                 this.render();
@@ -2111,13 +2132,18 @@ class BayesVisualManager {
         });
 
         // 删除规则按钮 (使用事件委托)
-        document.addEventListener('click', (e) => {
+        document.addEventListener('click', async (e) => {
             if (e.target.classList.contains('delete-rule-btn')) {
                 const row = e.target.closest('tr');
-                if (row && confirm('确定要删除这条规则吗？')) {
-                    row.remove();
-                    this.isDirty = true;
+                if (!row) {
+                    return;
                 }
+                const confirmResult = await Notification.confirmDelete('确定要删除这条规则吗？');
+                if (!confirmResult.isConfirmed) {
+                    return;
+                }
+                row.remove();
+                this.isDirty = true;
             }
         });
     }

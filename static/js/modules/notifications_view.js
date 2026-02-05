@@ -126,7 +126,7 @@ async function initializeNotificationsView() {
 
             const result = await updateNotificationSettings(settings);
             if (result) {
-                alert(result.message || "通知设置已保存！");
+                Notification.success(result.message || '通知设置已保存！');
             }
 
             saveBtn.disabled = false;
@@ -164,7 +164,7 @@ async function initializeNotificationsView() {
 
                 const saveResult = await updateNotificationSettings(settings);
                 if (!saveResult) {
-                    alert('保存设置失败，请先检查设置是否正确。');
+                    Notification.error('保存设置失败，请先检查设置是否正确。');
                     return;
                 }
 
@@ -183,13 +183,13 @@ async function initializeNotificationsView() {
 
                     if (response.ok) {
                         const result = await response.json();
-                        alert(result.message || '测试通知发送成功！');
+                        Notification.success(result.message || '测试通知发送成功！');
                     } else {
                         const errorData = await response.json();
-                        alert('测试通知发送失败: ' + (errorData.detail || '未知错误'));
+                        Notification.error('测试通知发送失败: ' + (errorData.detail || '未知错误'));
                     }
                 } catch (error) {
-                    alert('测试通知发送失败: ' + error.message);
+                    Notification.error('测试通知发送失败: ' + error.message);
                 } finally {
                     button.disabled = false;
                     button.textContent = originalText;
@@ -223,7 +223,7 @@ async function initializeNotificationsView() {
 
                 const saveResult = await updateNotificationSettings(settings);
                 if (!saveResult) {
-                    alert('保存设置失败，请先检查设置是否正确。');
+                    Notification.error('保存设置失败，请先检查设置是否正确。');
                     return;
                 }
 
@@ -242,13 +242,13 @@ async function initializeNotificationsView() {
 
                     if (response.ok) {
                         const result = await response.json();
-                        alert(result.message || '测试任务完成通知发送成功！');
+                        Notification.success(result.message || '测试任务完成通知发送成功！');
                     } else {
                         const errorData = await response.json();
-                        alert('测试任务完成通知发送失败: ' + (errorData.detail || '未知错误'));
+                        Notification.error('测试任务完成通知发送失败: ' + (errorData.detail || '未知错误'));
                     }
                 } catch (error) {
-                    alert('测试任务完成通知发送失败: ' + error.message);
+                    Notification.error('测试任务完成通知发送失败: ' + error.message);
                 } finally {
                     button.disabled = false;
                     button.textContent = originalText;

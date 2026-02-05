@@ -17,23 +17,25 @@ function initAppInteractions(mainContent) {
             // 获取商品ID唯一标识
             const itemId = card.dataset.itemId;
 
-            if (confirm('你确定要删除此商品吗？')) {
-                // 实现API调用删除商品
-                const selector = document.getElementById('result-file-selector');
-                const selectedFile = selector.value;
+            const confirmResult = await Notification.confirmDelete('你确定要删除此商品吗？');
+            if (!confirmResult.isConfirmed) {
+                return;
+            }
+            // 实现API调用删除商品
+            const selector = document.getElementById('result-file-selector');
+            const selectedFile = selector.value;
 
-                if (selectedFile) {
-                    deleteResultsBatch({
-                        filename: selectedFile,
-                        item_ids: [itemId]
-                    }).then(async result => {
-                        if (result) {
-                            await fetchAndRenderResults({ force: true });
-                        }
-                    });
-                } else {
-                    card.remove();
-                }
+            if (selectedFile) {
+                deleteResultsBatch({
+                    filename: selectedFile,
+                    item_ids: [itemId]
+                }).then(async result => {
+                    if (result) {
+                        await fetchAndRenderResults({ force: true });
+                    }
+                });
+            } else {
+                card.remove();
             }
             return;
         }
@@ -74,9 +76,10 @@ function initAppInteractions(mainContent) {
             openEditTaskModal(taskData, taskId);
         } else if (button.matches('.delete-btn')) {
             const taskName = taskData?.task_name || (row ? row.querySelector('td:nth-child(2)')?.innerText.trim() : '');
-            if (confirm(`你确定要删除任务 "${taskName}" 吗`)) {
-                const result = await deleteTask(taskId);
-                if (result && taskContainer) {
+            const confirmResult = await Notification.confirmDelete(`你确定要删除任务 "${taskName}" 吗`);
+            if (confirmResult.isConfirmed) {
+                const deleteResult = await deleteTask(taskId);
+                if (deleteResult && taskContainer) {
                     taskContainer.remove();
                 }
             }
@@ -124,7 +127,7 @@ function initAppInteractions(mainContent) {
                 }
             } catch (error) {
                 console.error('无法复制任务:', error);
-                alert(`错误: ${error.message}`);
+                Notification.error(`错误: ${error.message}`);
             }
         } else if (button.matches('#add-task-btn')) {
             const modal = document.getElementById('add-task-modal');
@@ -135,7 +138,7 @@ function initAppInteractions(mainContent) {
             const taskNameInput = row.querySelector('input[data-field="task_name"]');
             const keywordInput = row.querySelector('input[data-field="keyword"]');
             if (!taskNameInput.value.trim() || !keywordInput.value.trim()) {
-                alert('任务名称和关键词不能为空。');
+                Notification.warning('任务名称和关键词不能');
                 return;
             }
 
@@ -200,12 +203,12 @@ function initAppInteractions(mainContent) {
                             .join('、');
 
                         if (successChannels) {
-                            alert(`通知已发送成功到以下渠道: ${successChannels}`);
+                            Notification.success(`通知已发送成功`);
                         } else {
-                            alert('没有可用的通知渠道配置！');
+                            Notification.info('没有可用的通知渠道配置！');
                         }
                     } else {
-                        alert('通知已发送！');
+                        Notification.info('通知已发送！');
                     }
                 }
 
@@ -343,7 +346,7 @@ function initAppInteractions(mainContent) {
                     e.preventDefault();
                     const selectedFile = selector.value;
                     if (!selectedFile) {
-                        alert('请先选择一个参考文件模板');
+                        Notification.warning('请先选择一个参考文件模板');
                         return;
                     }
                     saveReferenceDefault();
@@ -658,7 +661,7 @@ function initAppInteractions(mainContent) {
             e.preventDefault();
             const selectedFile = referenceSelector.value;
             if (!selectedFile) {
-                alert('请先选择一个参考文件模板');
+                Notification.warning('请先选择一个参考文件模板');
                 return;
             }
             try {
@@ -771,12 +774,12 @@ function initAppInteractions(mainContent) {
                 const aiSettings = await aiSettingsResponse.json();
 
                 if (!aiSettings.OPENAI_BASE_URL || !aiSettings.OPENAI_MODEL_NAME) {
-                    alert('请先到系统设置-AI模型配置-配置ai模型api接口');
+                    Notification.warning('请先到系统设置-AI模型配置-配置ai模型api接口');
                     return;
                 }
             } catch (error) {
                 console.error('检查AI配置失败:', error);
-                alert('检查AI配置失败，请稍后重试');
+                Notification.error('检查AI配置失败');
                 return;
             }
 
@@ -840,7 +843,7 @@ function initAppInteractions(mainContent) {
                 }
             } catch (error) {
                 console.error('更新任务失败:', error);
-                alert('更新任务失败: ' + error.message);
+                Notification.error('更新任务失败: ' + error.message);
                 btnText.style.display = 'inline-block';
                 spinner.style.display = 'none';
                 loadingText.style.display = 'none';
@@ -853,7 +856,7 @@ function initAppInteractions(mainContent) {
             const content = editorTextarea.value;
 
             if (!fullFileName || fullFileName === 'N/A' || !content) {
-                alert('请确保文件名和内容都已填写。');
+                Notification.warning('请确保文件名和内容都已填写。');
                 return;
             }
 
@@ -877,7 +880,7 @@ function initAppInteractions(mainContent) {
 
                 if (response.ok) {
                     await response.json();
-                    alert('文件保存成功！');
+                    Notification.success('文件保存成功');
                     closeModal();
                 } else {
                     const errorData = await response.json();
@@ -885,7 +888,7 @@ function initAppInteractions(mainContent) {
                 }
             } catch (error) {
                 console.error('Failed to save file:', error);
-                alert('文件保存失败: ' + error.message);
+                Notification.error('文件保存失败: ' + error.message);
             }
         });
     }
@@ -936,7 +939,7 @@ function initAppInteractions(mainContent) {
 
                     if (!response.ok) {
                         const errorData = await response.json();
-                        alert('启动失败: ' + (errorData.detail || '未知错误'));
+                        Notification.error('启动失败: ' + (errorData.detail || '未知错误'));
                     } else {
                         // 开始轮询检查登录状态
                         const pollInterval = 2000; // 每 2 秒检查一次
@@ -971,7 +974,7 @@ function initAppInteractions(mainContent) {
                     }
 
                 } catch (error) {
-                    alert('启动失败: ' + error.message);
+                    Notification.error('启动失败: ' + error.message);
                 } finally {
                     closeModal();
                 }
@@ -1028,7 +1031,7 @@ function initAppInteractions(mainContent) {
                     }, 2000);
                 }).catch(err => {
                     console.error('无法使用剪贴板API复制文本: ', err);
-                    alert('复制失败，请手动复制。');
+                    Notification.error('复制失败');
                 });
             } else {
                 // 针对非安全上下文 (如HTTP) 或旧版浏览器的备用方案
@@ -1049,7 +1052,7 @@ function initAppInteractions(mainContent) {
                     }, 2000);
                 } catch (err) {
                     console.error('备用方案: 无法复制文本', err);
-                    alert('复制失败，请手动复制。');
+                    Notification.error('复制失败');
                 }
                 document.body.removeChild(textArea);
             }
@@ -1251,7 +1254,7 @@ function initAppInteractions(mainContent) {
                 }
             } catch (error) {
                 console.error('保存任务失败:', error);
-                alert(`保存失败: ${error.message}`);
+                Notification.error(`保存失败: ${error.message}`);
             } finally {
                 saveBtn.disabled = false;
                 if (btnText) btnText.textContent = '保存更改';
@@ -1436,7 +1439,7 @@ function initAppInteractions(mainContent) {
 
                 const selectedFile = selector.value;
                 if (!selectedFile || selectedFile === '保持现有模板') {
-                    alert('请先选择一个参考文件');
+                    Notification.warning('请先选择一个参考文件');
                     return;
                 }
 
@@ -1461,7 +1464,7 @@ function initAppInteractions(mainContent) {
             editRegenerateBtn.addEventListener('click', async () => {
                 const taskId = document.getElementById('edit-task-id').value;
                 if (!taskId) {
-                    alert('无法获取任务ID');
+                    Notification.info('无法获取任务ID');
                     return;
                 }
 
@@ -1469,7 +1472,7 @@ function initAppInteractions(mainContent) {
                 const description = descriptionTextarea.value.trim();
 
                 if (!description) {
-                    alert('请先填写需求描述');
+                    Notification.warning('请先填写需求描述');
                     return;
                 }
 
@@ -1482,7 +1485,7 @@ function initAppInteractions(mainContent) {
                     const result = await updateTask(taskId, { description: description });
 
                     if (result) {
-                        alert('AI标准生成已启动，请稍后刷新查看结果');
+                        Notification.warning('AI标准生成已启动，请');
 
                         // 关闭模态框并刷新任务列表
                         closeEditTaskModal();
@@ -1493,7 +1496,7 @@ function initAppInteractions(mainContent) {
                     }
                 } catch (error) {
                     console.error('生成失败:', error);
-                    alert('生成失败: ' + error.message);
+                    Notification.error('生成失败: ' + error.message);
                 } finally {
                     editRegenerateBtn.disabled = false;
                     editRegenerateBtn.textContent = originalBtnText;

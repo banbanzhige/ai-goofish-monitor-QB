@@ -1,4 +1,4 @@
-﻿﻿﻿﻿// 任务编辑与高级筛选
+﻿﻿// 任务编辑与高级筛选
 async function populateTaskAccountSelectors(tasks) {
     try {
         const accounts = await fetchAccounts();
@@ -148,7 +148,7 @@ function setupTaskAccountCellEvents() {
                 }
             } catch (error) {
                 console.error('更新任务账号失败:', error);
-                alert('更新账号绑定失败，请重试');
+                Notification.error('更新账号绑定失败，请重试');
             }
 
             // 隐藏下拉框
@@ -288,7 +288,7 @@ function setupTaskInlineEditEvents() {
                 }
             } catch (error) {
                 console.error('更新筛选条件失败:', error);
-                alert('更新失败，请重试');
+                Notification.error('更新失败，请重试');
                 // 即使失败也重新开启定时刷新
                 await refreshTasksAndRestartInterval();
             }
@@ -344,7 +344,7 @@ function setupTaskInlineEditEvents() {
             input.focus();
             input.select();
             // 添加输入事件监听，实时调整宽度
-            input.addEventListener('input', function() {
+            input.addEventListener('input', function () {
                 autoResizeInput(input);
             });
         }
@@ -412,7 +412,7 @@ function setupTaskInlineEditEvents() {
                     await refreshTasksAndRestartInterval();
                 } catch (error) {
                     console.error('更新价格范围失败:', error);
-                    alert('更新失败，请重试');
+                    Notification.error('更新失败，请重试');
                     // 即使失败也重新开启定时刷新
                     await refreshTasksAndRestartInterval();
                 }
@@ -429,7 +429,7 @@ function setupTaskInlineEditEvents() {
 
         if (field === 'task_name') {
             if (!newValue) {
-                alert('任务名称不能为空');
+                Notification.warning('任务名称不能为空');
                 // 恢复原始值并切换到显示模式
                 input.value = taskData.task_name;
                 input.style.display = 'none';
@@ -447,7 +447,7 @@ function setupTaskInlineEditEvents() {
             updateData = { task_name: newValue };
         } else if (field === 'keyword') {
             if (!newValue) {
-                alert('关键词不能为空');
+                Notification.warning('关键词不能为空');
                 // 恢复原始值并切换到显示模式
                 input.value = taskData.keyword;
                 input.style.display = 'none';
@@ -483,7 +483,7 @@ function setupTaskInlineEditEvents() {
             }
         } catch (error) {
             console.error(`更新${field}失败:`, error);
-            alert('更新失败，请重试');
+            Notification.error('更新失败，请重试');
             // 即使失败也重新开启定时刷新
             await refreshTasksAndRestartInterval();
         }
@@ -635,7 +635,7 @@ function setupTaskInlineEditEvents() {
             }
         } catch (error) {
             console.error('更新高级筛选失败:', error);
-            alert('更新失败，请重试');
+            Notification.error('更新失败，请重试');
             await refreshTasksAndRestartInterval();
         }
 

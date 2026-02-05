@@ -152,7 +152,7 @@ async function initializeScheduledView() {
                 const jobId = btn.dataset.jobId;
                 const result = await runScheduledJobNow(jobId);
                 if (result) {
-                    alert(result.message);
+                    Notification.success(result.message || '已触发立刻执行');
                 }
             });
         });
@@ -161,10 +161,11 @@ async function initializeScheduledView() {
         container.querySelectorAll('.cancel-job-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const taskId = btn.dataset.taskId;
-                if (confirm('任务将从定时调度中移除，确定要取消此任务吗？')) {
-                    const result = await cancelScheduledTask(taskId);
-                    if (result) {
-                        alert(result.message);
+                const confirmResult = await Notification.confirm('任务将从定时调度中移除，确定要取消此任务吗？');
+                if (confirmResult.isConfirmed) {
+                    const cancelResult = await cancelScheduledTask(taskId);
+                    if (cancelResult) {
+                        Notification.success(cancelResult.message || '定时任务已取消');
                         await refreshScheduledJobs();
                     }
                 }

@@ -29,29 +29,26 @@ from src.web.notification_manager import router as notification_router
 from src.web.ai_manager import router as ai_router
 from src.web.account_manager import router as account_router
 from src.web.bayes_api import router as bayes_router
+from src.logging_config import setup_logging, get_logger
+from src.config import (
+    LOG_LEVEL, LOG_CONSOLE_LEVEL, LOG_DIR, LOG_MAX_BYTES,
+    LOG_BACKUP_COUNT, LOG_RETENTION_DAYS, LOG_JSON_FORMAT, LOG_ENABLE_LEGACY
+)
 
+# 初始化日志系统
+setup_logging(
+    log_dir=LOG_DIR(),
+    log_level=LOG_LEVEL(),
+    console_level=LOG_CONSOLE_LEVEL(),
+    max_bytes=LOG_MAX_BYTES(),
+    backup_count=LOG_BACKUP_COUNT(),
+    retention_days=LOG_RETENTION_DAYS(),
+    enable_json=LOG_JSON_FORMAT(),
+    enable_legacy=LOG_ENABLE_LEGACY()
+)
 
-# 日志写入函数
-def write_log(message):
-    """将日志消息写入到 fetcher.log 文件中"""
-    os.makedirs("logs", exist_ok=True)
-    log_file_path = os.path.join("logs", "fetcher.log")
-    try:
-        with open(log_file_path, 'a', encoding='utf-8') as f:
-            f.write(message + '\n')
-    except Exception as e:
-        print(f"写入日志时出错: {e}")
-
-
-# 重定向 print 函数
-original_print = print
-
-
-def print(*args, **kwargs):
-    """重定向 print 函数，同时输出到控制台和日志文件"""
-    message = ' '.join(map(str, args))
-    original_print(*args, **kwargs)
-    write_log(message)
+# 获取logger
+logger = get_logger(__name__, service="web")
 
 
 # 全局变量
@@ -71,14 +68,14 @@ async def lifespan(app: FastAPI):
     yield
 
     if scheduler.running:
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 正在关闭调度器...")
+        logger.info("正在关闭调度器...", extra={"event": "scheduler_shutdown"})
         scheduler.shutdown()
 
     if fetcher_processes:
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] Web服务器正在关闭，正在终止所有数据收集脚本进程...")
+        logger.info("Web服务器正在关闭，正在终止所有数据收集脚本进程...", extra={"event": "tasks_shutdown"})
         stop_tasks = [stop_task_process(task_id) for task_id in list(fetcher_processes.keys())]
         await asyncio.gather(*stop_tasks)
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 所有数据收集脚本进程已终止。")
+        logger.info("所有数据收集脚本进程已终止。", extra={"event": "tasks_shutdown_complete"})
 
     await _set_all_tasks_stopped_in_config()
 
@@ -143,11 +140,11 @@ async def do_login(
         # 登录成功，设置Cookie并重定向
         response = RedirectResponse(url="/", status_code=302)
         set_session_cookie(response, user)
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 用户 {username} 登录成功")
+        logger.info(f"用户 {username} 登录成功", extra={"event": "user_login", "username": username})
         return response
     else:
         # 登录失败
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [WARN] 登录失败: 用户名 {username}")
+        logger.warning(f"登录失败: 用户名 {username}", extra={"event": "login_failed", "username": username})
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": "用户名或密码错误"}
@@ -162,7 +159,7 @@ async def logout(request: Request):
     
     response = RedirectResponse(url="/login", status_code=302)
     clear_session_cookie(response)
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 用户 {username} 已登出")
+    logger.info(f"用户 {username} 已登出", extra={"event": "user_logout", "username": username})
     return response
 
 
@@ -262,6 +259,9 @@ if __name__ == "__main__":
     server_port = SERVER_PORT()
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
-    print(f"启动 Web 管理界面，请在浏览器访问 http://127.0.0.1:{server_port}")
+    logger.info(
+        f"启动 Web 管理界面，请在浏览器访问 http://127.0.0.1:{server_port}",
+        extra={"event": "web_server_start", "port": server_port}
+    )
     sys.stdout.flush()
     uvicorn.run(app, host="0.0.0.0", port=server_port, log_level="warning")

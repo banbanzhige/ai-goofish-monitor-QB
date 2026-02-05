@@ -12,11 +12,14 @@ from fastapi.responses import JSONResponse
 from src.web.models import Task, TaskUpdate, TaskGenerateRequestWithReference, TaskOrderUpdate
 from src.utils import write_log
 from src.web.scheduler import reload_scheduler_jobs
-from src.web.log_manager import sys_log
+from src.logging_config import get_logger
 from src.prompt_utils import generate_criteria
 from src.task import add_task, get_task, update_task
 from src.notifier import notifier
 from src.scraper import get_task_stats, delete_task_stats_file
+
+# 获取logger
+logger = get_logger(__name__, service="web")
 
 
 router = APIRouter()
@@ -38,7 +41,7 @@ async def update_task_running_status(task_id: int, is_running: bool, process_pid
             async with aiofiles.open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 await f.write(json.dumps(tasks, ensure_ascii=False, indent=2))
     except Exception as e:
-        print(f"更新任务 {task_id} 状态时出错: {e}")
+        logger.error(f"更新任务 {task_id} 状态时出错: {e}", extra={"event": "task_status_error", "task_id": task_id})
 
 
 def _terminate_pid(pid: int) -> None:
@@ -67,7 +70,7 @@ def _terminate_pid(pid: int) -> None:
 async def start_task_process(task_id: int, task_name: str, fetcher_processes):
     """内部函数：启动一个指定的任务进程。"""
     if fetcher_processes.get(task_id) and fetcher_processes[task_id].returncode is None:
-        print(f"任务 '{task_name}' (ID: {task_id}) 已在运行中。")
+        logger.info(f"任务 '{task_name}' (ID: {task_id}) 已在运行中。", extra={"event": "task_already_running", "task_id": task_id, "task_name": task_name})
         return
 
     try:
@@ -88,14 +91,20 @@ async def start_task_process(task_id: int, task_name: str, fetcher_processes):
             env=child_env
         )
         fetcher_processes[task_id] = process
-        sys_log(f"启动任务 '{task_name}' (PID: {process.pid})，日志输出到 {log_file_path}")
+        logger.info(
+            f"启动任务 '{task_name}' (PID: {process.pid})，日志输出到 {log_file_path}",
+            extra={"event": "task_started", "task_id": task_id, "task_name": task_name, "pid": process.pid}
+        )
 
         await update_task_running_status(task_id, True, process.pid)
 
         async def monitor_process():
             try:
                 await process.wait()
-                sys_log(f"任务 '{task_name}' (ID: {task_id}) 进程已结束，返回码: {process.returncode}")
+                logger.info(
+                    f"任务 '{task_name}' (ID: {task_id}) 进程已结束，返回码: {process.returncode}",
+                    extra={"event": "task_ended", "task_id": task_id, "task_name": task_name, "return_code": process.returncode}
+                )
             finally:
                 await update_task_running_status(task_id, False)
                 if task_id in fetcher_processes:
@@ -118,14 +127,14 @@ async def stop_task_process(task_id: int, fetcher_processes):
             task_name = tasks[task_id].get('task_name', task_name)
             process_pid = tasks[task_id].get('process_pid')
     except Exception as e:
-        print(f"获取任务ID {task_id} 的任务信息时出错: {e}")
+        logger.error(f"获取任务ID {task_id} 的任务信息时出错: {e}", extra={"event": "task_info_error", "task_id": task_id})
 
     if not process or process.returncode is not None:
         if process_pid:
             _terminate_pid(process_pid)
-            sys_log(f"任务 '{task_name}' (ID: {task_id}) 已尝试强制终止遗留进程 PID: {process_pid}")
+            logger.info(f"任务 '{task_name}' (ID: {task_id}) 已尝试强制终止遗留进程 PID: {process_pid}", extra={"event": "task_force_kill", "task_id": task_id, "pid": process_pid})
         else:
-            sys_log(f"任务ID {task_id} 没有正在运行的进程。")
+            logger.info(f"任务ID {task_id} 没有正在运行的进程。", extra={"event": "task_not_running", "task_id": task_id})
         await update_task_running_status(task_id, False)
         if task_id in fetcher_processes:
             del fetcher_processes[task_id]
@@ -144,21 +153,21 @@ async def stop_task_process(task_id: int, fetcher_processes):
         try:
             await asyncio.wait_for(process.wait(), timeout=10)
         except asyncio.TimeoutError:
-            sys_log(f"任务 '{task_name}' (ID: {task_id}) 停止等待超时，已尝试强制终止。", "WARNING")
-        sys_log(f"任务进程 {process.pid} (ID: {task_id}) 已终止。")
+            logger.warning(f"任务 '{task_name}' (ID: {task_id}) 停止等待超时，已尝试强制终止。", extra={"event": "task_stop_timeout", "task_id": task_id})
+        logger.info(f"任务进程 {process.pid} (ID: {task_id}) 已终止。", extra={"event": "task_terminated", "task_id": task_id, "pid": process.pid})
 
         try:
             processed_count, recommended_count = get_task_stats(task_name)
             await notifier.send_task_completion_notification(task_name, "手动停止-结束原因：用户手动停止任务", processed_count, recommended_count)
             delete_task_stats_file(task_name)
         except ImportError as e:
-            print(f"导入通知模块失败: {e}")
+            logger.error(f"导入通知模块失败: {e}", extra={"event": "import_error"})
         except Exception as e:
-            print(f"发送任务停止通知失败: {e}")
+            logger.error(f"发送任务停止通知失败: {e}", extra={"event": "notification_error"})
     except ProcessLookupError:
-        sys_log(f"试图终止的任务进程 (ID: {task_id}) 已不存在。")
+        logger.info(f"试图终止的任务进程 (ID: {task_id}) 已不存在。", extra={"event": "task_not_exists", "task_id": task_id})
     except Exception as e:
-        sys_log(f"停止任务进程 (ID: {task_id}) 时出错: {e}", "ERROR")
+        logger.error(f"停止任务进程 (ID: {task_id}) 时出错: {e}", extra={"event": "task_stop_error", "task_id": task_id})
     finally:
         await update_task_running_status(task_id, False)
 

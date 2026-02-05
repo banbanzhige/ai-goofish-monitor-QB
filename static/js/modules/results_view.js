@@ -226,7 +226,7 @@ async function initializeResultsView() {
         deleteBtn.addEventListener('click', async () => {
             const selectedFile = selector.value;
             if (!selectedFile) {
-                alert('请先选择一个结果文件。');
+                Notification.warning('请先选择一个结果文件。');
                 return;
             }
 
@@ -244,12 +244,13 @@ async function initializeResultsView() {
             const keyword = keywordFilter ? keywordFilter.value : 'all';
             const aiCriteria = aiCriteriaFilter ? aiCriteriaFilter.value : 'all';
             const manualKeyword = manualKeywordFilter ? manualKeywordFilter.value : '';
-        const deleteBySelection = selectedItemIds.length > 0;
+            const deleteBySelection = selectedItemIds.length > 0;
             const confirmMessage = deleteBySelection
                 ? `你确定要删除选中的 ${selectedItemIds.length} 条结果吗？此操作不可恢复。`
                 : `你确定要按当前筛选条件删除结果吗？此操作不可恢复。`;
 
-            if (!confirm(confirmMessage)) {
+            const confirmResult = await Notification.confirm(confirmMessage);
+            if (!confirmResult.isConfirmed) {
                 return;
             }
 
@@ -266,7 +267,7 @@ async function initializeResultsView() {
             };
             const result = await deleteResultsBatch(payload);
             if (result) {
-                alert(result.message);
+                Notification.success(result.message);
                 await fetchAndRenderResults({ force: true });
                 updateSelectionControls();
             }

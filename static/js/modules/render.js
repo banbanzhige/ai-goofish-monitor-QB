@@ -87,7 +87,7 @@ function renderLoginStatusWidget(status) {
                     const response = await fetch('/api/manual-login', { method: 'POST' });
                     if (!response.ok) {
                         const errorData = await response.json();
-                        alert('启动失败: ' + (errorData.detail || '未知错误'));
+                        Notification.error('启动失败: ' + (errorData.detail || '未知错误'));
                     } else {
                         // 轮询检查登录状态
                         const pollInterval = 2000;
@@ -114,7 +114,7 @@ function renderLoginStatusWidget(status) {
                         }, pollInterval);
                     }
                 } catch (error) {
-                    alert('启动失败: ' + error.message);
+                    Notification.error('启动失败: ' + error.message);
                 } finally {
                     closeModal();
                 }
@@ -160,16 +160,17 @@ function renderLoginStatusWidget(status) {
             e.preventDefault();
             dropdownMenu.style.display = 'none';
 
-            if (confirm('确定要删除当前Cookie吗？删除后需要重新登录获取。')) {
+            const result = await Notification.confirmDelete('确定要删除当前 Cookie 吗？', '确认删除');
+            if (result.isConfirmed) {
                 try {
                     const response = await fetch('/api/login-state', { method: 'DELETE' });
                     if (response.ok) {
                         await refreshLoginStatusWidget();
                     } else {
-                        alert('删除失败');
+                        Notification.error('删除失败');
                     }
                 } catch (error) {
-                    alert('删除失败: ' + error.message);
+                    Notification.error('删除失败: ' + error.message);
                 }
             }
         });

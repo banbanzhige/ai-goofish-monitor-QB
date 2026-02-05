@@ -35,7 +35,7 @@ async function updateAISettings(settings) {
         return await response.json();
     } catch (error) {
         console.error('无法更新AI设置:', error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -65,7 +65,7 @@ async function updateProxySettings(settings) {
         return await response.json();
     } catch (error) {
         console.error('无法更新代理设置:', error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -86,7 +86,7 @@ async function testAISettings(settings, options = {}) {
     } catch (error) {
         console.error('无法测试AI设置:', error);
         if (!silent) {
-            alert(`错误: ${error.message}`);
+            Notification.error(`错误: ${error.message}`);
         }
         return null;
     }
@@ -106,7 +106,7 @@ async function updateNotificationSettings(settings) {
         return await response.json();
     } catch (error) {
         console.error('无法更新通知设置:', error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -147,7 +147,7 @@ async function updatePrompt(filename, content) {
         return await response.json();
     } catch (error) {
         console.error(`无法更新Prompt ${filename}:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -199,7 +199,7 @@ async function updateBayes(filename, content) {
         return await response.json();
     } catch (error) {
         console.error(`无法更新Bayes ${filename}:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -218,7 +218,7 @@ async function createBayesProfile(filename, content) {
         return await response.json();
     } catch (error) {
         console.error('无法创建Bayes文件:', error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -235,7 +235,7 @@ async function deleteBayesProfile(filename) {
         return await response.json();
     } catch (error) {
         console.error('无法删除Bayes文件:', error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -257,7 +257,7 @@ async function createTaskWithAI(data) {
         return await response.json();
     } catch (error) {
         console.error(`无法通过AI创建任务:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -274,7 +274,7 @@ async function startSingleTask(taskId) {
         return await response.json();
     } catch (error) {
         console.error(`无法启动任务 ${taskId}:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -291,7 +291,7 @@ async function stopSingleTask(taskId) {
         return await response.json();
     } catch (error) {
         console.error(`无法停止任务 ${taskId}:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -309,7 +309,7 @@ async function deleteTask(taskId) {
         return await response.json();
     } catch (error) {
         console.error(`无法删除任务 ${taskId}:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -340,7 +340,7 @@ async function updateTask(taskId, data) {
         } else if (typeof error === 'object') {
             errorMessage = JSON.stringify(error);
         }
-        alert(`错误: ${errorMessage}`);
+        Notification.error(`错误: ${errorMessage}`);
         return null;
     }
 }
@@ -374,7 +374,7 @@ async function reorderTasksOrder(orderedIds) {
         return await response.json();
     } catch (error) {
         console.error('Reorder tasks failed:', error);
-        alert(`Reorder failed: ${error.message}`);
+        Notification.error(`Reorder failed: ${error.message}`);
         return null;
     }
 }
@@ -402,7 +402,7 @@ async function deleteResultFile(filename) {
         return await response.json();
     } catch (error) {
         console.error(`无法删除结果文件 ${filename}:`, error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -421,7 +421,7 @@ async function deleteResultsBatch(payload) {
         return await response.json();
     } catch (error) {
         console.error('批量删除结果失败:', error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -461,9 +461,10 @@ async function fetchSystemStatus() {
     }
 }
 
-async function clearLogs() {
+async function clearLogs(file = 'fetcher') {
     try {
-        const response = await fetch('/api/logs', { method: 'DELETE' });
+        const params = new URLSearchParams({ file: file });
+        const response = await fetch(`/api/logs?${params}`, { method: 'DELETE' });
         if (!response.ok) {
             const err = await response.json();
             throw new Error(err.detail || '清空日志失败');
@@ -471,7 +472,7 @@ async function clearLogs() {
         return await response.json();
     } catch (error) {
         console.error("无法清空日志:", error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -493,19 +494,23 @@ async function sendNotification(itemData) {
         return await response.json();
     } catch (error) {
         console.error("无法发送通知:", error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
 
-async function fetchLogs(fromPos = 0, taskName = '', limit = 100) {
+async function fetchLogs(fromPos = 0, taskName = '', limit = 100, file = 'fetcher', level = '') {
     try {
         const params = new URLSearchParams({
             from_pos: fromPos,
-            limit: limit
+            limit: limit,
+            file: file
         });
         if (taskName) {
             params.append('task_name', taskName);
+        }
+        if (level) {
+            params.append('level', level);
         }
         const response = await fetch(`/api/logs?${params}`);
         if (!response.ok) {
@@ -515,6 +520,38 @@ async function fetchLogs(fromPos = 0, taskName = '', limit = 100) {
     } catch (error) {
         console.error("无法获取日志:", error);
         return { new_content: `\n加载日志失败: ${error.message}`, new_pos: fromPos };
+    }
+}
+
+async function exportDiagnosticLogs(days = 7) {
+    try {
+        const params = new URLSearchParams({ days: days });
+        const response = await fetch(`/api/logs/export?${params}`, { method: 'POST' });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || '导出诊断包失败');
+        }
+        // 下载文件
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'diagnostic_report.zip';
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?(.+)"?/);
+            if (match) filename = match[1];
+        }
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        return true;
+    } catch (error) {
+        console.error("无法导出诊断包:", error);
+        Notification.error(`错误: ${error.message}`);
+        return null;
     }
 }
 
@@ -540,7 +577,7 @@ async function skipScheduledJob(jobId) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -555,7 +592,7 @@ async function runScheduledJobNow(jobId) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -574,7 +611,7 @@ async function updateScheduledJobCron(taskId, cron) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -589,7 +626,7 @@ async function cancelScheduledTask(taskId) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -622,7 +659,7 @@ async function reorderAccountsOrder(orderedNames) {
         return await response.json();
     } catch (error) {
         console.error('Reorder accounts failed:', error);
-        alert(`Reorder failed: ${error.message}`);
+        Notification.error(`Reorder failed: ${error.message}`);
         return null;
     }
 }
@@ -641,7 +678,7 @@ async function createAccount(data) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -660,7 +697,7 @@ async function updateAccount(name, data) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -675,7 +712,7 @@ async function deleteAccount(name) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -690,7 +727,7 @@ async function cleanupExpiredAccounts() {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }
@@ -705,7 +742,7 @@ async function activateAccount(name) {
         return await response.json();
     } catch (error) {
         console.error(error);
-        alert(`错误: ${error.message}`);
+        Notification.error(`错误: ${error.message}`);
         return null;
     }
 }

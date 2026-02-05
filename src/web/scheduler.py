@@ -7,13 +7,20 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from src.logging_config import get_logger
+
+# 获取logger
+logger = get_logger(__name__, service="scheduler")
 
 CONFIG_FILE = "config.json"
 
 
 async def run_single_task(task_id: int, task_name: str, fetcher_processes, update_task_running_status):
     """由调度器调用的函数，用于启动单个公开内容查看任务。"""
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 定时任务触发: 正在为任务 '{task_name}' 启动公开内容查看脚本...")
+    logger.info(
+        f"定时任务触发: 正在为任务 '{task_name}' 启动公开内容查看脚本...",
+        extra={"event": "scheduled_task_trigger", "task_id": task_id, "task_name": task_name}
+    )
     log_file_handle = None
     try:
         os.makedirs("logs", exist_ok=True)
@@ -35,15 +42,24 @@ async def run_single_task(task_id: int, task_name: str, fetcher_processes, updat
 
         fetcher_processes[task_id] = process
         await update_task_running_status(task_id, True, process.pid)
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 定时任务 '{task_name}' (PID: {process.pid}) 已添加到进程管理中")
+        logger.info(
+            f"定时任务 '{task_name}' (PID: {process.pid}) 已添加到进程管理中",
+            extra={"event": "task_started", "task_id": task_id, "task_name": task_name, "pid": process.pid}
+        )
 
         async def monitor_process():
             try:
                 await process.wait()
                 if process.returncode == 0:
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 定时任务 '{task_name}' 执行成功。日志已写入 {log_file_path}")
+                    logger.info(
+                        f"定时任务 '{task_name}' 执行成功。日志已写入 {log_file_path}",
+                        extra={"event": "task_success", "task_id": task_id, "task_name": task_name}
+                    )
                 else:
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [ERROR] 定时任务 '{task_name}' 执行失败。返回码: {process.returncode}。详情请查看 {log_file_path}")
+                    logger.error(
+                        f"定时任务 '{task_name}' 执行失败。返回码: {process.returncode}",
+                        extra={"event": "task_failed", "task_id": task_id, "task_name": task_name, "return_code": process.returncode}
+                    )
             finally:
                 await update_task_running_status(task_id, False)
                 if task_id in fetcher_processes:
@@ -52,7 +68,10 @@ async def run_single_task(task_id: int, task_name: str, fetcher_processes, updat
         asyncio.create_task(monitor_process())
 
     except Exception as e:
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [ERROR] 启动定时任务 '{task_name}' 时发生错误: {e}")
+        logger.error(
+            f"启动定时任务 '{task_name}' 时发生错误: {e}",
+            extra={"event": "task_start_error", "task_id": task_id, "task_name": task_name}
+        )
         await update_task_running_status(task_id, False)
     finally:
         if log_file_handle:
@@ -77,17 +96,40 @@ async def _set_all_tasks_stopped_in_config():
 
             async with aiofiles.open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 await f.write(json.dumps(tasks, ensure_ascii=False, indent=2))
-            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 所有任务状态已在配置文件中重置为“已停止”，生成状态已重置为“未生成”。")
+            logger.info(
+                '所有任务状态已在配置文件中重置为"已停止"，生成状态已重置为"未生成"。',
+                extra={"event": "tasks_reset"}
+            )
 
     except FileNotFoundError:
         pass
     except Exception as e:
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [ERROR] 重置任务状态时出错: {e}")
+        logger.error(f"重置任务状态时出错: {e}", extra={"event": "tasks_reset_error"})
+
+
+def _get_job_next_run_time(job):
+    """安全获取 APScheduler job 下次执行时间，兼容不同版本差异。"""
+    try:
+        if hasattr(job, "next_run_time"):
+            return job.next_run_time
+    except Exception:
+        pass
+
+    try:
+        trigger = getattr(job, "trigger", None)
+        if trigger and hasattr(trigger, "get_next_fire_time"):
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            return trigger.get_next_fire_time(None, now)
+    except Exception:
+        return None
+
+    return None
 
 
 async def reload_scheduler_jobs(scheduler, fetcher_processes, update_task_running_status):
     """重新加载所有定时任务。清空现有任务，并从 config.json 重新创建。"""
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 正在重新加载定时任务调度器...")
+    logger.info("正在重新加载定时任务调度器...", extra={"event": "scheduler_reload"})
     sys.stdout.flush()
     scheduler.remove_all_jobs()
     try:
@@ -118,23 +160,41 @@ async def reload_scheduler_jobs(scheduler, fetcher_processes, update_task_runnin
                         name=f"Scheduled: {task_name}",
                         replace_existing=True
                     )
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO]   -> 已为任务 '{task_name}' 添加定时规则: '{cron_str}'")
+                    logger.info(
+                        f"  -> 已为任务 '{task_name}' 添加定时规则: '{cron_str}'",
+                        extra={"event": "job_added", "task_name": task_name, "cron": cron_str}
+                    )
                 except ValueError as e:
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [WARNING] 任务 '{task_name}' 的 Cron 表达式 '{cron_str}' 无效，已跳过: {e}")
+                    logger.warning(
+                        f"任务 '{task_name}' 的 Cron 表达式 '{cron_str}' 无效，已跳过: {e}",
+                        extra={"event": "invalid_cron", "task_name": task_name, "cron": cron_str}
+                    )
             elif task_name and cron_str and is_enabled and not has_generated_criteria:
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO]   -> 任务 '{task_name}' 尚未生成标准，已跳过定时任务调度")
+                logger.info(
+                    f"  -> 任务 '{task_name}' 尚未生成标准，已跳过定时任务调度",
+                    extra={"event": "task_skipped", "task_name": task_name, "reason": "no_criteria"}
+                )
 
     except FileNotFoundError:
         pass
     except Exception as e:
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [ERROR] 重新加载定时任务时发生错误: {e}")
+        logger.error(f"重新加载定时任务时发生错误: {e}", extra={"event": "scheduler_reload_error"})
 
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 定时任务加载完成。")
+    logger.info("定时任务加载完成。", extra={"event": "scheduler_ready"})
     sys.stdout.flush()
     if scheduler.get_jobs():
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [系统] [INFO] 当前已调度的任务:")
-        scheduler.print_jobs()
-        sys.stdout.flush()
+        logger.info("当前已调度的任务:", extra={"event": "jobs_list"})
+        for job in scheduler.get_jobs():
+            next_run_time = _get_job_next_run_time(job)
+            logger.info(
+                f"Jobstore default: {job}",
+                extra={
+                    "event": "job_detail",
+                    "job_id": job.id,
+                    "job_name": job.name,
+                    "next_run_time": next_run_time.isoformat() if next_run_time else None
+                }
+            )
 
 
 def get_scheduled_jobs(scheduler):
