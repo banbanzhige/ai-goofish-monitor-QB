@@ -212,7 +212,7 @@ mindmap
 
 ### 任务执行流程
 
-![任务执行流程](images/readme/幻灯片11.png)
+![任务执行流程](images/readme/幻灯片11.PNG)
 
 
 <details>
@@ -252,7 +252,7 @@ graph TD
 
 ### 评分融合算法
 
-![评分融合算法](images/readme/幻灯片4.png)
+![评分融合算法](images/readme/幻灯片4.PNG)
 
 
 <details>
