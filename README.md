@@ -67,9 +67,9 @@
 <div align="center" style="margin: 2em 0;">
   <img src="images/Example/0.9.8/任务管理.png" 
        style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
-       alt="任务管理界面">
+       alt="智能推荐页面">
   <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
-    任务管理界面 - 支持高级筛选、拖拽排序、批量操作
+    结果推荐
   </p>
 </div>
 
