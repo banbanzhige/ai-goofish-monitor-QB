@@ -6,6 +6,7 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+src/__pycache__/
 
 # 项目依赖（在Dockerfile中会重新安装）
 #requirements.txt
@@ -25,6 +26,7 @@ Dockerfile
 # 其他本地配置文件
 .vscode/
 .idea/
+.iml
 old/
 start_web_server.bat
 .env
@@ -32,6 +34,9 @@ config.json
 docs/
 AGENTS.md
 images/logo/banner.psd
+.aider*
+installed_packages.txt
+qrcode.png
 
 #.md
 docker-build-guide.md
@@ -44,7 +49,8 @@ criteria/
 archive/
 jsonl/
 xianyu_state.json
-Example/
+state/
+example/
 task_stats/
 .pytest_cache/
 *.spec
