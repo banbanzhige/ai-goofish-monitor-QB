@@ -65,7 +65,7 @@
 ## 📸 界面展示
 
 <div align="center" style="margin: 2em 0;">
-  <img src="images/Example/0.9.8/任务管理.png" 
+  <img src="images/Example/0.9.9/智能推荐.png" 
        style="width: 100%; max-width: 1200px; height: auto; border-radius: 8px;" 
        alt="智能推荐页面">
   <p style="font-size: 0.9em; color: #555; margin-top: 0.5em;">
@@ -73,9 +73,9 @@
   </p>
 </div>
 
-| 结果管理界面 | AI 评分详情 |
+| 任务管理界面 | AI 评分详情 |
 |:---:|:---:|
-| ![结果管理界面](images/Example/0.9.9/结果查看01.png) | ![AI 评分界面](images/Example/0.9.9/结果查看02.png) |
+| ![任务管理界面](images/Example/0.9.8/任务管理.png) | ![AI 评分界面](images/Example/0.9.9/结果查看02.png) |
 
 <details open>
 <summary>📱通知渠道效果展示</summary>
