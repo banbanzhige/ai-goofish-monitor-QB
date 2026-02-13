@@ -80,7 +80,13 @@ def get_dynamic_config():
 
 
 
-async def send_test_notification(channel: str):
+async def send_test_notification(
+    channel: str,
+    owner_id: str = None,
+    bound_task: str = None,
+    bound_account: str = None,
+    config_id: str = None,
+):
     """
     向指定渠道发送测试通知。
     
@@ -91,10 +97,22 @@ async def send_test_notification(channel: str):
         bool: 如果通知发送成功返回True，否则返回False
     """
     from src.notifier import notifier
-    return await notifier.send_test_notification(channel)
+    return await notifier.send_test_notification(
+        channel,
+        owner_id=owner_id,
+        bound_task=bound_task,
+        bound_account=bound_account,
+        config_id=config_id,
+    )
 
 
-async def send_test_task_completion_notification(channel: str):
+async def send_test_task_completion_notification(
+    channel: str,
+    owner_id: str = None,
+    bound_task: str = None,
+    bound_account: str = None,
+    config_id: str = None,
+):
     """
     向指定渠道发送任务完成通知的测试。
     
@@ -105,10 +123,22 @@ async def send_test_task_completion_notification(channel: str):
         bool: 如果通知发送成功返回True，否则返回False
     """
     from src.notifier import notifier
-    return await notifier.send_test_task_completion_notification(channel)
+    return await notifier.send_test_task_completion_notification(
+        channel,
+        owner_id=owner_id,
+        bound_task=bound_task,
+        bound_account=bound_account,
+        config_id=config_id,
+    )
 
 
-async def send_test_product_notification(channel: str):
+async def send_test_product_notification(
+    channel: str,
+    owner_id: str = None,
+    bound_task: str = None,
+    bound_account: str = None,
+    config_id: str = None,
+):
     """
     向指定渠道发送商品卡测试通知。
     
@@ -119,7 +149,13 @@ async def send_test_product_notification(channel: str):
         bool: 如果通知发送成功返回True，否则返回False
     """
     from src.notifier import notifier
-    return await notifier.send_test_product_notification(channel)
+    return await notifier.send_test_product_notification(
+        channel,
+        owner_id=owner_id,
+        bound_task=bound_task,
+        bound_account=bound_account,
+        config_id=config_id,
+    )
 
 
 
@@ -357,14 +393,26 @@ class AICallFailureException(Exception):
 
 from src.notifier import notifier
 
-async def send_all_notifications(product_data, reason):
+async def send_all_notifications(
+    product_data,
+    reason,
+    owner_id: str = None,
+    bound_task: str = None,
+    bound_account: str = None,
+):
     """
     向所有配置的渠道发送通知。
     
     Returns:
         dict: 向每个渠道发送通知的结果
     """
-    return await notifier.send_product_notification(product_data, reason)
+    return await notifier.send_product_notification(
+        product_data,
+        reason,
+        owner_id=owner_id,
+        bound_task=bound_task,
+        bound_account=bound_account,
+    )
 
 # 全局AI调用失败计数器
 ai_call_failure_count = 0
@@ -374,7 +422,13 @@ AI_CALL_FAILURE_THRESHOLD = 3
 
 
 @retry_on_failure(retries=3, delay=5)
-async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
+async def get_ai_analysis(
+    product_data,
+    image_paths=None,
+    prompt_text="",
+    owner_id: str = None,
+    bayes_profile: str = "bayes_v1",
+):
     """将完整的商品JSON数据和所有图片发送给 AI 进行分析（异步）。"""
     global ai_call_failure_count
     
@@ -541,7 +595,10 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                     # 新增: 计算多维度推荐度
                     try:
                         from src.recommendation_scorer import RecommendationScorer
-                        scorer = RecommendationScorer()
+                        scorer = RecommendationScorer(
+                            owner_id=owner_id,
+                            bayes_profile=bayes_profile,
+                        )
                         recommendation_result = scorer.calculate(product_data, parsed_response)
                         parsed_response['recommendation_score_v2'] = recommendation_result
                         safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
@@ -559,19 +616,14 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                         safe_print(f"   [AI分析] 准备第{attempt + 2}次重试...")
                         continue
                     else:
-                        safe_print("   [AI分析] 所有重试完成，使用最后一次结果")
-                        
-                        # 新增: 计算多维度推荐度
-                        try:
-                            from src.recommendation_scorer import RecommendationScorer
-                            scorer = RecommendationScorer()
-                            recommendation_result = scorer.calculate(product_data, parsed_response)
-                            parsed_response['recommendation_score_v2'] = recommendation_result
-                            safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
-                        except Exception as scorer_error:
-                            safe_print(f"   [推荐度] 计算推荐度时出错: {scorer_error}")
-                        
-                        return parsed_response
+                        criteria_analysis = parsed_response.get("criteria_analysis", {})
+                        if isinstance(criteria_analysis, dict) and criteria_analysis and "seller_type" not in criteria_analysis:
+                            raise AICallFailureException(
+                                "AI响应结构连续重试后仍无效：criteria_analysis 缺少 seller_type。请检查并更新任务 criteria。"
+                            )
+                        raise AICallFailureException(
+                            "AI响应结构连续重试后仍无效。请检查并更新任务 criteria。"
+                        )
 
             except json.JSONDecodeError:
                 safe_print(f"   [AI分析] 第{attempt + 1}次尝试JSON解析失败，尝试清理响应内容...")
@@ -600,7 +652,10 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                             # 新增: 计算多维度推荐度
                             try:
                                 from src.recommendation_scorer import RecommendationScorer
-                                scorer = RecommendationScorer()
+                                scorer = RecommendationScorer(
+                                    owner_id=owner_id,
+                                    bayes_profile=bayes_profile,
+                                )
                                 recommendation_result = scorer.calculate(product_data, parsed_response)
                                 parsed_response['recommendation_score_v2'] = recommendation_result
                                 safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
@@ -613,19 +668,14 @@ async def get_ai_analysis(product_data, image_paths=None, prompt_text=""):
                                 safe_print(f"   [AI分析] 准备第{attempt + 2}次重试...")
                                 continue
                             else:
-                                safe_print("   [AI分析] 所有重试完成，使用清理后的结果")
-                                
-                                # 新增: 计算多维度推荐度
-                                try:
-                                    from src.recommendation_scorer import RecommendationScorer
-                                    scorer = RecommendationScorer()
-                                    recommendation_result = scorer.calculate(product_data, parsed_response)
-                                    parsed_response['recommendation_score_v2'] = recommendation_result
-                                    safe_print(f"   [推荐度] 综合推荐度: {recommendation_result['recommendation_score']}分")
-                                except Exception as scorer_error:
-                                    safe_print(f"   [推荐度] 计算推荐度时出错: {scorer_error}")
-                                
-                                return parsed_response
+                                criteria_analysis = parsed_response.get("criteria_analysis", {})
+                                if isinstance(criteria_analysis, dict) and criteria_analysis and "seller_type" not in criteria_analysis:
+                                    raise AICallFailureException(
+                                        "AI响应结构连续重试后仍无效：criteria_analysis 缺少 seller_type。请检查并更新任务 criteria。"
+                                    )
+                                raise AICallFailureException(
+                                    "AI响应结构连续重试后仍无效。请检查并更新任务 criteria。"
+                                )
                     except json.JSONDecodeError as e:
                         safe_print(f"   [AI分析] 第{attempt + 1}次尝试清理后JSON解析仍然失败: {e}")
                         if attempt < max_retries - 1:
