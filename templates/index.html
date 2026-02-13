@@ -365,6 +365,83 @@
                 margin-right: 0;
             }
         }
+
+        /* 用户管理表格样式 */
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .users-table th,
+        .users-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        .users-table th {
+            background-color: #fafafa;
+            font-weight: 600;
+        }
+
+        .users-table tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .role-admin {
+            background-color: #722ed1;
+            color: white;
+        }
+
+        .role-operator {
+            background-color: #1890ff;
+            color: white;
+        }
+
+        .role-viewer {
+            background-color: #8c8c8c;
+            color: white;
+        }
+
+        .status-active {
+            background-color: #52c41a;
+        }
+
+        .status-inactive {
+            background-color: #ff4d4f;
+        }
+
+        .users-table .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+
+        .users-table .small-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .error-state {
+            color: #ff4d4f;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .empty-state {
+            color: #8c8c8c;
+            padding: 40px;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -408,6 +485,8 @@
                     <li><a href="#notifications" class="nav-link">通知配置</a></li>
                     <li><a href="#model-management" class="nav-link">模型管理</a></li>
                     <li><a href="#settings" class="nav-link">系统设置</a></li>
+                    <li id="nav-users-admin" style="display: none;"><a href="#user-data" class="nav-link">用户数据</a>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -876,18 +955,6 @@
         </div>
     </div>
 
-    <!-- JSON Viewer Modal -->
-    <div id="json-viewer-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>AI 分析详情</h2>
-                <button id="close-json-viewer-btn" class="close-button">&times;</button>
-            </div>
-            <div class="modal-body">
-                <pre id="json-viewer-content"></pre>
-            </div>
-        </div>
-    </div>
     <!-- Manual Login State Modal -->
     <div id="login-state-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content large">
@@ -1036,6 +1103,90 @@
         </div>
     </div>
 
+    <!-- Add User Modal -->
+    <div id="add-user-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2>添加用户</h2>
+                <button class="close-button close-user-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-user-form">
+                    <div class="my-profile-container">
+                        <div class="profile-section">
+                            <h3>账号信息</h3>
+                            <div class="profile-info-grid">
+                                <div class="profile-info-item">
+                                    <label>用户名 <span class="required-pill">必填</span></label>
+                                    <input type="text" id="new-user-username" placeholder="请输入用户名" required>
+                                </div>
+                                <div class="profile-info-item">
+                                    <label>密码 <span class="required-pill">必填</span></label>
+                                    <input type="password" id="new-user-password" placeholder="请输入密码（至少6位）" required>
+                                </div>
+                                <div class="profile-info-item">
+                                    <label>邮箱</label>
+                                    <input type="email" id="new-user-email" placeholder="请输入邮箱（可选）">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="profile-section">
+                            <h3>权限设置</h3>
+                            <div class="profile-info-grid">
+                                <div class="profile-info-item">
+                                    <label>用户组（可多选）</label>
+                                    <select id="new-user-groups" class="styled-select" multiple style="min-height: 108px;">
+                                        <option value="">正在加载用户组...</option>
+                                    </select>
+                                    <p class="form-hint">至少选择一个用户组，权限以用户组配置为准</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="control-button cancel-user-btn">取消</button>
+                <button id="save-new-user-btn" class="control-button primary-btn">创建用户</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div id="edit-user-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2 id="edit-user-modal-title">编辑用户</h2>
+                <button class="close-button close-user-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body" id="edit-user-modal-body">
+                <!-- 内容由 JS 动态渲染 -->
+            </div>
+            <div class="modal-footer">
+                <button class="control-button cancel-user-btn">取消</button>
+                <button id="save-edit-user-btn" class="control-button primary-btn">保存更改</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Profile Modal -->
+    <div id="user-profile-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2 id="user-profile-modal-title">我的资料</h2>
+                <button class="close-button close-user-profile-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body" id="user-profile-modal-body">
+                <!-- 内容由 JS 动态渲染 -->
+            </div>
+            <div class="modal-footer">
+                <button class="control-button close-user-profile-modal-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+
     <script src="/static/js/modules/app_state.js"></script>
     <script src="/static/js/modules/templates.js"></script>
     <!-- External Libraries -->
@@ -1052,6 +1203,7 @@
     <script src="/static/js/modules/tasks_editor.js"></script>
     <script src="/static/js/modules/reorder.js"></script>
     <script src="/static/js/modules/accounts_view.js"></script>
+    <script src="/static/js/modules/users_view.js"></script>
     <script src="/static/js/modules/logs_view.js"></script>
     <script src="/static/js/modules/results_view.js"></script>
     <script src="/static/js/modules/notifications_view.js"></script>
