@@ -3,11 +3,29 @@
 """
 版本信息文件
 """
-VERSION = "V0.9.9"
+VERSION = "V1.0.0"
 
 
 
 VERSION_HISTORY = [
+
+    {
+        "version": "V1.0.0",
+        "date": "2026-02-14",
+        "changes": [
+            "重大升级：引入多用户系统，支持PostgreSQL数据仓库，统一数据管理，",
+            "新增用户数据隔离：每个用户拥有独立的数据空间，支持多用户登录、角色权限、会话管理",
+            "新增商品卡反馈标注、特征提取、一键添加贝叶斯模型参数",            
+            "新增统一存储接口：src/storage/ 模块，支持本地文件和PostgreSQL双后端",
+            "新增用户管理API：用户CRUD、API配置、通知配置、平台账号管理",
+            "新增RBAC权限控制：admin/operator/viewer三级角色",
+            "新增敏感数据加密：API密钥、Cookie等使用Fernet加密存储",
+            "新增审计日志：记录用户操作历史",
+            "新增数据迁移工具：支持从本地文件迁移到PostgreSQL",
+            "更新认证模块：支持多用户登录，保持本地模式向下兼容",
+            "更新requirements.txt：新增sqlalchemy、cryptography、bcrypt等依赖"
+        ]
+    },
 
     {
         "version": "V0.9.9-beta2",
