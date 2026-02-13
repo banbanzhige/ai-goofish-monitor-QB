@@ -11,23 +11,37 @@ Version: 1.0.0
 Date: 2026-01-30
 """
 
+import math
+import os
 import re
 from datetime import datetime
 from typing import Dict, Any, Optional, List
+from src.user_file_store import resolve_virtual_task_file
 
 
 class RecommendationScorer:
     """推荐度计算器 - 多维度商品推荐评分系统"""
     
-    def __init__(self, config_path: str = "prompts/bayes/bayes_v1.json"):
+    def __init__(
+        self,
+        config_path: Optional[str] = None,
+        owner_id: Optional[str] = None,
+        bayes_profile: str = "bayes_v1"
+    ):
         """
-        初始化评分器，从配置文件加载权重参数
+        初始化评分器，从配置文件加载权重参数，并准备反馈样本模型
         
         Args:
-            config_path: 配置文件路径，默认为 prompts/bayes/bayes_v1.json
+            config_path: 配置文件路径，留空时按 bayes_profile 自动拼接
+            owner_id: 当前用户ID（多用户模式用于样本隔离）
+            bayes_profile: Bayes 配置版本名（如 bayes_v1）
         """
         import json
-        import os
+
+        self.owner_id = str(owner_id).strip() if owner_id else None
+        self.bayes_profile = self._normalize_profile_name(bayes_profile)
+        self.config_path = self._resolve_config_path(config_path, self.bayes_profile)
+        self.feedback_min_variance = 1e-3
         
         # 默认权重（作为后备）
         default_fusion_config = {
@@ -47,17 +61,17 @@ class RecommendationScorer:
         
         # 尝试从配置文件加载
         fusion_config = default_fusion_config
-        if os.path.exists(config_path):
+        if os.path.exists(self.config_path):
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                     if 'recommendation_fusion' in config:
                         fusion_config = config['recommendation_fusion']
-                        print(f"[推荐度] 已从 {config_path} 加载融合权重配置")
+                        print(f"[推荐度] 已从 {self.config_path} 加载融合权重配置")
             except Exception as e:
                 print(f"[推荐度] 配置文件读取失败，使用默认权重: {e}")
         else:
-            print(f"[推荐度] 配置文件不存在，使用默认权重")
+            print(f"[推荐度] 配置文件不存在({self.config_path})，使用默认权重")
         
         # 设置权重
         self.bayesian_weights = fusion_config.get('bayesian_features', 
@@ -76,6 +90,8 @@ class RecommendationScorer:
 
         # 贝叶斯评分规则
         self.scoring_rules = fusion_config.get('scoring_rules')
+        # 反馈样本模型（8维特征）用于在线增量修正贝叶斯分数
+        self.feedback_model = self._load_feedback_sample_model()
     
     
     def calculate(self, product_data: Dict[str, Any], ai_analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -163,14 +179,28 @@ class RecommendationScorer:
                 features_used[key] = None
 
         if any(value is None for value in features_used.values()):
-            bayesian_score = None
+            rule_bayesian_score = None
         else:
-            bayesian_score = 0.0
+            rule_bayesian_score = 0.0
             for key, value in features_used.items():
                 weight = self.bayesian_weights.get(key, 0)
                 if isinstance(weight, (int, float)):
-                    bayesian_score += value * weight
-            bayesian_score = self._adjust_by_seller_type(bayesian_score, ai_analysis)
+                    rule_bayesian_score += value * weight
+            rule_bayesian_score = self._adjust_by_seller_type(rule_bayesian_score, ai_analysis)
+
+        # 使用反馈闭环样本对贝叶斯分数做在线修正（不影响原规则得分输出）
+        feedback_score, feedback_meta = self._calculate_feedback_sample_score(product_data)
+        bayesian_score = rule_bayesian_score
+        feedback_weight = 0.0
+
+        if isinstance(rule_bayesian_score, (int, float)) and isinstance(feedback_score, (int, float)):
+            feedback_weight = self._derive_feedback_weight(feedback_meta)
+            if feedback_weight > 0:
+                bayesian_score = (1 - feedback_weight) * rule_bayesian_score + feedback_weight * feedback_score
+        elif not isinstance(rule_bayesian_score, (int, float)) and isinstance(feedback_score, (int, float)):
+            # 规则缺失时允许反馈模型兜底
+            bayesian_score = feedback_score
+            feedback_weight = 1.0
 
         features_display = {
             key: (round(value, 4) if isinstance(value, (int, float)) else '缺失')
@@ -183,6 +213,15 @@ class RecommendationScorer:
 
         return {
             'score': round(bayesian_score, 4) if isinstance(bayesian_score, (int, float)) else None,
+            'rule_score': round(rule_bayesian_score, 4) if isinstance(rule_bayesian_score, (int, float)) else None,
+            'feedback_score': round(feedback_score, 4) if isinstance(feedback_score, (int, float)) else None,
+            'feedback_weight': round(feedback_weight, 4) if isinstance(feedback_weight, (int, float)) else 0.0,
+            'feedback_samples': {
+                'trusted': int(feedback_meta.get('trusted_count', 0)),
+                'untrusted': int(feedback_meta.get('untrusted_count', 0)),
+                'total': int(feedback_meta.get('total', 0)),
+                'enabled': bool(feedback_meta.get('enabled', False)),
+            },
             'features': features_display,
             'features_used': features_used_display,
             'weights': self.bayesian_weights,
@@ -679,6 +718,299 @@ class RecommendationScorer:
             return min(1.0, score * 1.2)
         
         return score
+
+    # ==================== 反馈样本融合方法 ====================
+
+    def _normalize_profile_name(self, profile_name: str) -> str:
+        """标准化 Bayes 版本名，统一去掉 .json 后缀"""
+        text = str(profile_name or "bayes_v1").strip()
+        if text.endswith('.json'):
+            text = text[:-5]
+        return text or "bayes_v1"
+
+    def _resolve_config_path(self, config_path: Optional[str], profile_name: str) -> str:
+        """解析配置文件路径，优先外部传入，其次按版本拼接默认路径"""
+        if config_path and str(config_path).strip():
+            raw_path = str(config_path).strip()
+        else:
+            raw_path = os.path.join("prompts", "bayes", f"{profile_name}.json")
+        resolved = resolve_virtual_task_file(raw_path, owner_id=self.owner_id, for_write=False)
+        return str(resolved)
+
+    def _safe_parse_float(self, value: Any) -> Optional[float]:
+        """从任意值中安全提取浮点数"""
+        if isinstance(value, (int, float)):
+            return float(value)
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        matched = re.search(r"-?\d+(\.\d+)?", text.replace(",", ""))
+        if not matched:
+            return None
+        try:
+            return float(matched.group(0))
+        except ValueError:
+            return None
+
+    def _safe_parse_int(self, value: Any) -> int:
+        """从任意值中安全提取整数"""
+        if isinstance(value, int):
+            return value
+        number = self._safe_parse_float(value)
+        if number is None:
+            return 0
+        return int(number)
+
+    def _safe_parse_rate(self, value: Any) -> float:
+        """把好评率文本统一转换到 0-1"""
+        number = self._safe_parse_float(value)
+        if number is None:
+            return 0.0
+        text = str(value)
+        if '%' in text or number > 1:
+            number = number / 100.0
+        return max(0.0, min(1.0, float(number)))
+
+    def _parse_trade_counts(self, text: str) -> Dict[str, int]:
+        """
+        从“在售/已售”文本中提取交易数量。
+        示例：'在售3件/已售12件' -> {'on_sale': 3, 'sold': 12}
+        """
+        raw = str(text or "")
+        pairs = re.findall(r"(\d+)", raw)
+        if len(pairs) >= 2:
+            return {"on_sale": int(pairs[0]), "sold": int(pairs[1])}
+        if len(pairs) == 1:
+            return {"on_sale": int(pairs[0]), "sold": int(pairs[0])}
+        return {"on_sale": 0, "sold": 0}
+
+    def _build_feedback_payload(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """将运行时商品结构转换为反馈特征提取器可识别的数据格式"""
+        item_info = product_data.get('商品信息', {}) if isinstance(product_data, dict) else {}
+        seller_info = product_data.get('卖家信息', {}) if isinstance(product_data, dict) else {}
+
+        price = self._safe_parse_float(item_info.get('当前售价') or item_info.get('商品价格') or 0) or 0.0
+        original_price = self._safe_parse_float(item_info.get('商品原价') or item_info.get('原价') or price) or price
+        image_list = item_info.get('商品图片列表')
+        if not isinstance(image_list, list):
+            image_list = []
+
+        trade_text = seller_info.get('卖家在售/已售商品数') or seller_info.get('在售/已售商品数') or ''
+        trade_counts = self._parse_trade_counts(str(trade_text))
+
+        return {
+            "title": str(item_info.get('商品标题') or ""),
+            "description": str(item_info.get('商品描述') or item_info.get('商品标题') or ""),
+            "price": float(price),
+            "original_price": float(original_price),
+            "images": image_list,
+            "publish_time": str(item_info.get('发布时间') or ""),
+            "seller": {
+                "credit": str(seller_info.get('卖家信用等级') or seller_info.get('买家信用等级') or ""),
+                "good_rate": self._safe_parse_rate(seller_info.get('作为卖家的好评率')),
+                "trade_count": int(trade_counts.get("sold", 0)),
+                "sold_count": int(trade_counts.get("sold", 0)),
+            }
+        }
+
+    def _coerce_vector(self, vector: Any, dim: int) -> Optional[List[float]]:
+        """校验并标准化样本向量"""
+        if not isinstance(vector, list) or len(vector) != dim:
+            return None
+        normalized: List[float] = []
+        for value in vector:
+            if not isinstance(value, (int, float)):
+                return None
+            normalized.append(float(value))
+        return normalized
+
+    def _calc_mean_var(self, vectors: List[List[float]], dim: int) -> (List[float], List[float]):
+        """计算每一维的均值与方差"""
+        if not vectors:
+            return [0.5] * dim, [max(self.feedback_min_variance, 0.05)] * dim
+
+        count = len(vectors)
+        means = [0.0] * dim
+        for vector in vectors:
+            for idx, value in enumerate(vector):
+                means[idx] += value
+        means = [value / count for value in means]
+
+        variances = [0.0] * dim
+        for vector in vectors:
+            for idx, value in enumerate(vector):
+                diff = value - means[idx]
+                variances[idx] += diff * diff
+        variances = [max(value / count, self.feedback_min_variance) for value in variances]
+        return means, variances
+
+    def _gaussian_logpdf(self, value: float, mean: float, var: float) -> float:
+        """高斯分布对数概率密度"""
+        return -0.5 * (math.log(2 * math.pi * var) + ((value - mean) ** 2) / var)
+
+    def _load_feedback_sample_model(self) -> Dict[str, Any]:
+        """
+        读取并构建反馈样本模型（8维）。
+        模型来源：存储层 bayes_samples，按 source=user/user_feedback 过滤。
+        """
+        model = {
+            "enabled": False,
+            "reason": "未加载",
+            "trusted_count": 0,
+            "untrusted_count": 0,
+            "total": 0,
+            "dim": 8,
+            "priors": [0.5, 0.5],
+            "mean_trusted": [],
+            "var_trusted": [],
+            "mean_untrusted": [],
+            "var_untrusted": [],
+        }
+
+        try:
+            from src.storage import get_storage
+
+            storage = get_storage()
+            samples = storage.get_bayes_samples(
+                profile_version=self.bayes_profile,
+                owner_id=self.owner_id,
+                include_system=False if self.owner_id else True
+            )
+            if not isinstance(samples, list) or not samples:
+                model["reason"] = "无可用样本"
+                return model
+
+            dim = int(model["dim"])
+            trusted_vectors: List[List[float]] = []
+            untrusted_vectors: List[List[float]] = []
+
+            for sample in samples:
+                if not isinstance(sample, dict):
+                    continue
+                source = str(sample.get("source") or "").strip().lower()
+                if source not in {"user", "user_feedback"}:
+                    continue
+                vector = self._coerce_vector(sample.get("vector"), dim)
+                if vector is None:
+                    continue
+                label = int(sample.get("label", 0))
+                if label == 1:
+                    trusted_vectors.append(vector)
+                else:
+                    untrusted_vectors.append(vector)
+
+            trusted_count = len(trusted_vectors)
+            untrusted_count = len(untrusted_vectors)
+            total = trusted_count + untrusted_count
+
+            model["trusted_count"] = trusted_count
+            model["untrusted_count"] = untrusted_count
+            model["total"] = total
+
+            if trusted_count == 0 or untrusted_count == 0:
+                model["reason"] = "样本类别不完整（需同时有可信/不可信）"
+                return model
+
+            priors = [untrusted_count / total, trusted_count / total]
+            mean_trusted, var_trusted = self._calc_mean_var(trusted_vectors, dim)
+            mean_untrusted, var_untrusted = self._calc_mean_var(untrusted_vectors, dim)
+
+            model.update({
+                "enabled": True,
+                "reason": "ok",
+                "priors": priors,
+                "mean_trusted": mean_trusted,
+                "var_trusted": var_trusted,
+                "mean_untrusted": mean_untrusted,
+                "var_untrusted": var_untrusted,
+            })
+            return model
+
+        except Exception as e:
+            model["reason"] = f"加载失败: {e}"
+            return model
+
+    def _predict_feedback_trusted_probability(self, vector: List[float]) -> Optional[float]:
+        """基于反馈样本模型预测可信概率"""
+        model = self.feedback_model or {}
+        if not model.get("enabled"):
+            return None
+
+        priors = model.get("priors") or [0.5, 0.5]
+        mean_trusted = model.get("mean_trusted") or []
+        var_trusted = model.get("var_trusted") or []
+        mean_untrusted = model.get("mean_untrusted") or []
+        var_untrusted = model.get("var_untrusted") or []
+
+        if not (mean_trusted and var_trusted and mean_untrusted and var_untrusted):
+            return None
+
+        logp_untrusted = math.log(max(float(priors[0]), 1e-12))
+        logp_trusted = math.log(max(float(priors[1]), 1e-12))
+
+        for idx, value in enumerate(vector):
+            logp_untrusted += self._gaussian_logpdf(value, mean_untrusted[idx], var_untrusted[idx])
+            logp_trusted += self._gaussian_logpdf(value, mean_trusted[idx], var_trusted[idx])
+
+        max_logp = max(logp_untrusted, logp_trusted)
+        p0 = math.exp(logp_untrusted - max_logp)
+        p1 = math.exp(logp_trusted - max_logp)
+        if p0 + p1 <= 0:
+            return None
+        return float(p1 / (p0 + p1))
+
+    def _derive_feedback_weight(self, feedback_meta: Dict[str, Any]) -> float:
+        """
+        按样本规模动态计算反馈融合权重。
+        样本越多，对在线贝叶斯分数的影响越大（上限 0.35）。
+        """
+        total = int(feedback_meta.get("total", 0))
+        trusted = int(feedback_meta.get("trusted_count", 0))
+        untrusted = int(feedback_meta.get("untrusted_count", 0))
+        if total <= 1 or trusted == 0 or untrusted == 0:
+            return 0.0
+        if total < 6:
+            return 0.12
+        if total < 15:
+            return 0.2
+        if total < 40:
+            return 0.28
+        return 0.35
+
+    def _calculate_feedback_sample_score(self, product_data: Dict[str, Any]) -> (Optional[float], Dict[str, Any]):
+        """计算当前商品在反馈样本模型下的可信分数（0-1）"""
+        feedback_meta = {
+            "enabled": bool((self.feedback_model or {}).get("enabled")),
+            "reason": (self.feedback_model or {}).get("reason", "未初始化"),
+            "trusted_count": int((self.feedback_model or {}).get("trusted_count", 0)),
+            "untrusted_count": int((self.feedback_model or {}).get("untrusted_count", 0)),
+            "total": int((self.feedback_model or {}).get("total", 0)),
+        }
+        if not feedback_meta["enabled"]:
+            return None, feedback_meta
+
+        try:
+            from src.feedback import extract_features
+
+            payload = self._build_feedback_payload(product_data)
+            keyword = str(product_data.get("搜索关键字") or "").strip() if isinstance(product_data, dict) else ""
+            vector = extract_features(payload, keyword=keyword or None)
+            if not isinstance(vector, list) or len(vector) != 8:
+                feedback_meta["reason"] = "特征提取失败"
+                return None, feedback_meta
+
+            probability = self._predict_feedback_trusted_probability([float(v) for v in vector])
+            if not isinstance(probability, (int, float)):
+                feedback_meta["reason"] = "概率计算失败"
+                return None, feedback_meta
+
+            feedback_meta["vector"] = [round(float(v), 4) for v in vector]
+            return float(probability), feedback_meta
+        except Exception as e:
+            feedback_meta["reason"] = f"计算异常: {e}"
+            return None, feedback_meta
     
     # ==================== 配置规则访问辅助方法 ====================
     
