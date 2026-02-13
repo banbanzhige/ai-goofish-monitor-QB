@@ -10,7 +10,9 @@ from urllib.parse import quote
 
 from openai import APIStatusError
 from requests.exceptions import HTTPError
+from src.logging_config import get_logger
 
+logger = get_logger(__name__, service="system")
 
 def retry_on_failure(retries=3, delay=5):
     """
@@ -115,7 +117,24 @@ def get_link_unique_key(link: str) -> str:
 
 
 async def save_to_jsonl(data_record: dict, keyword: str):
-    """将一个包含商品和卖家信息的完整记录追加保存到 .jsonl 文件。"""
+    """将完整商品记录追加保存到 jsonl，若多用户上下文可用则优先写入统一存储层。"""
+    owner_id = str(os.getenv("GOOFISH_OWNER_ID", "")).strip()
+    task_name = str(os.getenv("GOOFISH_TASK_NAME", "")).strip() or keyword
+
+    if owner_id:
+        try:
+            from src.web.auth import is_multi_user_mode
+            if is_multi_user_mode():
+                from src.storage import get_storage
+                storage = get_storage()
+                storage.save_result(task_name, data_record, owner_id=owner_id)
+                return True
+        except Exception as e:
+            logger.warning(
+                f"多用户结果写入存储层失败，降级写入jsonl: {e}",
+                extra={"event": "save_result_fallback", "owner_id": owner_id, "task_name": task_name},
+            )
+
     output_dir = "jsonl"
     os.makedirs(output_dir, exist_ok=True)
     filename = os.path.join(output_dir, f"{keyword.replace(' ', '_')}_full_data.jsonl")
@@ -124,9 +143,11 @@ async def save_to_jsonl(data_record: dict, keyword: str):
             f.write(json.dumps(data_record, ensure_ascii=False) + "\n")
         return True
     except IOError as e:
-        print(f"写入文件 {filename} 出错: {e}")
+        logger.error(
+            f"写入结果文件失败: {e}",
+            extra={"event": "result_file_write_failed", "filename": filename},
+        )
         return False
-
 
 def format_registration_days(total_days: int) -> str:
     """
@@ -165,3 +186,9 @@ def write_log(message):
             f.write(message + '\n')
     except Exception as e:
         print(f"写入日志时出错: {e}")
+
+
+
+
+
+
