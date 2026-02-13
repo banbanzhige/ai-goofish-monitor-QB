@@ -1,0 +1,44 @@
+services:
+  # 服务器模式参考（PostgreSQL 多用户存储）
+  app:
+    image: banbanzhige/ai-goofish-monitor-qb:latest
+    container_name: ai-goofish-monitor-qb-server
+    pull_policy: always
+    ports:
+      - "8001:8000"
+    volumes:
+      # ========== 最小必需挂载 ==========
+      # 全局运行配置（数据库连接、存储后端、系统级参数）
+      - ./.env:/app/.env
+      # 多用户文件资产与运行时临时文件（state/user_files、runtime_task_configs）
+      - ./state:/app/state
+
+
+    environment:
+      STORAGE_BACKEND: postgres
+      DATABASE_URL: ${DATABASE_URL:-postgresql://goofish:${POSTGRES_PASSWORD:-changeme}@postgres:5432/goofish_monitor}
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-changeme}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: goofish-postgres
+    environment:
+      POSTGRES_DB: goofish_monitor
+      POSTGRES_USER: goofish
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      # ========== 最小必需挂载 ==========
+      - ./postgres_data:/var/lib/postgresql/data
+      # ========== 可选挂载（按需开启） ==========
+      # - ./postgres_init:/docker-entrypoint-initdb.d  # 初始化 SQL 脚本
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goofish -d goofish_monitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
