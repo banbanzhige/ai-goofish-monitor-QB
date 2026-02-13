@@ -15,3 +15,11 @@ python-telegram-bot
 playwright
 jinja2
 python-multipart
+# v1.0.0 新增依赖
+sqlalchemy>=2.0.0
+psycopg2-binary
+cryptography
+bcrypt
+filelock
+numpy
+Pillow
