@@ -237,17 +237,28 @@ class GenericSettings(BaseModel):
 
 
 class NotificationRequest(BaseModel):
+    bound_task: Optional[str] = None
+    bound_account: Optional[str] = None
     商品信息: dict
     ai_analysis: Optional[dict] = None
 
 
 class TestNotificationRequest(BaseModel):
     channel: str
+    config_id: Optional[str] = None
+    bound_task: Optional[str] = None
+    bound_account: Optional[str] = None
 
 
 class TestTaskCompletionNotificationRequest(BaseModel):
     channel: str
+    config_id: Optional[str] = None
+    bound_task: Optional[str] = None
+    bound_account: Optional[str] = None
 
 
 class TestProductNotificationRequest(BaseModel):
     channel: str
+    config_id: Optional[str] = None
+    bound_task: Optional[str] = None
+    bound_account: Optional[str] = None
