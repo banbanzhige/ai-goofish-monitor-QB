@@ -10,7 +10,7 @@ services:
       # ========== 最小必需挂载 ==========
       # 全局运行配置（数据库连接、存储后端、系统级参数）
       - ./.env:/app/.env
-      # 多用户文件资产与运行时临时文件（state/user_files、runtime_task_configs）
+      # 多用户文件资产与运行时临时文件
       - ./state:/app/state
 
 
@@ -33,8 +33,7 @@ services:
     volumes:
       # ========== 最小必需挂载 ==========
       - ./postgres_data:/var/lib/postgresql/data
-      # ========== 可选挂载（按需开启） ==========
-      # - ./postgres_init:/docker-entrypoint-initdb.d  # 初始化 SQL 脚本
+
     ports:
       - "5432:5432"
     healthcheck:
