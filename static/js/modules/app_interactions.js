@@ -1,10 +1,85 @@
-﻿﻿﻿﻿﻿﻿// 全局交互事件委托
+﻿﻿// 全局交互事件委托
 var appInteractionsInitialized = false;
 
 function initAppInteractions(mainContent) {
     if (appInteractionsInitialized) return;
     appInteractionsInitialized = true;
     if (!mainContent) return;
+
+    const readCardFeedbackContext = (card) => {
+        if (!card) return null;
+        const resultId = String(card.dataset.itemId || '').trim();
+        if (!resultId) {
+            return null;
+        }
+
+        let productData = {};
+        try {
+            productData = card.dataset.feedbackPayload ? JSON.parse(card.dataset.feedbackPayload) : {};
+        } catch (error) {
+            productData = {};
+        }
+
+        const profileVersion = String(
+            card.dataset.feedbackProfile
+            || productData?.profile_version
+            || productData?.bayes_profile
+            || productData?.ml_precalc?.bayes?.profile
+            || productData?.ml_precalc?.bayes?.version
+            || 'bayes_v1'
+        ).trim();
+
+        return {
+            result_id: resultId,
+            product_data: productData,
+            keyword: String(card.dataset.feedbackKeyword || '').trim() || null,
+            profile_version: profileVersion || 'bayes_v1',
+        };
+    };
+
+    const updateCardFeedbackVisualState = (card, feedbackType) => {
+        if (!card) return;
+        const trustedBtn = card.querySelector('.overlay-trusted-btn');
+        const untrustedBtn = card.querySelector('.overlay-untrusted-btn');
+        const isTrusted = feedbackType === 'trusted';
+        card.dataset.feedbackStatus = feedbackType;
+
+        if (trustedBtn) {
+            trustedBtn.classList.toggle('is-active', isTrusted);
+            const tIcon = trustedBtn.querySelector('.fb-icon');
+            const tText = trustedBtn.querySelector('.fb-text');
+            if (tIcon) tIcon.textContent = isTrusted ? '✅' : '👍';
+            if (tText) tText.textContent = isTrusted ? '已可信' : '可信';
+        }
+        if (untrustedBtn) {
+            untrustedBtn.classList.toggle('is-active', !isTrusted);
+            const uIcon = untrustedBtn.querySelector('.fb-icon');
+            const uText = untrustedBtn.querySelector('.fb-text');
+            if (uIcon) uIcon.textContent = !isTrusted ? '⛔' : '👎';
+            if (uText) uText.textContent = !isTrusted ? '已不可信' : '不可信';
+        }
+    };
+
+    const resetCardFeedbackVisualState = (card) => {
+        if (!card) return;
+        card.dataset.feedbackStatus = '';
+        const trustedBtn = card.querySelector('.overlay-trusted-btn');
+        const untrustedBtn = card.querySelector('.overlay-untrusted-btn');
+        if (trustedBtn) {
+            trustedBtn.classList.remove('is-active');
+            const tIcon = trustedBtn.querySelector('.fb-icon');
+            const tText = trustedBtn.querySelector('.fb-text');
+            if (tIcon) tIcon.textContent = '👍';
+            if (tText) tText.textContent = '可信';
+        }
+        if (untrustedBtn) {
+            untrustedBtn.classList.remove('is-active');
+            const uIcon = untrustedBtn.querySelector('.fb-icon');
+            const uText = untrustedBtn.querySelector('.fb-text');
+            if (uIcon) uIcon.textContent = '👎';
+            if (uText) uText.textContent = '不可信';
+        }
+    };
 
     // --- 动态内容事件委托 ---
     mainContent.addEventListener('click', async (event) => {
@@ -40,22 +115,63 @@ function initAppInteractions(mainContent) {
             return;
         }
 
+        if (button.matches('.overlay-trusted-btn, .overlay-untrusted-btn')) {
+            const card = button.closest('.result-card');
+            const feedbackType = button.dataset.feedbackType === 'untrusted' ? 'untrusted' : 'trusted';
+            const feedbackContext = readCardFeedbackContext(card);
+            if (!feedbackContext) {
+                Notification.warning('未识别到商品ID，无法提交反馈');
+                return;
+            }
+
+            const trustedBtn = card.querySelector('.overlay-trusted-btn');
+            const untrustedBtn = card.querySelector('.overlay-untrusted-btn');
+            if (trustedBtn) trustedBtn.disabled = true;
+            if (untrustedBtn) untrustedBtn.disabled = true;
+
+            // 如果点击的是已激活状态的按钮 → 取消反馈
+            const currentStatus = (card.dataset.feedbackStatus || '').trim();
+            if (currentStatus === feedbackType) {
+                const cancelResult = await cancelBayesFeedback(feedbackContext.result_id);
+                if (trustedBtn) trustedBtn.disabled = false;
+                if (untrustedBtn) untrustedBtn.disabled = false;
+                if (cancelResult) {
+                    resetCardFeedbackVisualState(card);
+                    Notification.toast('已取消反馈', 'info');
+                }
+                return;
+            }
+
+            const result = await submitBayesFeedback({
+                result_id: feedbackContext.result_id,
+                feedback_type: feedbackType,
+                product_data: feedbackContext.product_data,
+                keyword: feedbackContext.keyword,
+                profile_version: feedbackContext.profile_version,
+            });
+
+            if (trustedBtn) trustedBtn.disabled = false;
+            if (untrustedBtn) untrustedBtn.disabled = false;
+
+            if (!result) {
+                return;
+            }
+
+            updateCardFeedbackVisualState(card, feedbackType);
+            Notification.toast(
+                feedbackType === 'trusted' ? '已标记为可信样本' : '已标记为不可信样本',
+                'success'
+            );
+            return;
+        }
+
 
         const taskContainer = button.closest('tr, .task-card');
         const row = taskContainer && taskContainer.matches('tr') ? taskContainer : null;
         const taskId = taskContainer ? taskContainer.dataset.taskId : null;
         const taskData = taskContainer && taskContainer.dataset.task ? JSON.parse(taskContainer.dataset.task) : null;
 
-        if (button.matches('.view-json-btn')) {
-            const card = button.closest('.result-card');
-            const itemData = JSON.parse(card.dataset.item);
-            const jsonContent = document.getElementById('json-viewer-content');
-            jsonContent.textContent = JSON.stringify(itemData, null, 2);
-
-            const modal = document.getElementById('json-viewer-modal');
-            modal.style.display = 'flex';
-            setTimeout(() => modal.classList.add('visible'), 10);
-        } else if (button.matches('.run-task-btn')) {
+        if (button.matches('.run-task-btn')) {
             const taskId = button.dataset.taskId;
             button.disabled = true;
             button.textContent = '启动中...';
@@ -555,9 +671,9 @@ function initAppInteractions(mainContent) {
 
         document.querySelectorAll('.ai-criteria-tab').forEach(tab => {
             tab.addEventListener('click', () => {
-            if (tab.dataset.tab === 'edit' && tab.disabled) {
-                return;
-            }
+                if (tab.dataset.tab === 'edit' && tab.disabled) {
+                    return;
+                }
                 setActiveTab(tab.dataset.tab);
                 if (tab.dataset.tab === 'edit') {
                     loadEditContent(aiCriteriaModal.dataset.criteriaFile);
@@ -698,17 +814,43 @@ function initAppInteractions(mainContent) {
             const spinner = generateBtn.querySelector('.spinner');
             const loadingText = generateBtn.querySelector('.loading-text');
 
-            btnText.style.display = 'inline-block';
-            spinner.style.display = 'none';
-            loadingText.style.display = 'none';
+            if (btnText) btnText.style.display = 'inline-block';
+            if (spinner) spinner.style.display = 'none';
+            if (loadingText) loadingText.style.display = 'none';
             generateBtn.disabled = false;
 
             if (task && task.generating_ai_criteria) {
-                btnText.style.display = 'none';
-                spinner.style.display = 'inline-block';
-                loadingText.style.display = 'inline-block';
+                if (btnText) btnText.style.display = 'none';
+                if (spinner) spinner.style.display = 'inline-block';
+                if (loadingText) loadingText.style.display = 'inline-block';
                 generateBtn.disabled = true;
             }
+        };
+
+        const setTaskRowGeneratingVisualState = (taskId, isGenerating) => {
+            const taskRow = document.querySelector(`tr[data-task-id="${taskId}"], .task-card[data-task-id="${taskId}"]`);
+            if (!taskRow) return;
+
+            const statusBadge = taskRow.querySelector('.status-badge');
+            if (statusBadge && isGenerating) {
+                statusBadge.className = 'status-badge status-generating';
+                statusBadge.textContent = '生成中';
+                statusBadge.style.backgroundColor = 'orange';
+            }
+
+            const controls = taskRow.querySelectorAll(
+                '.action-btn, .dropdown-btn, .dropdown-item, .refresh-criteria, .criteria-btn, .task-enabled-toggle'
+            );
+            controls.forEach((control) => {
+                control.disabled = isGenerating;
+                if (control.classList.contains('task-enabled-toggle')) {
+                    return;
+                }
+                if (isGenerating) {
+                    control.style.backgroundColor = '#ccc';
+                    control.style.cursor = 'not-allowed';
+                }
+            });
         };
 
         const loadEditContent = async (criteriaFile) => {
@@ -789,65 +931,49 @@ function initAppInteractions(mainContent) {
             }
 
             const btnText = generateBtn.querySelector('.btn-text');
-            const spinner = generateBtn.querySelector('.spinner');
-            const loadingText = generateBtn.querySelector('.loading-text');
-            btnText.textContent = aiCriteriaModal.dataset.hasCriteria === '1' ? '重新生成' : '新生成';
-            btnText.style.display = 'none';
-            spinner.style.display = 'inline-block';
-            loadingText.style.display = 'inline-block';
-            generateBtn.disabled = true;
-
             const modalTaskId = aiCriteriaModal.dataset.taskId;
             const formData = new FormData(form);
+            const container = document.getElementById('tasks-table-container');
+
+            if (btnText) {
+                btnText.textContent = aiCriteriaModal.dataset.hasCriteria === '1' ? '重新生成' : '新生成';
+            }
+            updateGenerateButtonState({ generating_ai_criteria: true });
+            updateEditDisabledState({ generating_ai_criteria: true });
+            setTaskRowGeneratingVisualState(modalTaskId, true);
 
             const updateData = {
                 description: formData.get('description'),
-                reference_file: referenceSelector.value,
-                generating_ai_criteria: true
+                reference_file: referenceSelector.value
             };
             if (bayesSelector && bayesSelector.value) {
                 updateData.bayes_profile = bayesSelector.value;
             }
 
             try {
-                await updateTask(modalTaskId, updateData);
-
-                const taskRow = document.querySelector(`tr[data-task-id="${modalTaskId}"]`);
-                if (taskRow) {
-                    updateEditDisabledState({ generating_ai_criteria: true });
-                    const statusBadge = taskRow.querySelector('.status-badge');
-                    if (statusBadge) {
-                        statusBadge.className = 'status-badge status-generating';
-                        statusBadge.textContent = '生成中';
-                        statusBadge.style.backgroundColor = 'orange';
-                    }
-
-                    const actionButtons = taskRow.querySelectorAll('.action-btn');
-                    actionButtons.forEach(btn => {
-                        btn.disabled = true;
-                        btn.style.backgroundColor = '#ccc';
-                        btn.style.cursor = 'not-allowed';
-                    });
-
-                    const criteriaButtons = taskRow.querySelectorAll('.refresh-criteria, .criteria-btn');
-                    criteriaButtons.forEach(btn => {
-                        btn.disabled = true;
-                        btn.style.backgroundColor = '#ccc';
-                        btn.style.cursor = 'not-allowed';
-                    });
-
-                    const toggleSwitch = taskRow.querySelector('.switch input[type="checkbox"]');
-                    if (toggleSwitch) {
-                        toggleSwitch.disabled = true;
-                    }
+                const result = await updateTask(modalTaskId, updateData);
+                if (!result || !result.task) {
+                    // updateTask 已负责展示后端返回的错误提示，这里直接退出避免重复弹窗覆盖细节
+                    return;
+                }
+                Notification.success(result.message || 'AI标准生成完成');
+                closeModal();
+                if (container) {
+                    const tasks = await fetchTasks();
+                    renderTasksInto(container, tasks);
                 }
             } catch (error) {
                 console.error('更新任务失败:', error);
                 Notification.error('更新任务失败: ' + error.message);
-                btnText.style.display = 'inline-block';
-                spinner.style.display = 'none';
-                loadingText.style.display = 'none';
-                generateBtn.disabled = false;
+                updateGenerateButtonState(null);
+                const rollbackTask = {
+                    generating_ai_criteria: false
+                };
+                updateEditDisabledState(rollbackTask);
+                if (container) {
+                    const tasks = await fetchTasks();
+                    renderTasksInto(container, tasks);
+                }
             }
         });
 
@@ -1063,26 +1189,6 @@ function initAppInteractions(mainContent) {
             setTimeout(() => modal.classList.add('visible'), 10);
         }
     });
-
-
-    const jsonViewerModal = document.getElementById('json-viewer-modal');
-    if (jsonViewerModal) {
-        const closeBtn = document.getElementById('close-json-viewer-btn');
-
-        const closeModal = () => {
-            jsonViewerModal.classList.remove('visible');
-            setTimeout(() => {
-                jsonViewerModal.style.display = 'none';
-            }, 300);
-        };
-
-        closeBtn.addEventListener('click', closeModal);
-        jsonViewerModal.addEventListener('click', (event) => {
-            if (event.target === jsonViewerModal) {
-                closeModal();
-            }
-        });
-    }
 
 
     const loginStateModal = document.getElementById('login-state-modal');
@@ -1484,15 +1590,16 @@ function initAppInteractions(mainContent) {
                     // 使用updateTask API，携带description字段触发AI生成
                     const result = await updateTask(taskId, { description: description });
 
-                    if (result) {
-                        Notification.warning('AI标准生成已启动，请');
+                    if (result && result.task) {
+                        Notification.success(result.message || 'AI标准生成完成');
 
                         // 关闭模态框并刷新任务列表
                         closeEditTaskModal();
                         const tasks = await fetchTasks();
                         renderTasksInto(document.getElementById('tasks-table-container'), tasks);
                     } else {
-                        throw new Error('更新请求失败');
+                        // updateTask 已负责展示后端返回的错误提示，这里直接退出避免重复弹窗覆盖细节
+                        return;
                     }
                 } catch (error) {
                     console.error('生成失败:', error);
