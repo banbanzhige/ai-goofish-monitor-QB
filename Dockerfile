@@ -28,6 +28,7 @@ ENV RUNNING_IN_DOCKER=true
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 # 设置时区为中国时区
 ENV TZ=Asia/Shanghai
+LABEL org.opencontainers.image.icon="images/logo/logo-128x128.png"
 
 # 复制依赖到系统路径
 COPY --from=builder /install /usr/local
@@ -54,6 +55,8 @@ COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 # 复制应用代码
 # .dockerignore 文件会处理排除项
 COPY . .
+# 复制容器图标并统一为无空格文件名，便于镜像元数据引用
+COPY ["images/logo/logo 128x128.png", "/app/images/logo/logo-128x128.png"]
 
 # 声明服务运行的端口
 EXPOSE 8000
