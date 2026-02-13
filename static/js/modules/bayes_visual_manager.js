@@ -275,13 +275,23 @@ class BayesVisualManager {
         const legacy = Array.isArray(samples[legacyKey]) ? samples[legacyKey] : [];
 
         const normalizedCurrent = current.map(item => this.normalizeSampleItem(item, defaultLabel));
-        const signatures = new Set(normalizedCurrent.map(item => `${item.name || ''}|${item.note || ''}`));
+        const getSampleIdentity = (sample) => {
+            const id = String(sample?.id || '').trim();
+            const itemId = String(sample?.item_id || '').trim();
+            if (id) return `id:${id}`;
+            if (itemId) return `item:${itemId}`;
+            const name = String(sample?.name || '').trim();
+            const note = String(sample?.note || '').trim();
+            const vector = Array.isArray(sample?.vector) ? sample.vector.join(',') : '';
+            return `fallback:${name}|${note}|${vector}`;
+        };
+        const signatures = new Set(normalizedCurrent.map(item => getSampleIdentity(item)));
         const merged = [...normalizedCurrent];
         const cache = new Array(normalizedCurrent.length).fill(null);
 
         legacy.forEach((item) => {
             const normalized = this.normalizeSampleItem(item, defaultLabel);
-            const signature = `${normalized.name}|${normalized.note}`;
+            const signature = getSampleIdentity(normalized);
             if (signatures.has(signature)) {
                 return;
             }
@@ -299,13 +309,16 @@ class BayesVisualManager {
      */
     normalizeSampleItem(item, defaultLabel) {
         if (!item || typeof item !== 'object') {
-            return { id: '', name: '', vector: [], label: defaultLabel, note: '' };
+            return { id: '', name: '', vector: [], label: defaultLabel, note: '', source: '', item_id: '', timestamp: '' };
         }
 
         const id = item.id || '';
         const name = item.name || item.title || '';
         const note = item.note || '';
         const label = typeof item.label === 'number' ? item.label : defaultLabel;
+        const source = item.source || '';
+        const itemId = item.item_id || item.itemId || '';
+        const timestamp = item.timestamp || item.created_at || '';
 
         let vector = [];
         if (Array.isArray(item.vector)) {
@@ -314,7 +327,64 @@ class BayesVisualManager {
             vector = this.parseVectorString(item.vector);
         }
 
-        return { id, name, vector, label, note };
+        return { id, name, vector, label, note, source, item_id: itemId, timestamp };
+    }
+
+    /**
+     * 判断是否为运行期反馈样本（来自结果页打标）
+     */
+    isRuntimeFeedbackSample(sample) {
+        if (!sample || typeof sample !== 'object') return false;
+        const source = String(sample.source || '').trim().toLowerCase();
+        const itemId = String(sample.item_id || '').trim();
+        return (source === 'user' || source === 'user_feedback') && !!itemId;
+    }
+
+    /**
+     * 从现代桶与旧版桶中同步移除样本，避免重渲染后被旧桶回填
+     */
+    removeSampleFromBuckets(type, index, sample) {
+        if (!this.config || !this.config._samples) return;
+
+        const modernKey = type === 'trusted' ? 'trusted' : 'untrusted';
+        const legacyKey = type === 'trusted' ? '可信' : '不可信';
+
+        const modernList = Array.isArray(this.config._samples[modernKey]) ? this.config._samples[modernKey] : [];
+        if (index >= 0 && index < modernList.length) {
+            modernList.splice(index, 1);
+        }
+
+        const legacyList = Array.isArray(this.config._samples[legacyKey]) ? this.config._samples[legacyKey] : [];
+        const targetId = String(sample?.id || '').trim();
+        const targetItemId = String(sample?.item_id || '').trim();
+        const targetName = String(sample?.name || sample?.title || '').trim();
+        const targetNote = String(sample?.note || '').trim();
+        const targetVector = Array.isArray(sample?.vector) ? sample.vector.join(',') : '';
+
+        let removed = false;
+        this.config._samples[legacyKey] = legacyList.filter((row) => {
+            if (removed) return true;
+
+            const rowId = String(row?.id || '').trim();
+            const rowItemId = String(row?.item_id || row?.itemId || '').trim();
+            const rowName = String(row?.name || row?.title || '').trim();
+            const rowNote = String(row?.note || '').trim();
+            const rowVector = Array.isArray(row?.vector) ? row.vector.join(',') : '';
+
+            const matched = (targetId && rowId === targetId)
+                || (targetItemId && rowItemId === targetItemId)
+                || (rowName === targetName && rowNote === targetNote && rowVector === targetVector);
+
+            if (matched) {
+                removed = true;
+                return false;
+            }
+            return true;
+        });
+
+        if (Array.isArray(this.sampleLegacyCache[modernKey]) && index >= 0 && index < this.sampleLegacyCache[modernKey].length) {
+            this.sampleLegacyCache[modernKey].splice(index, 1);
+        }
     }
 
     /**
@@ -805,6 +875,7 @@ class BayesVisualManager {
         `;
 
         this.restoreCollapseState(collapseState);
+        this.injectInlineSaveButtons();
 
         // 绑定训练样本的事件监听器
         this.bindTrainingSampleEvents();
@@ -841,6 +912,25 @@ class BayesVisualManager {
             if (key && state[key]) {
                 detail.open = true;
             }
+        });
+    }
+
+    /**
+     * 为每个顶层配置卡片添加就地保存按钮
+     */
+    injectInlineSaveButtons() {
+        if (!this.container) return;
+        const cardBodies = this.container.querySelectorAll('details.bayes-card > .bayes-card-body');
+        cardBodies.forEach((body) => {
+            if (body.querySelector('.bayes-inline-save-wrap')) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'bayes-inline-save-wrap';
+            wrap.innerHTML = `
+                <button type="button" class="control-button primary-btn bayes-inline-save-btn" title="保存当前配置改动">
+                    保存本卡配置
+                </button>
+            `;
+            body.appendChild(wrap);
         });
     }
 
@@ -1841,8 +1931,11 @@ class BayesVisualManager {
     renderSampleRow(type, sample, index) {
         const vectorValue = Array.isArray(sample.vector) ? sample.vector.join(', ') : (sample.vector || '');
         const nameValue = sample.name || sample.title || '';
+        const sampleId = sample.id || '';
+        const sampleSource = sample.source || '';
+        const itemId = sample.item_id || '';
         return `
-            <tr data-type="${type}" data-index="${index}">
+            <tr data-type="${type}" data-index="${index}" data-sample-id="${sampleId}" data-sample-source="${sampleSource}" data-item-id="${itemId}">
                 <td><input type="text" class="sample-name-input" value="${nameValue}" placeholder="卖家样本名称" /></td>
                 <td><input type="text" class="sample-vector-input" value="${vectorValue}" placeholder="例如: 1, 0.5, 0.8, 0.6, 1, 0.4, 0.7, 0.9" /></td>
                 <td><input type="text" class="sample-note-input" value="${sample.note || ''}" placeholder="备注说明" /></td>
@@ -1863,7 +1956,15 @@ class BayesVisualManager {
 
         this.trainingSampleEventsBound = true;
 
-        this.container.addEventListener('click', (e) => {
+        this.container.addEventListener('click', async (e) => {
+            const inlineSaveBtn = e.target.closest('.bayes-inline-save-btn');
+            if (inlineSaveBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                await this.saveConfig();
+                return;
+            }
+
             const addBtn = e.target.closest('.add-sample-btn');
             if (addBtn) {
                 e.preventDefault();
@@ -1878,7 +1979,7 @@ class BayesVisualManager {
                 e.stopPropagation();
                 const type = deleteBtn.dataset.type;
                 const index = parseInt(deleteBtn.dataset.index, 10);
-                this.deleteSample(type, index);
+                await this.deleteSample(type, index);
             }
         });
     }
@@ -1894,7 +1995,9 @@ class BayesVisualManager {
             name: '',
             vector: [],
             label: type === 'trusted' ? 1 : 0,
-            note: ''
+            note: '',
+            source: 'editor',
+            item_id: ''
         };
 
         if (type === 'trusted') {
@@ -1925,17 +2028,34 @@ class BayesVisualManager {
             return;
         }
 
-        if (type === 'trusted') {
-            this.config._samples.trusted.splice(index, 1);
-            this.sampleLegacyCache.trusted.splice(index, 1);
-        } else {
-            this.config._samples.untrusted.splice(index, 1);
-            this.sampleLegacyCache.untrusted.splice(index, 1);
+        const samples = type === 'trusted'
+            ? (this.config._samples.trusted || [])
+            : (this.config._samples.untrusted || []);
+        const targetSample = samples[index];
+        if (!targetSample) {
+            Notification.warning('未找到要删除的样本，请刷新后重试');
+            return;
+        }
+        const isRuntimeFeedback = this.isRuntimeFeedbackSample(targetSample);
+
+        if (isRuntimeFeedback) {
+            if (typeof cancelBayesFeedback !== 'function') {
+                Notification.error('反馈撤销接口不可用，无法删除该样本');
+                return;
+            }
+            const cancelResult = await cancelBayesFeedback(String(targetSample.item_id), { silent: true });
+            if (!cancelResult || cancelResult.success !== true) {
+                Notification.error('删除失败：未能同步撤销结果页反馈样本');
+                return;
+            }
         }
 
+        this.removeSampleFromBuckets(type, index, targetSample);
+
         // 重新渲染
-        this.isDirty = true;
+        this.isDirty = isRuntimeFeedback ? this.isDirty : true;
         this.render();
+        Notification.success('样本已删除');
     }
 
     /**
@@ -1945,33 +2065,39 @@ class BayesVisualManager {
         this.ensureSampleBuckets();
         // 收集可信样本
         const trustedRows = document.querySelectorAll('#trusted-samples-table tbody tr[data-type="trusted"]');
-        this.config._samples.trusted = Array.from(trustedRows).map(row => {
+        const trustedSamples = Array.from(trustedRows).map(row => {
             const name = row.querySelector('.sample-name-input')?.value || row.querySelector('.sample-title-input')?.value || '';
             const vectorRaw = row.querySelector('.sample-vector-input')?.value || '';
             const vector = this.parseVectorString(vectorRaw);
             return {
-                id: '',
+                id: row.getAttribute('data-sample-id') || '',
                 name,
                 vector,
                 label: 1,
-                note: row.querySelector('.sample-note-input')?.value || ''
+                note: row.querySelector('.sample-note-input')?.value || '',
+                source: row.getAttribute('data-sample-source') || '',
+                item_id: row.getAttribute('data-item-id') || ''
             };
         });
+        this.config._samples.trusted = trustedSamples.filter(sample => !this.isRuntimeFeedbackSample(sample));
 
         // 收集不可信样本
         const untrustedRows = document.querySelectorAll('#untrusted-samples-table tbody tr[data-type="untrusted"]');
-        this.config._samples.untrusted = Array.from(untrustedRows).map(row => {
+        const untrustedSamples = Array.from(untrustedRows).map(row => {
             const name = row.querySelector('.sample-name-input')?.value || row.querySelector('.sample-title-input')?.value || '';
             const vectorRaw = row.querySelector('.sample-vector-input')?.value || '';
             const vector = this.parseVectorString(vectorRaw);
             return {
-                id: '',
+                id: row.getAttribute('data-sample-id') || '',
                 name,
                 vector,
                 label: 0,
-                note: row.querySelector('.sample-note-input')?.value || ''
+                note: row.querySelector('.sample-note-input')?.value || '',
+                source: row.getAttribute('data-sample-source') || '',
+                item_id: row.getAttribute('data-item-id') || ''
             };
         });
+        this.config._samples.untrusted = untrustedSamples.filter(sample => !this.isRuntimeFeedbackSample(sample));
 
         // 同步回写旧版样本结构（保留向量与标签）
         this.config._samples['可信'] = this.config._samples.trusted.map(sample => ({
