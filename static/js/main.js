@@ -11,6 +11,11 @@
         initNavigation(mainContent);
     }
 
+    // 检查用户角色，控制用户管理菜单可见性
+    if (typeof checkUserRoleAndShowMenu === 'function') {
+        checkUserRoleAndShowMenu();
+    }
+
     setupTaskAccountCellEvents();
 
     // 初始化任务字段行内编辑事件
@@ -36,6 +41,6 @@
         accountCellObserver.observe(mainContent, { childList: true, subtree: true });
     }
 
-    
+
 });
 
