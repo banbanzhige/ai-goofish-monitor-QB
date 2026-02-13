@@ -5,7 +5,8 @@ import argparse
 import json
 
 from src.scraper import fetch_xianyu
-from src.logging_config import setup_logging, get_logger
+from src.logging_config import setup_logging, get_logger
+from src.user_file_store import resolve_virtual_task_file
 from src.config import (
     LOG_LEVEL, LOG_CONSOLE_LEVEL, LOG_DIR, LOG_MAX_BYTES,
     LOG_BACKUP_COUNT, LOG_RETENTION_DAYS, LOG_JSON_FORMAT, LOG_ENABLE_LEGACY
@@ -62,51 +63,131 @@ async def main():
         logger.error(f"读取或解析配置文件 '{args.config}' 失败: {e}", extra={"event": "config_parse_error"})
         sys.exit(1)
 
+    owner_id = (os.getenv("GOOFISH_OWNER_ID") or "").strip() or None
+
     # 读取所有prompt文件内容
     for task in tasks_config:
         task_name = task.get('task_name', 'unknown')
-        if task.get("enabled", False) and task.get("ai_prompt_base_file") and task.get("ai_prompt_criteria_file"):
-            try:
-                with open(task["ai_prompt_base_file"], 'r', encoding='utf-8') as f_base:
-                    base_prompt = f_base.read()
-                with open(task["ai_prompt_criteria_file"], 'r', encoding='utf-8') as f_criteria:
-                    criteria_text = f_criteria.read()
-                
-                # 动态组合成最终的Prompt
-                task['ai_prompt_text'] = base_prompt.replace("{{CRITERIA_SECTION}}", criteria_text)
-                
-                # 验证生成的prompt是否有效
-                if len(task['ai_prompt_text']) < 100:
-                    logger.warning(
-                        f"生成的prompt过短 ({len(task['ai_prompt_text'])} 字符)，可能存在问题。",
-                        extra={"task_name": task_name, "event": "prompt_short"}
-                    )
-                elif "{{CRITERIA_SECTION}}" in task['ai_prompt_text']:
-                    logger.warning(
-                        "prompt中仍包含占位符，替换可能失败。",
-                        extra={"task_name": task_name, "event": "prompt_placeholder"}
-                    )
-                else:
-                    logger.info(
-                        f"prompt生成成功，长度: {len(task['ai_prompt_text'])} 字符",
-                        extra={"task_name": task_name, "event": "prompt_loaded"}
-                    )
-
-            except FileNotFoundError as e:
-                logger.warning(
-                    f"prompt文件缺失: {e}，该任务的AI分析将被跳过。",
-                    extra={"task_name": task_name, "event": "prompt_file_missing"}
-                )
-                task['ai_prompt_text'] = ""
-            except Exception as e:
-                logger.error(
-                    f"处理prompt文件时发生异常: {e}，该任务的AI分析将被跳过。",
-                    extra={"task_name": task_name, "event": "prompt_error"}
-                )
-                task['ai_prompt_text'] = ""
+        if task.get("enabled", False) and task.get("ai_prompt_criteria_file"):
+
+            try:
+
+                criteria_prompt_path = resolve_virtual_task_file(
+                    task["ai_prompt_criteria_file"],
+                    owner_id=owner_id,
+                    for_write=False
+                )
+                with open(str(criteria_prompt_path), 'r', encoding='utf-8') as f_criteria:
+
+                    criteria_text = f_criteria.read()
+
+                # 新流程：运行时优先直接使用结构化 criteria 文本，避免 requirement 原文直插导致语义漂移。
+                criteria_virtual_path = str(task.get("ai_prompt_criteria_file", "")).replace("\\", "/")
+                is_requirement_legacy = criteria_virtual_path.startswith("requirement/")
+
+                if is_requirement_legacy:
+                    logger.warning(
+                        "任务仍引用 requirement 文本，已走兼容拼接路径，建议先重新生成AI标准。",
+                        extra={
+                            "task_name": task_name,
+                            "event": "prompt_legacy_requirement_runtime",
+                            "criteria_file": task.get("ai_prompt_criteria_file"),
+                        }
+                    )
+                    base_file = task.get("ai_prompt_base_file")
+                    if base_file:
+                        base_prompt_path = resolve_virtual_task_file(
+                            base_file,
+                            owner_id=owner_id,
+                            for_write=False
+                        )
+                        with open(str(base_prompt_path), 'r', encoding='utf-8') as f_base:
+
+                            base_prompt = f_base.read()
+
+                        if "{{CRITERIA_SECTION}}" in base_prompt:
+
+                            task['ai_prompt_text'] = base_prompt.replace("{{CRITERIA_SECTION}}", criteria_text)
+
+                        else:
+
+                            task['ai_prompt_text'] = f"{base_prompt.strip()}\n\n{criteria_text.strip()}"
+
+                    else:
+
+                        # 兜底：缺少 base 时至少保证任务可运行。
+                        task['ai_prompt_text'] = criteria_text
+
+                else:
+
+                    task['ai_prompt_text'] = criteria_text
+
+                # 验证生成的prompt是否有效
+
+                if len(task['ai_prompt_text']) < 100:
+
+                    logger.warning(
+
+                        f"生成的prompt过短 ({len(task['ai_prompt_text'])} 字符)，可能存在问题。",
+
+                        extra={"task_name": task_name, "event": "prompt_short"}
+
+                    )
+
+                elif "{{CRITERIA_SECTION}}" in task['ai_prompt_text']:
+
+                    logger.warning(
+
+                        "prompt中仍包含占位符，请检查对应的criteria内容。",
+
+                        extra={"task_name": task_name, "event": "prompt_placeholder"}
+
+                    )
+
+                else:
+
+                    logger.info(
+
+                        f"prompt生成成功，长度: {len(task['ai_prompt_text'])} 字符",
+
+                        extra={"task_name": task_name, "event": "prompt_loaded"}
+
+                    )
+
+
+
+            except FileNotFoundError as e:
+
+                logger.warning(
+
+                    f"prompt文件缺失: {e}，该任务的AI分析将被跳过。",
+
+                    extra={"task_name": task_name, "event": "prompt_file_missing"}
+
+                )
+
+                task['ai_prompt_text'] = ""
+
+            except Exception as e:
+
+                logger.error(
+
+                    f"处理prompt文件时发生异常: {e}，该任务的AI分析将被跳过。",
+
+                    extra={"task_name": task_name, "event": "prompt_error"}
+
+                )
+
+                task['ai_prompt_text'] = ""
+
         elif task.get("enabled", False) and task.get("ai_prompt_file"):
             try:
-                with open(task["ai_prompt_file"], 'r', encoding='utf-8') as f:
+                prompt_path = resolve_virtual_task_file(
+                    task["ai_prompt_file"],
+                    owner_id=owner_id,
+                    for_write=False
+                )
+                with open(str(prompt_path), 'r', encoding='utf-8') as f:
                     task['ai_prompt_text'] = f.read()
                 logger.info(
                     f"prompt文件读取成功，长度: {len(task['ai_prompt_text'])} 字符",
@@ -254,3 +335,8 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+
+
+
