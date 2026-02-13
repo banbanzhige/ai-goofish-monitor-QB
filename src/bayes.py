@@ -3,6 +3,7 @@ import math
 import os
 import re
 from typing import Dict, List, Optional, Tuple, Any
+from src.user_file_store import resolve_virtual_task_file
 
 
 # Bayes 配置文件目录
@@ -355,16 +356,20 @@ def extract_features(final_record: Dict[str, Any], profile: Optional[Dict[str, A
 
 
 
-def _load_bayes_profile(profile_name: str) -> Optional[Dict[str, Any]]:
+def _load_bayes_profile(profile_name: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     if not profile_name or profile_name == "disabled":
         return None
     filename = profile_name
     if not filename.endswith(".json"):
         filename += ".json"
-    filepath = os.path.join(BAYES_DIR, filename)
-    if not os.path.exists(filepath):
+    filepath = resolve_virtual_task_file(
+        os.path.join("prompts", "bayes", filename),
+        owner_id=owner_id,
+        for_write=False
+    )
+    if not filepath.exists():
         return None
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(str(filepath), "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -452,8 +457,8 @@ def predict_proba(features: List[float], profile: Dict[str, Any]) -> Tuple[float
     return p_credible, [logp0, logp1]
 
 
-def build_bayes_precalc(final_record: Dict[str, Any], profile_name: str) -> Optional[Dict[str, Any]]:
-    profile = _load_bayes_profile(profile_name)
+def build_bayes_precalc(final_record: Dict[str, Any], profile_name: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    profile = _load_bayes_profile(profile_name, owner_id=owner_id)
     if not profile:
         return None
 
