@@ -25,14 +25,19 @@ from src.web.task_manager import router as task_router, update_task_running_stat
 from src.web.log_manager import router as log_router
 from src.web.result_manager import router as result_router
 from src.web.settings_manager import router as settings_router
-from src.web.notification_manager import router as notification_router
+from src.web.notification_manager_v2 import router as notification_router
 from src.web.ai_manager import router as ai_router
 from src.web.account_manager import router as account_router
 from src.web.bayes_api import router as bayes_router
+from src.web.user_manager import router as user_router, groups_router
+from src.web.auth import is_multi_user_mode
 from src.logging_config import setup_logging, get_logger
+from src.storage import get_storage
+from src.storage.utils import verify_password
 from src.config import (
     LOG_LEVEL, LOG_CONSOLE_LEVEL, LOG_DIR, LOG_MAX_BYTES,
-    LOG_BACKUP_COUNT, LOG_RETENTION_DAYS, LOG_JSON_FORMAT, LOG_ENABLE_LEGACY
+    LOG_BACKUP_COUNT, LOG_RETENTION_DAYS, LOG_JSON_FORMAT, LOG_ENABLE_LEGACY,
+    DATABASE_URL, SCHEDULER_LOGIN_REQUIRED_IN_MULTI_USER, WEB_USERNAME
 )
 
 # 初始化日志系统
@@ -55,15 +60,38 @@ logger = get_logger(__name__, service="web")
 fetcher_processes = {}
 login_process = None
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+scheduler_start_lock = asyncio.Lock()
+
+
+def _defer_scheduler_start_until_login() -> bool:
+    """多用户模式下，按配置决定是否延迟到登录后再启动调度器。"""
+    return is_multi_user_mode() and SCHEDULER_LOGIN_REQUIRED_IN_MULTI_USER()
+
+
+async def _ensure_scheduler_started(reason: str, username: str = "") -> None:
+    """确保调度器已启动，避免重复启动并记录原因。"""
+    async with scheduler_start_lock:
+        if scheduler.running:
+            return
+        await reload_scheduler_jobs(scheduler, fetcher_processes, update_task_running_status)
+        scheduler.start()
+        logger.info(
+            "调度器已启动",
+            extra={"event": "scheduler_started", "reason": reason, "username": username or None}
+        )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """管理应用的生命周期事件。"""
     await _set_all_tasks_stopped_in_config()
-    await reload_scheduler_jobs(scheduler, fetcher_processes, update_task_running_status)
-    if not scheduler.running:
-        scheduler.start()
+    if _defer_scheduler_start_until_login():
+        logger.info(
+            "多用户模式已启用登录后启动调度器，启动阶段跳过自动加载任务",
+            extra={"event": "scheduler_deferred_until_login"}
+        )
+    else:
+        await _ensure_scheduler_started(reason="startup")
 
     yield
 
@@ -124,7 +152,92 @@ async def login_page(request: Request):
         # 不需要认证时直接跳转主页
         return RedirectResponse(url="/", status_code=302)
     
-    return templates.TemplateResponse("login.html", {"request": request, "version": VERSION})
+    def _get_database_status():
+        """获取数据库连接状态"""
+        if not is_multi_user_mode():
+            return {
+                "label": "数据库未启用",
+                "desc": "本地模式无需数据库连接",
+                "level": "info"
+            }
+        
+        database_url = DATABASE_URL()
+        if not database_url:
+            return {
+                "label": "数据库未配置",
+                "desc": "请先在系统设置中配置数据库连接",
+                "level": "error"
+            }
+        
+        engine = None
+        try:
+            from sqlalchemy import create_engine, text
+            engine = create_engine(
+                database_url,
+                pool_pre_ping=True,
+                connect_args={"connect_timeout": 3}
+            )
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return {
+                "label": "数据库连接正常",
+                "desc": "PostgreSQL 可用",
+                "level": "ok"
+            }
+        except Exception as e:
+            logger.warning(
+                "数据库连接失败",
+                extra={"event": "database_connection_failed"},
+                exc_info=e
+            )
+            return {
+                "label": "数据库连接失败",
+                "desc": "请检查账号密码或网络",
+                "level": "error"
+            }
+        finally:
+            if engine is not None:
+                engine.dispose()
+
+    def _get_super_admin_security_notice() -> str:
+        """检测默认超级管理员密码风险提示。"""
+        if not is_multi_user_mode():
+            return ""
+
+        try:
+            storage = get_storage()
+            default_username = (WEB_USERNAME() or "admin").strip() or "admin"
+            default_user = storage.get_user_by_username(default_username)
+            if not default_user:
+                return ""
+            password_hash = str(default_user.get("password_hash") or "")
+            if password_hash and verify_password("admin123", password_hash):
+                return "安全提醒：检测到超级管理员仍使用默认密码，请登录后尽快修改。"
+        except Exception as e:
+            logger.warning(
+                "读取超级管理员密码风险状态失败",
+                extra={"event": "super_admin_password_notice_check_failed"},
+                exc_info=e
+            )
+        return ""
+
+    storage_mode_label = "服务器模式" if is_multi_user_mode() else "本地模式"
+    storage_mode_desc = "多用户 / PostgreSQL" if is_multi_user_mode() else "单用户 / 文件存储"
+    db_status = _get_database_status()
+    security_notice = _get_super_admin_security_notice()
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "version": VERSION,
+            "storage_mode_label": storage_mode_label,
+            "storage_mode_desc": storage_mode_desc,
+            "db_status_label": db_status["label"],
+            "db_status_desc": db_status["desc"],
+            "db_status_level": db_status["level"],
+            "security_notice": security_notice,
+        }
+    )
 
 
 @app.post("/login")
@@ -140,6 +253,15 @@ async def do_login(
         # 登录成功，设置Cookie并重定向
         response = RedirectResponse(url="/", status_code=302)
         set_session_cookie(response, user)
+        if _defer_scheduler_start_until_login():
+            try:
+                await _ensure_scheduler_started(reason="login", username=username)
+            except Exception as e:
+                logger.error(
+                    "登录后启动调度器失败",
+                    extra={"event": "scheduler_start_after_login_failed", "username": username},
+                    exc_info=e
+                )
         logger.info(f"用户 {username} 登录成功", extra={"event": "user_login", "username": username})
         return response
     else:
@@ -252,6 +374,8 @@ app.include_router(notification_router)
 app.include_router(ai_router)
 app.include_router(account_router)
 app.include_router(bayes_router)
+app.include_router(user_router)
+app.include_router(groups_router)
 
 
 if __name__ == "__main__":
