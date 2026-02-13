@@ -3,14 +3,14 @@
 """
 版本信息文件
 """
-VERSION = "V1.0.0"
+VERSION = "V1.0.0-beta"
 
 
 
 VERSION_HISTORY = [
 
     {
-        "version": "V1.0.0",
+        "version": "V1.0.0-beta",
         "date": "2026-02-14",
         "changes": [
             "重大升级：引入多用户系统，支持PostgreSQL数据仓库，统一数据管理，",
