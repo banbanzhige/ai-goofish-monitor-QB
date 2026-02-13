@@ -1,15 +1,52 @@
-from fastapi import APIRouter, HTTPException
-from src.web.models import NotificationRequest, TestNotificationRequest, TestTaskCompletionNotificationRequest, TestProductNotificationRequest
-from src.ai_handler import send_all_notifications, send_test_notification, send_test_task_completion_notification, send_test_product_notification
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.ai_handler import (
+    send_all_notifications,
+    send_test_notification,
+    send_test_product_notification,
+    send_test_task_completion_notification,
+)
+from src.logging_config import get_logger
+from src.web.auth import check_permission, has_category, is_multi_user_mode, require_auth
+from src.web.models import (
+    NotificationRequest,
+    TestNotificationRequest,
+    TestProductNotificationRequest,
+    TestTaskCompletionNotificationRequest,
+)
 
 
 router = APIRouter()
+logger = get_logger(__name__, service="web")
+
+
+def _require_notify_access(user: dict = Depends(require_auth)) -> dict:
+    """要求当前用户具备通知配置权限。"""
+    if not user:
+        raise HTTPException(status_code=401, detail="未登录，请先登录")
+    if not (has_category(user, "notify") or check_permission(user, "manage_system")):
+        raise HTTPException(status_code=403, detail="权限不足，需要通知配置权限")
+    return user
+
+
+def _resolve_owner_id(user: dict) -> str | None:
+    """在多用户模式下解析当前用户ID。"""
+    if not is_multi_user_mode():
+        return None
+    user_id = (user or {}).get("user_id") or (user or {}).get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="未识别当前用户")
+    return str(user_id)
 
 
 @router.post("/api/notifications/send")
-async def send_notification_api(item_data: NotificationRequest):
+async def send_notification_api(
+    item_data: NotificationRequest,
+    user: dict = Depends(_require_notify_access),
+):
     """发送通知到所有已配置的渠道。"""
     try:
+        owner_id = _resolve_owner_id(user)
         product_data = item_data.model_dump()
 
         ai_reason = ""
@@ -21,7 +58,12 @@ async def send_notification_api(item_data: NotificationRequest):
                 ai_reason = product_data['商品信息']['ai_analysis'].get('reason', '')
 
         if ai_reason:
-            result = await send_all_notifications(product_data, ai_reason)
+            result = await send_all_notifications(
+                product_data,
+                ai_reason,
+                owner_id=owner_id,
+                bound_account=item_data.bound_account,
+            )
         else:
             result = await send_all_notifications(product_data, "用户手动发送通知")
 
