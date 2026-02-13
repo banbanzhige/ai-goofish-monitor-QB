@@ -200,40 +200,19 @@ function initAppInteractions(mainContent) {
                 }
             }
         } else if (button.matches('.copy-btn')) {
-
-
-            const task = taskData || (row ? JSON.parse(row.dataset.task) : null);
-            if (!task) return;
-
-
-            const newTaskData = {
-                task_name: task.task_name,
-                enabled: task.enabled,
-                keyword: task.keyword,
-                description: task.description,
-                min_price: task.min_price,
-                max_price: task.max_price,
-                personal_only: task.personal_only,
-                max_pages: task.max_pages,
-                cron: task.cron,
-                ai_prompt_base_file: task.ai_prompt_base_file,
-                ai_prompt_criteria_file: task.ai_prompt_criteria_file,
-                bayes_profile: task.bayes_profile || 'bayes_v1',
-                is_running: false
-            };
-
-
             try {
-                const response = await fetch('/api/tasks', {
+                if (!taskId) {
+                    throw new Error('任务ID无效');
+                }
+                const response = await fetch(`/api/tasks/${taskId}/duplicate`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(newTaskData),
                 });
 
                 if (response.ok) {
-
+                    const result = await response.json();
+                    if (result?.message) {
+                        Notification.success(result.message);
+                    }
                     const container = document.getElementById('tasks-table-container');
                     const tasks = await fetchTasks();
                     renderTasksInto(container, tasks);

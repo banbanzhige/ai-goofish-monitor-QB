@@ -748,6 +748,52 @@ async def create_task(task: Task, request: Request):
     return {"message": "任务创建成功。", "task": _normalize_task_dict(tasks[index], index)}
 
 
+@router.post("/api/tasks/{task_id}/duplicate")
+async def duplicate_task(task_id: int, request: Request):
+    """复制任务并复制其 AI 标准文件。"""
+    owner_id = _get_owner_id(request)
+    storage = get_storage() if owner_id else None
+
+    source_tasks = storage.get_tasks(owner_id=owner_id) if owner_id else await _load_local_tasks()
+    if not (0 <= task_id < len(source_tasks)):
+        raise HTTPException(status_code=404, detail="任务未找到。")
+
+    source_task = dict(source_tasks[task_id] or {})
+    existing_names = [task.get("task_name") for task in source_tasks]
+    new_task_name = _make_unique_task_name(existing_names, source_task.get("task_name") or "任务副本")
+
+    payload = dict(source_task)
+    payload.pop("id", None)
+    payload.pop("process_pid", None)
+    payload["task_name"] = new_task_name
+    payload["is_running"] = False
+    payload["generating_ai_criteria"] = False
+    payload["order"] = len(source_tasks)
+    payload["ai_prompt_base_file"] = build_virtual_prompt_path(payload.get("ai_prompt_base_file"))
+    payload["ai_prompt_criteria_file"] = await _maybe_copy_criteria_file(
+        new_task_name,
+        payload.get("ai_prompt_criteria_file"),
+        owner_id=owner_id,
+    )
+    normalized_payload = _normalize_update_data(payload)
+    task_model = Task(**normalized_payload)
+
+    if owner_id:
+        created = storage.save_task(task_model.model_dump(), owner_id=owner_id)
+        tasks = storage.get_tasks(owner_id=owner_id)
+        index = next((idx for idx, t in enumerate(tasks) if t.get("task_name") == created.get("task_name")), 0)
+        await _refresh_local_scheduler()
+        return {"message": "任务复制成功。", "task": _normalize_task_dict(created, index)}
+
+    created_ok = await add_task(task_model)
+    if not created_ok:
+        raise HTTPException(status_code=500, detail="写入配置文件失败")
+    await _refresh_local_scheduler()
+    tasks = await _load_local_tasks()
+    index = next((idx for idx, t in enumerate(tasks) if t.get("task_name") == task_model.task_name), len(tasks) - 1)
+    return {"message": "任务复制成功。", "task": _normalize_task_dict(tasks[index], index)}
+
+
 @router.patch("/api/tasks/{task_id}")
 async def update_task_api(task_id: int, task_update: TaskUpdate, background_tasks: BackgroundTasks, request: Request):
     del background_tasks
