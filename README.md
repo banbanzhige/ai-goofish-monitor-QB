@@ -18,8 +18,11 @@
 - **朴素贝叶斯网络模型**：卖家信用、评价、交易时长等多维度先验计算
 - **AI 多模态视觉模型**：商品图片质量、成色、真实性智能分析
 - **人群画像识别**：卖家身份、职业、性别等个性化标签判断
-- **三维加权评分体系**：贝叶斯（40%）+ 视觉AI（35%）+ 置信度（25%）融合推荐
+- **三维加权评分体系**：贝叶斯（40%）+ 视觉AI（35%）+ 置信度（25%）融合加权推荐
 - **全面UI/UX重构**：响应式设计，支持 PC / 平板 / 移动端多端管理
+- **多用户管理系统**：PostgreSQL数据仓库，统一数据管理，支持多用户登录、角色权限、会话管理、独立用户空间
+- **样本打标系统**：生成结果快捷一键打标，一键迭代贝叶斯模型样本数据库，更精准，更量化。
+
 
 > [!IMPORTANT]
 > - **本项目仅供学习和技术研究使用，请勿用于非法用途**
@@ -45,9 +48,15 @@
 - **定时任务调度**：灵活的 Cron 表达式配置，自定义监控频率
 
 ### 👥 多账号管理
-- **账号池管理**：支持添加、编辑、删除多个咸鱼账号
+- **账号池管理**：支持添加、编辑、删除多个咸鱼cookie账号
 - **智能切换**：风控检测自动切换账号，保证任务续航能力
 - **状态监控**：Cookie 有效性实时检测，定期自动检查（每 5 分钟）
+
+### 🏢 多用户管理系统
+- **用户数据隔离**：任务、结果、账号、通知配置按用户独立存储，确保数据边界清晰
+- **分级权限控制**：支持 超级管理员 / 管理员 / 操作员 / 游客 默认四级角色与页面权限精细管控，支持自定义分组
+- **用户组授权**：基于用户组统一分配权限类别，支持按组管理与历史角色兼容回退
+
 
 ### 🔔 多渠道通知
 支持 **8 种**主流通知渠道：
@@ -59,6 +68,9 @@
 
 ### 💰 成本优化
 - **Token 消耗优化**：支持发送 URL 格式图片，大幅降低 Token 使用量
+
+
+
 
 ---
 
@@ -110,10 +122,28 @@
 ---
 
 ## 🆕 版本更新
+### v1.0.0-beta (2026-02-14) - 系统优化
+祝大家春节快乐，节日繁忙，这个版本我测的不是很多，有问题欢迎提issue，我回来会尽快再更新
+
+- ✅ **多用户系统上线**：支持多用户登录、会话管理与独立用户数据空间
+- ✅ **存储架构升级**：支持 PostgreSQL 数据仓库，统一任务、结果、配置的数据管理
+- ✅ **统一存储接口**：新增 `src/storage/` 模块，支持本地文件与 PostgreSQL 双后端
+- ✅ **用户管理能力**：新增用户 CRUD、API 配置、通知配置、平台账号管理
+- ✅ **权限控制增强**：新增 RBAC 权限控制，支持 `admin` / `operator` / `viewer` 三级角色
+- ✅ **反馈闭环补强**：新增商品卡反馈标注、特征提取与贝叶斯样本迭代
+- ✅ **安全与审计强化**：API 密钥、Cookie 等敏感数据加密存储，新增审计日志
+- ✅ **迁移与兼容升级**：支持本地数据迁移至 PostgreSQL，并保持本地模式向下兼容
+- ✅ **依赖更新**：新增 `sqlalchemy`、`cryptography`、`bcrypt` 等核心依赖
+
+<details>
+<summary>📋 历史版本更新日志</summary>
+
+
 ### v0.9.9-beta2 (2026-02-5) - 系统优化
 - ✅ **日志系统升级**：添加了日志分级系统，添加了一键导出诊断包功能
 - ✅ **通知框架升级**：添加了sweetalert2通知框架，升级了全部通知的框架
 - ✅ **提升稳定性**：重新再优化一轮自动登录系统，确保了cookie的可靠性
+
 
 ### v0.9.9 (2026-01-31) - 推荐引擎升级
 
@@ -129,8 +159,6 @@
 - ✅ **Cookie 稳定性提升**：优化 Cookie 失效问题，新增回填功能
 - ✅ **Prompt 模板更新**：适配 0.9.9 版本推荐工作流
 
-<details>
-<summary>📋 历史版本更新日志</summary>
 
 ### v0.9.8 (2026-01-25) - UI/UX 全面升级
 - ✅ **高级筛选焕新**：胶囊标签开关，新增 6 项筛选（验货宝、验号担保、超赞鱼小铺等）
@@ -298,10 +326,78 @@ Docker 提供标准化部署环境，实现开箱即用。
 
 **方式一：Docker Compose（推荐）**
 
-> [!NOTE]
+#### 模式选择（先看这个）
+
+| 模式 | 适用场景 | 优点 | 注意 |
+|---|---|---|---|
+| 🗄️ 数据库模式（推荐） | 多用户 / 服务器部署 | 数据隔离、扩展性强 | 需要 PostgreSQL |
+| 📁 本地模式 | 单机测试 / 轻量使用 | 配置简单、启动快 | 部分功能无法在本地模式使用 |
+
+<details open>
+<summary><b>🗄️ 数据库模式（推荐）</b></summary>
+
+> - 复制 `.env.example` 为 `.env`
+> - 修改 `POSTGRES_PASSWORD`、`ENCRYPTION_MASTER_KEY`
+> - 确认端口未占用（8001/5432）
+
+```yaml
+services:
+  # 服务器模式参考（PostgreSQL 多用户存储）
+  app:
+    image: banbanzhige/ai-goofish-monitor-qb:latest
+    container_name: ai-goofish-monitor-qb-server
+    pull_policy: always
+    ports:
+      - "8001:8000"
+    volumes:
+      # ========== 最小必需挂载 ==========
+      # 全局运行配置（数据库连接、存储后端、系统级参数）
+      - ./.env:/app/.env
+      # 多用户文件资产与运行时临时文件
+      - ./state:/app/state
+
+
+    environment:
+      STORAGE_BACKEND: postgres
+      DATABASE_URL: ${DATABASE_URL:-postgresql://goofish:${POSTGRES_PASSWORD:-changeme}@postgres:5432/goofish_monitor}  #改链接
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-changeme}  #改默认加密密码，注意永久保存
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: goofish-postgres
+    environment:
+      POSTGRES_DB: goofish_monitor
+      POSTGRES_USER: goofish
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme} #改密码
+    volumes:
+      # ========== 最小必需挂载 ==========
+      - ./postgres_data:/var/lib/postgresql/data
+
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goofish -d goofish_monitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+```
+
+启动命令：
+```bash
+docker compose -f docker-compose.server.yaml up -d
+```
+
+</details>
+
+<details>
+<summary><b>📁 本地模式（轻量，单用户）</b></summary>
+
 > - 提前下载 [`.env.example`](.env.example) 并重命名为 `.env`，填写必要配置
 > - 在 `/工作目录/config/` 下创建空的 `config.json` 文件
-> - **重要**：0.9.9 版本更新了 `prompts` 文件夹，旧用户**必须**重新拉取 `prompts` 目录下所有文件
 
 ```yaml
 services:
@@ -325,8 +421,13 @@ services:
 
 启动命令：
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
+
+</details>
+
+
+
 
 **方式二：Docker 命令行**
 ```bash
@@ -345,7 +446,7 @@ docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:latest
 - Python 3.10+
 - Node.js + npm（可选，用于前端开发）
 
-#### 方式一：一键启动（推荐）
+#### 脚本一键启动
 
 1. **下载项目**
    - 直接下载：[Download ZIP](https://github.com/banbanzhige/ai-goofish-monitor-QB/archive/refs/heads/master.zip)
@@ -361,26 +462,6 @@ docker pull ghcr.io/banbanzhige/ai-goofish-monitor-qb:latest
 
    ![启动样式](images/Example/0.9.7/启动样式.png)
 
-#### 方式二：手动启动
-
-```powershell
-# 1. 获取 PowerShell 执行权限（首次执行）
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-# 2. 创建虚拟环境
-python -m venv venv
-
-# 3. 激活虚拟环境
-.\venv\Scripts\Activate.ps1
-
-# 4. 安装依赖
-pip install -r requirements.txt
-
-# 5. 启动服务
-python web_server.py
-```
-
----
 
 ## 📋 快速开始
 
@@ -400,7 +481,7 @@ python web_server.py
 
 ### 1️⃣ 访问 Web 管理界面
 
-部署完成后，浏览器访问：`http://localhost:8000`（可在 `.env` 修改端口）
+部署完成后，浏览器访问：`http://localhost:8001`（可在 `.env` 修改端口）
 
 - 默认用户名：**admin**
 - 默认密码：**admin123**
@@ -541,6 +622,24 @@ python web_server.py
 - **定时执行**：等待定时任务自动触发
 
 ---
+
+### 8 样本打标
+
+- **手动打标**：在运行完成后的结果查看中，进入选择模式可以手动给结果样本打标，打标结果会计入贝叶斯样本模型中，在下一次计算中会使用样本权重计算加权
+- **样本管理**：在模型管理-Bayes管理-其他配置- 训练样本管理中可以管理已经打标和加权的样本，如果不熟悉请勿参数基础的12组样本，会直接影响最终打标结果
+
+<details>
+<summary>样本打标界面展示</summary>
+
+![样本打标](images/Example/1.0.0/样本打标.png)
+
+</details>
+
+
+---
+
+
+
 
 ## ⏰ Cron 表达式说明
 
@@ -810,6 +909,118 @@ ai-goofish-monitor-QB/
 ├── archive/                  # 归档文件
 └── venv/                     # Python 虚拟环境（可选）
 ```
+
+</details>
+
+---
+
+
+
+##  v1.0.0 开发指南
+
+<details>
+<summary>点击展开发指南</summary>
+
+> [!IMPORTANT]
+> v1.0.0 正在开发中，引入**多用户系统**、**PostgreSQL 数据仓库**和**用户数据隔离**
+
+### 新增模块：数据访问层 (`src/storage/`)
+
+v1.0.0 引入统一的数据访问层，支持本地文件和 PostgreSQL 双存储后端：
+
+```
+src/storage/
+├── __init__.py           # 存储工厂（单例模式）
+├── interface.py          # 抽象接口（40+ 方法）
+├── models.py             # SQLAlchemy ORM 模型（12 张表）
+├── utils.py              # 加密/哈希工具（Fernet, bcrypt）
+├── local_adapter.py      # 本地文件适配器（向下兼容）
+├── postgres_adapter.py   # PostgreSQL 适配器（多租户）
+└── migration.py          # 数据迁移工具（CLI）
+```
+
+### 数据模型
+
+| 表名 | 用途 | 数据隔离 |
+|------|------|:--------:|
+| `users` | 用户账号 | - |
+| `sessions` | 登录会话 | `user_id` |
+| `tasks` | 监控任务 | `owner_id` |
+| `monitoring_results` | 商品卡 | `owner_id` |
+| `bayes_profiles` | 贝叶斯配置 | `owner_id` (NULL=系统) |
+| `bayes_samples` | 贝叶斯样本 | `owner_id` (NULL=系统) |
+| `user_feedbacks` | 用户反馈 | `user_id` |
+| `ai_criteria` | AI标准 | `owner_id` (NULL=系统) |
+| `user_api_configs` | API配置 | `user_id` (加密) |
+| `user_notification_configs` | 通知配置 | `user_id` (加密) |
+| `user_platform_accounts` | 平台账号 | `user_id` (Cookie加密) |
+| `audit_logs` | 审计日志 | `user_id` |
+
+### 使用存储接口
+
+```python
+from src.storage import get_storage
+
+# 自动根据 STORAGE_BACKEND 环境变量选择后端
+storage = get_storage()
+
+# 获取任务（自动数据隔离）
+tasks = storage.get_tasks(owner_id=current_user_id)
+
+# 保存结果
+storage.save_result(task_name, result_data, owner_id=current_user_id)
+```
+
+### 环境变量配置
+
+```env
+# 存储后端选择
+STORAGE_BACKEND=postgres  # 或 local（默认）
+
+# PostgreSQL 连接
+DATABASE_URL=postgresql://user:pass@localhost:5432/goofish_monitor
+
+# 加密主密钥（生产环境必改！）
+ENCRYPTION_MASTER_KEY=your-secure-key-here
+
+# 初始管理员
+INIT_ADMIN_USERNAME=admin
+INIT_ADMIN_PASSWORD=your-secure-password
+```
+
+### 数据迁移
+
+```bash
+# 仅创建数据库表
+python -m src.storage.migration --create-tables-only
+
+# 完整迁移（本地 → PostgreSQL）
+python -m src.storage.migration --database-url "postgresql://..." --verbose
+
+# 测试模式（不实际写入）
+python -m src.storage.migration --dry-run
+```
+
+### AI 继续开发指引
+
+> 后续 AI 开发请参考以下文档和代码：
+
+1. **规划文档**：
+   - `docs/v1.0.0_完整升级规划.md` - 完整升级规划
+   - `docs/v1.0.0_升级规划_PostgreSQL数据仓库集成方案.md` - 数据库设计
+
+2. **待实现功能**：
+   - [ ] 扩展 `src/web/auth.py` 支持多用户（查询 `users` 表）
+   - [ ] 创建 `src/web/user_manager.py` 用户管理 API
+   - [ ] 适配现有模块使用 `get_storage()` 接口
+   - [ ] 用户管理前端页面
+
+3. **代码规范**：
+   - 所有数据操作通过 `get_storage()` 获取存储实例
+   - 查询时传入 `owner_id` 实现数据隔离
+   - 敏感数据使用 `encrypt_sensitive()` / `decrypt_sensitive()` 加密
+
+4. **备份位置**：`backup_v0.9/` - 原始代码备份
 
 </details>
 
