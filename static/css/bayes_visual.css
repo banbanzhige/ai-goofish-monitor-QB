@@ -151,6 +151,18 @@
     padding: 24px 28px;
 }
 
+.bayes-inline-save-wrap {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #e9ecef;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.bayes-inline-save-btn {
+    min-width: 128px;
+}
+
 /* 卡片内分隔 */
 .card-section {
     margin-bottom: 24px;
