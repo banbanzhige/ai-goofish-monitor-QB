@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 - 咸鱼智能监控机器人</title>
     <link rel="icon" type="image/png" href="/images/logo/favicon 32x32.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -14,7 +15,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: url('/images/login-bg.png') no-repeat center center fixed;
             background-size: cover;
             min-height: 100vh;
@@ -22,141 +23,385 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
+            position: relative;
+        }
+
+        /* 背景叠加层 - 增加深度感 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.15) 100%);
+            pointer-events: none;
         }
 
         .login-container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow:
+                0 25px 50px -12px rgba(0, 0, 0, 0.25),
+                0 0 0 1px rgba(255, 255, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             overflow: hidden;
+            transform: translateY(0);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: containerFloat 0.6s ease-out;
+        }
+
+        @keyframes containerFloat {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-container:hover {
+            transform: translateY(-4px);
+            box-shadow:
+                0 32px 64px -12px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
         }
 
         .login-header {
-            background: linear-gradient(135deg, #fff533 0%, #ffd700 100%);
-            padding: 30px 20px;
+            background: linear-gradient(135deg, #ffe259 0%, #ffa751 100%);
+            padding: 36px 24px 28px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 头部装饰光效 */
+        .login-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 60%);
+            animation: headerGlow 8s ease-in-out infinite;
+        }
+
+        @keyframes headerGlow {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(20%, 20%);
+            }
         }
 
         .login-header img {
-            width: 64px;
-            height: 64px;
-            margin-bottom: 15px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            width: 72px;
+            height: 72px;
+            margin-bottom: 16px;
+            border-radius: 16px;
+            box-shadow:
+                0 8px 24px rgba(0, 0, 0, 0.2),
+                0 0 0 3px rgba(255, 255, 255, 0.5);
+            position: relative;
+            z-index: 1;
+            transition: transform 0.3s ease;
+        }
+
+        .login-header img:hover {
+            transform: scale(1.05) rotate(2deg);
         }
 
         .login-header h1 {
-            color: #333;
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 5px;
+            color: #1a1a2e;
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
         }
 
         .login-header p {
-            color: #666;
+            color: rgba(26, 26, 46, 0.7);
             font-size: 14px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+
+        .status-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .status-card {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 14px;
+            padding: 12px 14px;
+            box-shadow:
+                0 4px 16px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .status-card:hover {
+            transform: translateY(-2px);
+            box-shadow:
+                0 8px 24px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .status-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .status-sub {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .status-ok .status-title {
+            color: #059669;
+        }
+
+        .status-error .status-title {
+            color: #dc2626;
+        }
+
+        .status-info .status-title {
+            color: #2563eb;
+        }
+
+        @media (max-width: 480px) {
+            .status-row {
+                flex-direction: column;
+            }
         }
 
         .login-form {
-            padding: 30px;
+            padding: 32px;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            position: relative;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
+            margin-bottom: 10px;
+            color: #374151;
+            font-weight: 600;
             font-size: 14px;
+            letter-spacing: -0.01em;
         }
 
         .form-group input {
             width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e8e8e8;
-            border-radius: 8px;
+            padding: 14px 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
             font-size: 15px;
-            transition: all 0.3s ease;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #f9fafb;
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #8b5cf6;
+            background: #fff;
+            box-shadow:
+                0 0 0 4px rgba(139, 92, 246, 0.1),
+                0 4px 12px rgba(139, 92, 246, 0.15);
+        }
+
+        .form-group input:hover:not(:focus) {
+            border-color: #d1d5db;
+            background: #fff;
         }
 
         .form-group input::placeholder {
-            color: #999;
+            color: #9ca3af;
+            font-weight: 400;
         }
 
         .error-message {
-            background: #fff2f0;
-            border: 1px solid #ffccc7;
-            color: #ff4d4f;
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 14px 18px;
+            border-radius: 12px;
+            margin-bottom: 24px;
             font-size: 14px;
+            font-weight: 500;
             display: none;
+            animation: errorSlide 0.3s ease-out;
+        }
+
+        @keyframes errorSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .error-message.show {
             display: block;
         }
 
+        .security-notice {
+            background: linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%);
+            border: 1px solid #ffd591;
+            color: #ad6800;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin: 0 32px 18px;
+            font-size: 13px;
+            line-height: 1.6;
+            font-weight: 600;
+        }
+
         .submit-btn {
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 16px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #4f46e5 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+        }
+
+        .submit-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .submit-btn:hover::before {
+            left: 100%;
         }
 
         .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
+            box-shadow:
+                0 12px 28px rgba(99, 102, 241, 0.4),
+                0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
         .submit-btn:active {
-            transform: translateY(0);
+            transform: translateY(-1px);
         }
 
         .submit-btn:disabled {
             opacity: 0.7;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
 
         .login-footer {
             text-align: center;
-            padding: 0 30px 30px;
-            color: #999;
-            font-size: 12px;
+            padding: 0 32px 28px;
+            color: #6b7280;
+            font-size: 13px;
         }
 
-        .login-footer a {
-            color: #667eea;
+        .login-footer p {
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .github-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #374151;
             text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            border: 1px solid #e5e7eb;
+        }
+
+        .github-link:hover {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(31, 41, 55, 0.25);
+        }
+
+        .github-link svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.3s ease;
+        }
+
+        .github-link:hover svg {
+            transform: rotate(360deg);
         }
 
         .version-badge {
-            display: inline-block;
-            background: #f0f0f0;
-            color: #666;
-            padding: 4px 8px;
-            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            color: #059669;
+            padding: 6px 12px;
+            border-radius: 20px;
             font-size: 12px;
-            margin-top: 10px;
+            font-weight: 600;
+            border: 1px solid #a7f3d0;
         }
 
         @keyframes shake {
@@ -166,17 +411,53 @@
                 transform: translateX(0);
             }
 
-            25% {
-                transform: translateX(-10px);
+            10%,
+            30%,
+            50%,
+            70%,
+            90% {
+                transform: translateX(-8px);
             }
 
-            75% {
-                transform: translateX(10px);
+            20%,
+            40%,
+            60%,
+            80% {
+                transform: translateX(8px);
             }
         }
 
         .shake {
-            animation: shake 0.3s ease-in-out;
+            animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+        }
+
+        /* 响应式优化 */
+        @media (max-width: 480px) {
+            .login-container {
+                border-radius: 20px;
+                max-width: 100%;
+            }
+
+            .login-header {
+                padding: 28px 20px 24px;
+            }
+
+            .login-header h1 {
+                font-size: 22px;
+            }
+
+            .login-form {
+                padding: 24px;
+            }
+
+            .login-footer {
+                padding: 0 24px 24px;
+            }
+
+            .footer-links {
+                flex-direction: column;
+                gap: 12px;
+            }
         }
     </style>
 </head>
@@ -187,6 +468,16 @@
             <img src="/images/logo/logo 128x128.png" alt="Logo" onerror="this.style.display='none'">
             <h1>咸鱼智能监控机器人</h1>
             <p>管理后台登录</p>
+            <div class="status-row">
+                <div class="status-card">
+                    <div class="status-title">{{ storage_mode_label }}</div>
+                    <div class="status-sub">{{ storage_mode_desc }}</div>
+                </div>
+                <div class="status-card status-{{ db_status_level }}">
+                    <div class="status-title">{{ db_status_label }}</div>
+                    <div class="status-sub">{{ db_status_desc }}</div>
+                </div>
+            </div>
         </div>
 
         <form class="login-form" id="loginForm" method="POST" action="/login">
@@ -205,9 +496,23 @@
             <button type="submit" class="submit-btn" id="submitBtn">登 录</button>
         </form>
 
+        {% if security_notice %}
+        <div class="security-notice">{{ security_notice }}</div>
+        {% endif %}
+
         <div class="login-footer">
             <p>咸鱼智能监控机器人 - 管理后台</p>
-            <span class="version-badge">{{ version }}</span>
+            <div class="footer-links">
+                <span class="version-badge">{{ version }}</span>
+                <a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" target="_blank" rel="noopener noreferrer"
+                    class="github-link">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                    GitHub
+                </a>
+            </div>
         </div>
     </div>
 
@@ -250,13 +555,13 @@
                     errorMessage.textContent = result.message || '用户名或密码错误';
                     errorMessage.classList.add('show');
                     container.classList.add('shake');
-                    setTimeout(() => container.classList.remove('shake'), 300);
+                    setTimeout(() => container.classList.remove('shake'), 500);
                 }
             } catch (error) {
                 errorMessage.textContent = '登录请求失败，请检查网络连接';
                 errorMessage.classList.add('show');
                 container.classList.add('shake');
-                setTimeout(() => container.classList.remove('shake'), 300);
+                setTimeout(() => container.classList.remove('shake'), 500);
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = '登 录';
