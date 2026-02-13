@@ -32,12 +32,23 @@ var templates = {
                             <button id="refresh-results-btn" class="control-button results-refresh-btn">🔄 刷新</button>
                         </div>
                         <div class="filter-group results-select-group">
-                            <div class="filter-label">选择</div>
-                            <button id="toggle-results-selection" class="control-button results-select-btn">全选</button>
+                            <div class="filter-label">操作模式</div>
+                            <button id="enter-selection-mode-btn" class="control-button results-select-btn">☑ 选择</button>
                         </div>
-                        <div class="filter-group">
-                            <div class="filter-label">删除</div>
-                            <button id="delete-results-btn" class="control-button danger-btn" disabled>删除结果</button>
+                        <div class="selection-mode-panel hidden" id="selection-mode-panel">
+                            <div class="filter-group results-select-group">
+                                <div class="results-select-controls">
+                                    <button id="toggle-results-selection" class="control-button results-select-btn">全选</button>
+                                    <span id="selection-count-badge" class="selection-count-badge hidden">0/0</span>
+                                </div>
+                            </div>
+                            <div class="filter-group">
+                                <div class="results-batch-actions">
+                                    <button id="feedback-trusted-btn" class="control-button success-btn" disabled>👍 批量可信</button>
+                                    <button id="feedback-untrusted-btn" class="control-button warning-btn" disabled>👎 批量不可信</button>
+                                    <button id="delete-results-btn" class="control-button danger-btn" disabled>🗑️ 删除结果</button>
+                                </div>
+                            </div>
                         </div>
                         <div class="results-filter-switches">
                             <div class="filter-group compact">
@@ -252,6 +263,24 @@ var templates = {
                 </div>
                 <div id="accounts-table-container">
                     <p>正在加载账号列表...</p>
+                </div>
+            </section>`,
+    'user-data': () => `
+            <section id="user-data-section" class="content-section">
+                <div class="section-header">
+                    <h2>用户数据</h2>
+                </div>
+                <div id="users-table-container">
+                    <p>正在加载...</p>
+                </div>
+            </section>`,
+    'profile': () => `
+            <section id="profile-section" class="content-section">
+                <div class="section-header">
+                    <h2>个人信息</h2>
+                </div>
+                <div id="profile-content-container" class="profile-page-container">
+                    <p>正在加载个人信息...</p>
                 </div>
             </section>`
 };
