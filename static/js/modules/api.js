@@ -2,12 +2,72 @@
 async function fetchNotificationSettings() {
     try {
         const response = await fetch('/api/settings/notifications');
-        if (!response.ok) throw new Error('无法获取通知设置');
+        if (!response.ok) {
+            let detail = '无法获取通知设置';
+            try {
+                const errorData = await response.json();
+                detail = errorData.detail || detail;
+            } catch (_) {
+                // 忽略解析异常，使用默认消息
+            }
+            throw new Error(detail);
+        }
         return await response.json();
     } catch (error) {
         console.error(error);
         return null;
     }
+}
+
+async function fetchMyNotificationConfigs() {
+    try {
+        const response = await fetch('/api/users/me/notification-configs');
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || '无法获取通知配置列表');
+        }
+        return data;
+    } catch (error) {
+        console.error('获取用户通知配置失败:', error);
+        throw error;
+    }
+}
+
+async function createMyNotificationConfig(payload) {
+    const response = await fetch('/api/users/me/notification-configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || '创建通知配置失败');
+    }
+    return data;
+}
+
+async function updateMyNotificationConfig(configId, payload) {
+    const response = await fetch(`/api/users/me/notification-configs/${configId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || '更新通知配置失败');
+    }
+    return data;
+}
+
+async function deleteMyNotificationConfig(configId) {
+    const response = await fetch(`/api/users/me/notification-configs/${configId}`, {
+        method: 'DELETE',
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || '删除通知配置失败');
+    }
+    return data;
 }
 
 async function fetchAISettings() {
@@ -65,6 +125,24 @@ async function updateProxySettings(settings) {
         return await response.json();
     } catch (error) {
         console.error('无法更新代理设置:', error);
+        Notification.error(`错误: ${error.message}`);
+        return null;
+    }
+}
+
+async function migrateAiProxySettingsToCurrentUser() {
+    try {
+        const response = await fetch('/api/settings/ai-proxy/migrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || '迁移AI与代理设置失败');
+        }
+        return data;
+    } catch (error) {
+        console.error('无法迁移AI与代理设置:', error);
         Notification.error(`错误: ${error.message}`);
         return null;
     }
@@ -422,6 +500,71 @@ async function deleteResultsBatch(payload) {
     } catch (error) {
         console.error('批量删除结果失败:', error);
         Notification.error(`错误: ${error.message}`);
+        return null;
+    }
+}
+
+async function submitBayesFeedback(payload, options = {}) {
+    const { silent = false } = options;
+    try {
+        const response = await fetch('/api/system/bayes/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || '提交反馈失败');
+        }
+        return data;
+    } catch (error) {
+        console.error('提交反馈失败:', error);
+        if (!silent) {
+            Notification.error(`错误: ${error.message}`);
+        }
+        return null;
+    }
+}
+
+async function cancelBayesFeedback(resultId, options = {}) {
+    const { silent = false } = options;
+    try {
+        const params = new URLSearchParams({ result_id: resultId });
+        const response = await fetch(`/api/system/bayes/feedback?${params}`, {
+            method: 'DELETE',
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || '取消反馈失败');
+        }
+        return data;
+    } catch (error) {
+        console.error('取消反馈失败:', error);
+        if (!silent) {
+            Notification.error(`错误: ${error.message}`);
+        }
+        return null;
+    }
+}
+
+async function submitBayesBatchFeedback(payload, options = {}) {
+    const { silent = false } = options;
+    try {
+        const response = await fetch('/api/system/bayes/feedback/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || '批量提交反馈失败');
+        }
+        return data;
+    } catch (error) {
+        console.error('批量提交反馈失败:', error);
+        if (!silent) {
+            Notification.error(`错误: ${error.message}`);
+        }
         return null;
     }
 }
