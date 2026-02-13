@@ -1,7 +1,65 @@
-﻿﻿﻿﻿// 导航与路由
+﻿﻿// 导航与路由
 var navMainContent = null;
 var navLinks = [];
 var navigationInitialized = false;
+var navPagePermissionInfo = null;
+var navPagePermissionPromise = null;
+
+function getSectionIdFromLink(link) {
+    if (!link) return '';
+    const href = link.getAttribute('href') || '';
+    return href.startsWith('#') ? href.substring(1) : href;
+}
+
+function canAccessSection(sectionId) {
+    if (!navPagePermissionInfo || !navPagePermissionInfo.accessible_pages) {
+        return true;
+    }
+    if (!Object.prototype.hasOwnProperty.call(navPagePermissionInfo.accessible_pages, sectionId)) {
+        return true;
+    }
+    return Boolean(navPagePermissionInfo.accessible_pages[sectionId]);
+}
+
+function getFirstAccessibleSection() {
+    for (const link of navLinks) {
+        const sectionId = getSectionIdFromLink(link);
+        if (sectionId && canAccessSection(sectionId)) {
+            return sectionId;
+        }
+    }
+    return '';
+}
+
+function applyNavigationPermissions() {
+    navLinks.forEach(link => {
+        const sectionId = getSectionIdFromLink(link);
+        const navItem = link.closest('li');
+        if (!navItem || !sectionId) return;
+        navItem.style.display = canAccessSection(sectionId) ? '' : 'none';
+    });
+}
+
+async function ensureNavPagePermissionsLoaded() {
+    if (navPagePermissionInfo) {
+        return navPagePermissionInfo;
+    }
+    if (!navPagePermissionPromise) {
+        navPagePermissionPromise = (async () => {
+            try {
+                const response = await fetch('/api/users/page-permissions');
+                if (!response.ok) {
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                return null;
+            }
+        })();
+    }
+    navPagePermissionInfo = await navPagePermissionPromise;
+    return navPagePermissionInfo;
+}
 
 async function navigateTo(hash) {
     if (logRefreshInterval) {
@@ -20,7 +78,20 @@ async function navigateTo(hash) {
         }
         resultsRefreshInterval = null;
     }
-    const sectionId = hash.substring(1) || 'tasks';
+    await ensureNavPagePermissionsLoaded();
+    applyNavigationPermissions();
+
+    const rawSectionId = hash.substring(1) || 'tasks';
+    const sectionId = canAccessSection(rawSectionId) ? rawSectionId : '';
+    if (!sectionId) {
+        const fallbackSection = getFirstAccessibleSection();
+        if (fallbackSection && fallbackSection !== rawSectionId) {
+            window.location.hash = `#${fallbackSection}`;
+            return;
+        }
+        navMainContent.innerHTML = '<section class="content-section active"><h2>权限不足</h2><p>当前账号无法访问此页面。</p></section>';
+        return;
+    }
 
     // 更新导航链接的激活状态
     navLinks.forEach(link => {
@@ -65,6 +136,10 @@ async function navigateTo(hash) {
             await initializeScheduledView();
         } else if (sectionId === 'accounts') {
             await initializeAccountsView();
+        } else if (sectionId === 'user-data') {
+            await initializeUsersView();
+        } else if (sectionId === 'profile') {
+            await initializeProfileView();
         }
 
     } else {
