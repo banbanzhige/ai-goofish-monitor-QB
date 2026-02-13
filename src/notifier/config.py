@@ -1,10 +1,18 @@
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Dict
+
 from src.config import get_env_value, get_bool_env_value
 
 class NotificationConfig:
     """通知配置管理类"""
     
     def __init__(self):
+        self._runtime_overrides: ContextVar[Dict[str, Any] | None] = ContextVar(
+            "notification_runtime_overrides",
+            default=None
+        )
         self._config = self._load_config()
     
     def _load_config(self):
@@ -89,4 +97,49 @@ class NotificationConfig:
         return key in self._config
 
 # 单例模式
+def _notification_get_effective_config(self) -> Dict[str, Any]:
+    """获取当前上下文生效配置。"""
+    overrides = self._runtime_overrides.get()
+    if not overrides:
+        return self._config
+    effective = dict(self._config)
+    effective.update(overrides)
+    return effective
+
+
+@contextmanager
+def _notification_apply_overrides(self, overrides: Dict[str, Any] | None):
+    """在当前上下文临时覆盖通知配置。"""
+    if not overrides:
+        yield
+        return
+
+    current = self._runtime_overrides.get() or {}
+    merged = dict(current)
+    merged.update(overrides)
+    token = self._runtime_overrides.set(merged)
+    try:
+        yield
+    finally:
+        self._runtime_overrides.reset(token)
+
+
+def _notification_get(self, key, default=None):
+    return _notification_get_effective_config(self).get(key, default)
+
+
+def _notification_getitem(self, key):
+    return _notification_get_effective_config(self)[key]
+
+
+def _notification_contains(self, key):
+    return key in _notification_get_effective_config(self)
+
+
+NotificationConfig._get_effective_config = _notification_get_effective_config
+NotificationConfig.apply_overrides = _notification_apply_overrides
+NotificationConfig.get = _notification_get
+NotificationConfig.__getitem__ = _notification_getitem
+NotificationConfig.__contains__ = _notification_contains
+
 config = NotificationConfig()
