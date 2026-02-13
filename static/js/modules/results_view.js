@@ -1,4 +1,4 @@
-﻿﻿﻿﻿// 结果视图
+﻿﻿// 结果视图
 async function fetchAndRenderResults(options = {}) {
     const { silent = false, force = false } = options;
     const scrollContainer = document.querySelector('main');
@@ -115,11 +115,67 @@ async function initializeResultsView() {
     const checkbox = document.getElementById('recommended-only-checkbox');
     const refreshBtn = document.getElementById('refresh-results-btn');
     const deleteBtn = document.getElementById('delete-results-btn');
+    const feedbackTrustedBtn = document.getElementById('feedback-trusted-btn');
+    const feedbackUntrustedBtn = document.getElementById('feedback-untrusted-btn');
     const selectToggleBtn = document.getElementById('toggle-results-selection');
     const sortBySelector = document.getElementById('sort-by-selector');
     const sortOrderSelector = document.getElementById('sort-order-selector');
     const advancedToggleBtn = document.getElementById('toggle-advanced-filters');
     const advancedPanel = document.getElementById('advanced-filters-panel');
+    const enterSelectionBtn = document.getElementById('enter-selection-mode-btn');
+    const exitSelectionBtn = document.getElementById('exit-selection-mode-btn');
+    const selectionModePanel = document.getElementById('selection-mode-panel');
+
+    const readCardFeedbackContext = (card) => {
+        if (!card) return null;
+        const resultId = String(card.dataset.itemId || '').trim();
+        if (!resultId) return null;
+
+        let productData = {};
+        try {
+            productData = card.dataset.feedbackPayload ? JSON.parse(card.dataset.feedbackPayload) : {};
+        } catch (error) {
+            productData = {};
+        }
+
+        const profileVersion = String(
+            card.dataset.feedbackProfile
+            || productData?.profile_version
+            || productData?.bayes_profile
+            || productData?.ml_precalc?.bayes?.profile
+            || productData?.ml_precalc?.bayes?.version
+            || 'bayes_v1'
+        ).trim();
+
+        return {
+            result_id: resultId,
+            product_data: productData,
+            keyword: String(card.dataset.feedbackKeyword || '').trim() || null,
+            profile_version: profileVersion || 'bayes_v1',
+        };
+    };
+
+    const updateCardFeedbackVisualState = (card, feedbackType) => {
+        if (!card) return;
+        const trustedBtn = card.querySelector('.overlay-trusted-btn');
+        const untrustedBtn = card.querySelector('.overlay-untrusted-btn');
+        const isTrusted = feedbackType === 'trusted';
+        card.dataset.feedbackStatus = feedbackType;
+        if (trustedBtn) {
+            trustedBtn.classList.toggle('is-active', isTrusted);
+            const tIcon = trustedBtn.querySelector('.fb-icon');
+            const tText = trustedBtn.querySelector('.fb-text');
+            if (tIcon) tIcon.textContent = isTrusted ? '✅' : '👍';
+            if (tText) tText.textContent = isTrusted ? '已可信' : '可信';
+        }
+        if (untrustedBtn) {
+            untrustedBtn.classList.toggle('is-active', !isTrusted);
+            const uIcon = untrustedBtn.querySelector('.fb-icon');
+            const uText = untrustedBtn.querySelector('.fb-text');
+            if (uIcon) uIcon.textContent = !isTrusted ? '⛔' : '👎';
+            if (uText) uText.textContent = !isTrusted ? '已不可信' : '不可信';
+        }
+    };
 
     const fileData = await fetchResultFiles();
     if (fileData && fileData.files && fileData.files.length > 0) {
@@ -206,6 +262,23 @@ async function initializeResultsView() {
             selectToggleBtn.textContent = checkedBoxes.length === checkboxes.length && checkboxes.length > 0 ? '取消全选' : '全选';
             selectToggleBtn.disabled = checkboxes.length === 0;
             updateDeleteButtonState();
+            if (feedbackTrustedBtn) feedbackTrustedBtn.disabled = checkedBoxes.length === 0;
+            if (feedbackUntrustedBtn) feedbackUntrustedBtn.disabled = checkedBoxes.length === 0;
+            // 更新选中计数徽章
+            const badge = document.getElementById('selection-count-badge');
+            if (badge) {
+                if (checkedBoxes.length > 0) {
+                    badge.textContent = `已选 ${checkedBoxes.length}/${checkboxes.length}`;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+            // 同步卡片选中高亮
+            checkboxes.forEach(checkbox => {
+                const card = checkbox.closest('.result-card');
+                if (card) card.classList.toggle('is-selected', checkbox.checked);
+            });
         };
         window.updateSelectionControls = updateSelectionControls;
         selector.addEventListener('change', updateDeleteButtonState);
@@ -272,6 +345,196 @@ async function initializeResultsView() {
                 updateSelectionControls();
             }
         });
+
+        const submitBatchFeedbackByType = async (feedbackType) => {
+            const checkedBoxes = Array.from(document.querySelectorAll('.result-select-checkbox:checked'));
+            if (!checkedBoxes.length) {
+                Notification.warning('请先勾选要反馈的商品');
+                return;
+            }
+
+            const selectedCards = checkedBoxes
+                .map(checkbox => checkbox.closest('.result-card'))
+                .filter(card => !!card);
+
+            const feedbacks = selectedCards
+                .map(card => {
+                    const context = readCardFeedbackContext(card);
+                    if (!context) return null;
+                    return {
+                        result_id: context.result_id,
+                        feedback_type: feedbackType,
+                        product_data: context.product_data,
+                        profile_version: context.profile_version,
+                    };
+                })
+                .filter(item => !!item);
+
+            if (!feedbacks.length) {
+                Notification.warning('未识别到有效商品ID，无法批量反馈');
+                return;
+            }
+
+            const confirmMessage = feedbackType === 'trusted'
+                ? `确定将选中的 ${feedbacks.length} 条结果标记为可信吗？`
+                : `确定将选中的 ${feedbacks.length} 条结果标记为不可信吗？`;
+            const confirmResult = await Notification.confirm(confirmMessage);
+            if (!confirmResult.isConfirmed) {
+                return;
+            }
+
+            if (feedbackTrustedBtn) feedbackTrustedBtn.disabled = true;
+            if (feedbackUntrustedBtn) feedbackUntrustedBtn.disabled = true;
+
+            const result = await submitBayesBatchFeedback({ feedbacks });
+
+            if (feedbackTrustedBtn) feedbackTrustedBtn.disabled = false;
+            if (feedbackUntrustedBtn) feedbackUntrustedBtn.disabled = false;
+
+            if (!result) {
+                updateSelectionControls();
+                return;
+            }
+
+            const stats = result.stats || {};
+            const successCount = Number(stats.success || 0);
+            const failedCount = Number(stats.failed || 0);
+
+            if (successCount > 0) {
+                selectedCards.forEach(card => updateCardFeedbackVisualState(card, feedbackType));
+            }
+
+            checkedBoxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelectionControls();
+
+            if (failedCount > 0) {
+                Notification.warning(`批量反馈完成：成功 ${successCount} 条，失败 ${failedCount} 条`);
+                return;
+            }
+            Notification.success(`批量反馈成功：${successCount} 条`);
+        };
+
+        if (feedbackTrustedBtn) {
+            feedbackTrustedBtn.addEventListener('click', async () => {
+                await submitBatchFeedbackByType('trusted');
+            });
+        }
+        if (feedbackUntrustedBtn) {
+            feedbackUntrustedBtn.addEventListener('click', async () => {
+                await submitBatchFeedbackByType('untrusted');
+            });
+        }
+
+        // ============== 选择模式进入/退出 ==============
+        let isSelectionMode = false;
+        const gridContainer = document.getElementById('results-grid-container');
+
+        const hasActiveSelections = () => {
+            return document.querySelectorAll('.result-select-checkbox:checked').length > 0;
+        };
+
+        const toggleSelectionMode = (enter) => {
+            isSelectionMode = enter;
+            if (gridContainer) gridContainer.classList.toggle('selection-mode', enter);
+            if (selectionModePanel) selectionModePanel.classList.toggle('hidden', !enter);
+            if (enterSelectionBtn) enterSelectionBtn.classList.toggle('is-active', enter);
+            // 退出选择模式时不清除勾选 — 保留选中状态
+        };
+        const clearAllSelections = () => {
+            document.querySelectorAll('.result-select-checkbox').forEach(cb => { cb.checked = false; });
+            updateSelectionControls();
+        };
+        // 暴露到 window，供移动端长按调用
+        window._toggleSelectionMode = toggleSelectionMode;
+        window._isSelectionMode = () => isSelectionMode;
+
+        if (enterSelectionBtn) {
+            enterSelectionBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止冒泡到 document 的 click-outside
+                toggleSelectionMode(!isSelectionMode);
+            });
+        }
+
+        // ============== 点击卡片快速选中（选择模式内外均可） ==============
+        if (gridContainer) {
+            gridContainer.addEventListener('click', (e) => {
+                // 不拦截按钮、链接、overlay 按钮、复选框
+                if (e.target.closest('button, a, .overlay-fb-btn, .result-select-checkbox, .delete-card-btn, label.result-select-box')) return;
+                const card = e.target.closest('.result-card');
+                if (!card) return;
+                e.preventDefault();
+                e.stopPropagation(); // 阻止冒泡到 document 的 click-outside
+                const cb = card.querySelector('.result-select-checkbox');
+                if (cb) {
+                    cb.checked = !cb.checked;
+                    updateSelectionControls();
+                    // 如果选中了卡片但还不在选择模式，自动进入
+                    if (cb.checked && !isSelectionMode) {
+                        toggleSelectionMode(true);
+                    }
+                }
+            });
+        }
+
+        // ============== 点击卡片外区域：退出选择模式 / 清除选中 ==============
+        document.addEventListener('click', (e) => {
+            // 忽略工具栏面板内的点击
+            if (e.target.closest('.selection-mode-panel, .results-select-group, .results-batch-actions')) return;
+            // 忽略卡片区域内的点击（由上面的 gridContainer handler 处理）
+            if (e.target.closest('.result-card')) return;
+
+            if (isSelectionMode) {
+                // 第一次点外面 → 退出选择模式，保留选中
+                toggleSelectionMode(false);
+            } else if (hasActiveSelections()) {
+                // 第二次点外面（已不在选择模式但有选中） → 清除选中
+                clearAllSelections();
+            }
+        });
+
+        // ============== 移动端长按进入选择模式 ==============
+        if (gridContainer) {
+            let longPressTimer = null;
+            let longPressTriggered = false;
+
+            gridContainer.addEventListener('touchstart', (e) => {
+                if (isSelectionMode) return; // 已在选择模式时不需要长按
+                const card = e.target.closest('.result-card');
+                if (!card) return;
+                longPressTriggered = false;
+                longPressTimer = setTimeout(() => {
+                    longPressTriggered = true;
+                    toggleSelectionMode(true);
+                    // 选中被长按的卡片
+                    const cb = card.querySelector('.result-select-checkbox');
+                    if (cb) {
+                        cb.checked = true;
+                        updateSelectionControls();
+                    }
+                    // 触觉反馈
+                    if (navigator.vibrate) navigator.vibrate(30);
+                }, 500);
+            }, { passive: true });
+
+            gridContainer.addEventListener('touchmove', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }, { passive: true });
+
+            gridContainer.addEventListener('touchend', (e) => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                if (longPressTriggered) {
+                    e.preventDefault(); // 阻止长按后触发 click
+                }
+            });
+        }
 
 
         await fetchAndRenderResults({ force: true });
