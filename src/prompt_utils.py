@@ -3,8 +3,11 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Optional, Tuple
 
 import aiofiles
+import httpx
+from openai import APITimeoutError, AsyncOpenAI
 
 from src import config
 from src.logging_config import get_logger
@@ -14,6 +17,16 @@ WEIGHT_GUIDE_PATH = Path("prompts/guide/weight_framework_guide.md")
 
 # 统一日志输出
 logger = get_logger(__name__, service="system")
+
+# AI 标准生成请求超时（秒）：长文本生成场景允许更长等待时间
+CRITERIA_REQUEST_TIMEOUT_SECONDS = 900.0
+
+# AI 标准生成超时提示文案
+CRITERIA_TIMEOUT_HINT = "AI生成超时（15分钟），请检查提示词长度并适当精简后重试。"
+
+
+class CriteriaGenerationTimeoutError(RuntimeError):
+    """AI 标准生成超时异常，用于向上层返回可读提示。"""
 
 
 def get_weight_framework_guide() -> str:
@@ -61,15 +74,103 @@ META_PROMPT_TEMPLATE = """
 3.  将范例中所有与 "MacBook" 相关的内容，替换为与用户需求商品相关的内容。
 4.  思考并生成针对新商品类型的“一票否决硬性原则”和“危险信号清单”。
 5.  必须包含“评估维度权重分配表（总和100%）”以及“权重应用规则”两个片段。
+6.  必须新增评判维度“用户实际需求与产品描述偏差”，并在 `criteria_analysis` 中给出 PASS/WARNING/FAIL 判定依据与证据要求。
+7.  必须在权重分配表中单独列出“用户实际需求与产品描述偏差”维度，建议权重区间为 22%-30%；当用户存在“必须/只要/不可接受”等硬约束时，该维度权重应提升到 >=25%。
+8.  输出中禁止出现任何占位符文本（如 `{{CRITERIA_SECTION}}`）。
 """
 
 
-async def generate_criteria(user_description: str, reference_file_path: str) -> str:
+def sanitize_generated_criteria(text: str) -> str:
+    """清洗生成标准中的遗留占位符，避免运行时出现无效模板片段。"""
+    cleaned = str(text or "").replace("{{CRITERIA_SECTION}}", "").strip()
+    return cleaned
+
+
+def _parse_bool_setting(value, default: bool = False) -> bool:
+    """解析布尔配置，兼容字符串与数字类型。"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _get_owner_default_api_config(owner_id: Optional[str]) -> dict:
+    """在 PostgreSQL 模式下读取当前用户默认 AI 配置。"""
+    if config.STORAGE_BACKEND() != "postgres":
+        return {}
+
+    normalized_owner_id = str(owner_id or "").strip()
+    if not normalized_owner_id:
+        return {}
+
+    try:
+        from src.storage import get_storage
+
+        storage = get_storage()
+        user_api_config = storage.get_default_api_config(normalized_owner_id) or {}
+        return user_api_config if isinstance(user_api_config, dict) else {}
+    except Exception as exc:
+        logger.warning(
+            "读取用户私有AI配置失败",
+            extra={"event": "criteria_owner_ai_config_read_failed", "owner_id": normalized_owner_id},
+            exc_info=exc,
+        )
+        return {}
+
+
+def _resolve_criteria_ai_runtime(owner_id: Optional[str]) -> Tuple[AsyncOpenAI, str, Optional[httpx.AsyncClient]]:
+    """解析生成标准时应使用的 AI 客户端与模型。"""
+    if config.STORAGE_BACKEND() == "postgres":
+        normalized_owner_id = str(owner_id or "").strip()
+        if not normalized_owner_id:
+            raise RuntimeError("未识别当前用户，无法在服务器模式生成分析标准。")
+
+        user_api_config = _get_owner_default_api_config(normalized_owner_id)
+        extra_config = user_api_config.get("extra_config") if isinstance(user_api_config.get("extra_config"), dict) else {}
+
+        api_key = str(user_api_config.get("api_key") or "").strip()
+        base_url = str(user_api_config.get("api_base_url") or "").strip()
+        model_name = str(user_api_config.get("model") or "").strip()
+
+        proxy_url = str(extra_config.get("PROXY_URL") or "").strip()
+        proxy_ai_enabled = _parse_bool_setting(extra_config.get("PROXY_AI_ENABLED"), default=False)
+
+        if not api_key or not base_url or not model_name:
+            raise RuntimeError("当前用户AI配置不完整，无法生成分析标准。请先配置 API Key、Base URL 和模型名称。")
+
+        client_kwargs = {
+            "api_key": api_key,
+            "base_url": base_url,
+            "timeout": httpx.Timeout(CRITERIA_REQUEST_TIMEOUT_SECONDS),
+        }
+        http_async_client = None
+        if proxy_ai_enabled and proxy_url:
+            http_async_client = httpx.AsyncClient(
+                proxy=proxy_url,
+                timeout=CRITERIA_REQUEST_TIMEOUT_SECONDS
+            )
+            client_kwargs["http_client"] = http_async_client
+
+        return AsyncOpenAI(**client_kwargs), model_name, http_async_client
+
+    if not config.client:
+        raise RuntimeError("AI客户端未初始化，无法生成分析标准。请检查 .env 配置。")
+
+    return config.client, str(config.MODEL_NAME() or "").strip(), None
+
+
+async def generate_criteria(user_description: str, reference_file_path: str, owner_id: Optional[str] = None) -> str:
     """
     使用AI生成新的标准文件内容。
     """
-    if not config.client:
-        raise RuntimeError("AI客户端未初始化，无法生成分析标准。请检查.env配置。")
+    client, model_name, temp_http_client = _resolve_criteria_ai_runtime(owner_id)
 
     logger.info(
         f"正在读取参考文件: {reference_file_path}",
@@ -93,9 +194,13 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
 
     logger.info("正在调用AI生成新的分析标准，请稍候...", extra={"event": "criteria_request"})
     try:
-        response = await config.client.chat.completions.create(
+        criteria_client = client.with_options(
+            timeout=httpx.Timeout(CRITERIA_REQUEST_TIMEOUT_SECONDS),
+            max_retries=0,
+        )
+        response = await criteria_client.chat.completions.create(
             **config.get_ai_request_params(
-                model=config.MODEL_NAME(),
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.5 # Lower temperature for more predictable structure
             )
@@ -106,11 +211,35 @@ async def generate_criteria(user_description: str, reference_file_path: str) -> 
         # 处理content可能为None的情况
         if generated_text is None:
             raise RuntimeError("AI返回的内容为空，请检查模型配置或重试。")
-        
-        return generated_text.strip()
+
+        cleaned_text = sanitize_generated_criteria(generated_text)
+        if cleaned_text != generated_text.strip():
+            logger.warning(
+                "生成结果包含遗留占位符，已在保存前自动清理。",
+                extra={"event": "criteria_placeholder_sanitized"}
+            )
+
+        return cleaned_text
+    except APITimeoutError as e:
+        logger.error(
+            CRITERIA_TIMEOUT_HINT,
+            extra={"event": "criteria_request_timeout"},
+            exc_info=e
+        )
+        raise CriteriaGenerationTimeoutError(CRITERIA_TIMEOUT_HINT) from e
+    except httpx.TimeoutException as e:
+        logger.error(
+            CRITERIA_TIMEOUT_HINT,
+            extra={"event": "criteria_request_timeout"},
+            exc_info=e
+        )
+        raise CriteriaGenerationTimeoutError(CRITERIA_TIMEOUT_HINT) from e
     except Exception as e:
         logger.error(f"调用AI接口时出错: {e}", extra={"event": "criteria_request_error"})
         raise e
+    finally:
+        if temp_http_client is not None:
+            await temp_http_client.aclose()
 
 
 async def update_config_with_new_task(new_task: dict, config_file: str = "config.json"):
@@ -155,4 +284,5 @@ async def update_config_with_new_task(new_task: dict, config_file: str = "config
             extra={"event": "config_update_io_error", "config_file": config_file}
         )
         return False
+
 
