@@ -43,6 +43,9 @@ async function initializeSettingsView() {
 
         genericSettingsContainer.innerHTML = `
         <form id="generic-settings-form">
+            <p class="form-hint" style="margin: 0 0 12px 0;">
+                说明：通用配置属于全局部署参数，修改后对所有用户生效；仅管理员（admin/super_admin）可保存。
+            </p>
             <div class="form-group">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label class="switch">
@@ -97,7 +100,7 @@ async function initializeSettingsView() {
             <div class="form-group">
                 <label for="web-password">Web服务密码</label>
                 <div style="position: relative;">
-                    <input type="password" id="web-password" name="WEB_PASSWORD" value="${genericSettings.WEB_PASSWORD || 'admin123'}">
+                    <input type="password" id="web-password" name="WEB_PASSWORD" value="" placeholder="${genericSettings.WEB_PASSWORD_SET ? '已设置，留空不修改' : '请输入新的登录密码'}">
                     <button type="button" id="toggle-web-password-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -105,7 +108,7 @@ async function initializeSettingsView() {
                         </svg>
                     </button>
                 </div>
-                <p class="form-hint">用于登录Web管理界面</p>
+                <p class="form-hint">${genericSettings.WEB_PASSWORD_SET ? '用于登录Web管理界面（已设置，留空不修改）' : '用于登录Web管理界面'}</p>
             </div>
 
             <button type="submit" class="control-button primary-btn">保存通用配置</button>
@@ -430,9 +433,60 @@ async function initializeSettingsView() {
     }
 
 
+    const legacyDatabasePanel = document.getElementById('database-settings-panel');
+    if (legacyDatabasePanel) {
+        await initializeDatabaseWarehousePanel(legacyDatabasePanel);
+    }
+
+
     await initializeModelManagementPanels();
 
     const aiForm = document.getElementById('ai-settings-form');
+    const applyAiSettingsToForm = (aiSettings) => {
+        if (!aiForm || !aiSettings || typeof aiSettings !== 'object') return;
+        const setValue = (selector, value) => {
+            const element = aiForm.querySelector(selector);
+            if (element) {
+                element.value = value ?? '';
+            }
+        };
+        setValue('#openai-base-url', aiSettings.OPENAI_BASE_URL || '');
+        setValue('#openai-model-name', aiSettings.OPENAI_MODEL_NAME || '');
+        setValue('#ai-max-tokens-param-name', aiSettings.AI_MAX_TOKENS_PARAM_NAME || '');
+        setValue('#ai-max-tokens-limit', aiSettings.AI_MAX_TOKENS_LIMIT ?? '');
+
+        const apiKeyInput = aiForm.querySelector('#openai-api-key');
+        if (apiKeyInput) {
+            apiKeyInput.value = '';
+            if (aiSettings.OPENAI_API_KEY_SET) {
+                apiKeyInput.placeholder = '已迁移或已设置，留空不修改';
+            }
+        }
+    };
+    const applyProxySettingsToForm = (proxySettings) => {
+        if (!proxyForm || !proxySettings || typeof proxySettings !== 'object') return;
+        const proxyUrlInput = proxyForm.querySelector('#proxy-url');
+        if (proxyUrlInput) {
+            proxyUrlInput.value = proxySettings.PROXY_URL || '';
+        }
+        const proxyKeys = [
+            'PROXY_AI_ENABLED',
+            'PROXY_NTFY_ENABLED',
+            'PROXY_GOTIFY_ENABLED',
+            'PROXY_BARK_ENABLED',
+            'PROXY_WX_BOT_ENABLED',
+            'PROXY_WX_APP_ENABLED',
+            'PROXY_TELEGRAM_ENABLED',
+            'PROXY_WEBHOOK_ENABLED',
+            'PROXY_DINGTALK_ENABLED',
+        ];
+        proxyKeys.forEach((key) => {
+            const checkbox = proxyForm.querySelector(`input[name="${key}"]`);
+            if (checkbox) {
+                checkbox.checked = Boolean(proxySettings[key]);
+            }
+        });
+    };
     const aiGenericToggleKeys = new Set([
         'ENABLE_THINKING',
         'ENABLE_RESPONSE_FORMAT',
@@ -534,6 +588,11 @@ async function initializeSettingsView() {
                     const tokensLimitRaw = parseInt(tokensLimitInput, 10);
                     settings.AI_MAX_TOKENS_LIMIT = Number.isFinite(tokensLimitRaw) && tokensLimitRaw > 0 ? tokensLimitRaw : '';
                 }
+                if (proxyForm) {
+                    const proxyFormData = new FormData(proxyForm);
+                    settings.PROXY_URL = proxyFormData.get('PROXY_URL') || '';
+                    settings.PROXY_AI_ENABLED = proxyFormData.get('PROXY_AI_ENABLED') === 'on';
+                }
 
                 const originalText = testBtn.textContent;
                 testBtn.disabled = true;
@@ -605,6 +664,7 @@ async function initializeSettingsView() {
                 Notification.infoMultiline(message);
             });
         }
+
     }
 }
 
@@ -813,7 +873,7 @@ async function initializeModelManagementPanels() {
                 const content = document.getElementById('new-prompt-content').value;
 
 
-                if (newFileName.includes('/') || newFileName.includes('..')) {
+                if (/[\\\\/:]/.test(newFileName) || newFileName.includes('..')) {
                     Notification.warning('无效的文件名');
                     return;
                 }
@@ -1031,7 +1091,7 @@ async function initializeModelManagementPanels() {
                     Notification.warning('请输入模板名称。');
                     return;
                 }
-                if (newFileName.includes('/') || newFileName.includes('..')) {
+                if (/[\\\\/:]/.test(newFileName) || newFileName.includes('..')) {
                     Notification.warning('无效的文件名');
                     return;
                 }
@@ -1057,4 +1117,788 @@ async function initializeModelManagementPanels() {
     }
 
 
+}
+
+
+// ============== 数据库设置渲染与事件 ==============
+
+async function initializeDatabaseWarehousePanel(mountNode) {
+    if (!mountNode) return;
+    mountNode.innerHTML = `
+        <div class="settings-card">
+            <h3>PostgreSQL 数据仓库配置</h3>
+            <div id="database-settings-container">
+                <p>正在加载数据库配置...</p>
+            </div>
+        </div>
+    `;
+
+    const databaseSettingsContainer = mountNode.querySelector('#database-settings-container');
+    if (!databaseSettingsContainer) return;
+
+    try {
+        const dbResponse = await fetch('/api/settings/database');
+        if (dbResponse.ok) {
+            const dbSettings = await dbResponse.json();
+            databaseSettingsContainer.innerHTML = renderDatabaseSettings(dbSettings);
+            initializeDatabaseSettingsEvents();
+        } else {
+            databaseSettingsContainer.innerHTML = '<p>加载数据库配置失败。</p>';
+        }
+    } catch (error) {
+        console.error('无法加载数据库配置:', error);
+        databaseSettingsContainer.innerHTML = '<p>加载数据库配置失败。请检查服务器是否正常运行。</p>';
+    }
+}
+window.initializeDatabaseWarehousePanel = initializeDatabaseWarehousePanel;
+
+function renderDatabaseSettings(settings) {
+    const configuredBackend = (settings.CONFIGURED_BACKEND || settings.STORAGE_BACKEND || 'local').toLowerCase();
+    const runtimeBackend = (settings.RUNTIME_BACKEND || configuredBackend).toLowerCase();
+    const isPostgres = configuredBackend === 'postgres';
+    const isPostgresRunning = runtimeBackend === 'postgres';
+    const configuredModeLabel = settings.CONFIGURED_BACKEND_LABEL || (configuredBackend === 'postgres' ? 'PostgreSQL（多用户）' : '本地文件（单用户）');
+    const runtimeModeLabel = settings.RUNTIME_BACKEND_LABEL || (runtimeBackend === 'postgres' ? 'PostgreSQL（多用户）' : '本地文件（单用户）');
+    const modeConsistent = settings.BACKEND_CONSISTENT !== false && configuredBackend === runtimeBackend;
+
+    const dbStatus = settings.DB_STATUS || {};
+    const dbStatusLabel = dbStatus.label || settings.DB_STATUS_LABEL || '未连接';
+    const dbStatusMessage = dbStatus.message || settings.DB_STATUS_MESSAGE || '';
+    const dbStatusVersion = dbStatus.version || settings.DB_STATUS_VERSION || '';
+    const dbStatusLevel = dbStatus.level || settings.DB_STATUS_LEVEL || 'info';
+    const isConnected = dbStatusLevel === 'ok';
+
+    const encryptionWarning = settings.ENCRYPTION_KEY_DEFAULT ?
+        '<p class="form-hint" style="color: #ff4d4f;">⚠️ 正在使用默认加密密钥，生产环境请务必修改！</p>' : '';
+    const encryptionKeyHint = settings.ENCRYPTION_MASTER_KEY_SET
+        ? '<p class="form-hint">主密钥已设置，留空将保持不变。</p>'
+        : '';
+    const passwordHint = settings.DB_PASSWORD_SET
+        ? '<p class="form-hint">密码已设置，留空将保持不变。</p>'
+        : '';
+
+    // 状态指示器颜色
+    const statusColor = isConnected ? '#52c41a' : (dbStatusLevel === 'error' ? '#ff4d4f' : '#d9d9d9');
+    const statusBgColor = isConnected ? 'rgba(82, 196, 26, 0.1)' : (dbStatusLevel === 'error' ? 'rgba(255, 77, 79, 0.1)' : 'rgba(0, 0, 0, 0.02)');
+
+    return `
+        <form id="database-settings-form">
+            <!-- 主控开关区域 -->
+            <div class="db-master-switch-card" style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 12px;
+                padding: 20px 24px;
+                margin-bottom: 24px;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            ">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div style="
+                        width: 48px;
+                        height: 48px;
+                        background: rgba(255,255,255,0.2);
+                        border-radius: 12px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 24px;
+                    ">🗄️</div>
+                    <div>
+                        <div style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">PostgreSQL 数据仓库</div>
+                        <div style="font-size: 13px; opacity: 0.9;">
+                            ${isPostgres ? '已启用 - 多用户模式' : '未启用 - 当前使用本地文件存储'}
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 13px; opacity: 0.9;">${isPostgres ? '已开启' : '已关闭'}</span>
+                    <label class="switch db-warehouse-switch" style="margin: 0;">
+                        <input type="checkbox" id="db-warehouse-toggle" ${isPostgres ? 'checked' : ''}>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 状态信息卡片 -->
+            <div class="db-status-grid" style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                margin-bottom: 24px;
+            ">
+                <!-- 运行模式 -->
+                <div class="db-status-item" style="
+                    background: var(--bg-secondary, #f5f5f5);
+                    border-radius: 10px;
+                    padding: 16px;
+                    border: 1px solid var(--border-color, #e8e8e8);
+                ">
+                    <div style="font-size: 12px; color: var(--text-secondary, #888); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">运行模式</div>
+                    <div style="font-size: 16px; font-weight: 600; color: var(--text-primary, #333);">${runtimeModeLabel}</div>
+                </div>
+                <!-- 配置模式 -->
+                <div class="db-status-item" style="
+                    background: var(--bg-secondary, #f5f5f5);
+                    border-radius: 10px;
+                    padding: 16px;
+                    border: 1px solid var(--border-color, #e8e8e8);
+                ">
+                    <div style="font-size: 12px; color: var(--text-secondary, #888); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">配置模式</div>
+                    <div style="font-size: 16px; font-weight: 600; color: var(--text-primary, #333);">${configuredModeLabel}</div>
+                </div>
+                <!-- 连接状态 -->
+                <div class="db-status-item" style="
+                    background: ${statusBgColor};
+                    border-radius: 10px;
+                    padding: 16px;
+                    border: 1px solid ${statusColor};
+                ">
+                    <div style="font-size: 12px; color: var(--text-secondary, #888); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">连接状态</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="
+                            width: 10px;
+                            height: 10px;
+                            border-radius: 50%;
+                            background: ${statusColor};
+                            display: inline-block;
+                            ${isConnected ? 'animation: pulse 2s infinite;' : ''}
+                        "></span>
+                        <span style="font-size: 16px; font-weight: 600; color: ${statusColor};">${dbStatusLabel}</span>
+                    </div>
+                    ${dbStatusVersion ? `<div style="font-size: 11px; color: var(--text-secondary, #888); margin-top: 6px;">${dbStatusVersion}</div>` : ''}
+                </div>
+                <!-- 模式一致性 -->
+                <div class="db-status-item" style="
+                    background: ${modeConsistent ? 'rgba(82, 196, 26, 0.1)' : 'rgba(250, 173, 20, 0.1)'};
+                    border-radius: 10px;
+                    padding: 16px;
+                    border: 1px solid ${modeConsistent ? '#52c41a' : '#faad14'};
+                ">
+                    <div style="font-size: 12px; color: var(--text-secondary, #888); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">模式一致性</div>
+                    <div style="font-size: 16px; font-weight: 600; color: ${modeConsistent ? '#52c41a' : '#faad14'};">
+                        ${modeConsistent ? '✓ 一致' : '⚠ 不一致'}
+                    </div>
+                    ${!modeConsistent ? '<div style="font-size: 11px; color: #faad14; margin-top: 6px;">需重启服务生效</div>' : ''}
+                </div>
+            </div>
+
+            <!-- 连接配置区域 -->
+            <div class="db-config-section" style="
+                background: white;
+                border-radius: 12px;
+                padding: 24px;
+                border: 1px solid var(--border-color, #e8e8e8);
+                margin-bottom: 20px;
+            ">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                    <span style="font-size: 18px;">⚙️</span>
+                    <h4 style="margin: 0; font-size: 16px; font-weight: 600;">连接配置</h4>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 16px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="db-host" style="font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block;">主机地址</label>
+                        <input type="text" id="db-host" name="DB_HOST" value="${settings.DB_HOST || ''}" placeholder="192.168.1.100 或 localhost" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="db-port" style="font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block;">端口</label>
+                        <input type="text" id="db-port" name="DB_PORT" value="${settings.DB_PORT || '5432'}" placeholder="5432" style="width: 100%;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                    <label for="db-name" style="font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block;">数据库名</label>
+                    <input type="text" id="db-name" name="DB_NAME" value="${settings.DB_NAME || ''}" placeholder="goofish_monitor" style="width: 100%;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="db-user" style="font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block;">用户名</label>
+                        <input type="text" id="db-user" name="DB_USER" value="${settings.DB_USER || ''}" placeholder="postgres" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="db-password" style="font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block;">密码</label>
+                        <div style="position: relative;">
+                            <input type="password" id="db-password" name="DB_PASSWORD" value="" placeholder="数据库密码" style="width: 100%; padding-right: 40px;">
+                            <button type="button" id="toggle-db-password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: #888;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                        ${passwordHint}
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                    <label for="encryption-key" style="font-size: 13px; font-weight: 500; margin-bottom: 6px; display: block;">加密主密钥</label>
+                    <div style="position: relative;">
+                        <input type="password" id="encryption-key" name="ENCRYPTION_MASTER_KEY" value="" placeholder="用于加密敏感数据（如账号密码）" style="width: 100%; padding-right: 40px;">
+                        <button type="button" id="toggle-encryption-key" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: #888;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                    ${encryptionKeyHint}
+                    ${encryptionWarning}
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color, #e8e8e8);">
+                    <button type="button" id="test-db-connection-btn" class="control-button" style="
+                        background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+                        border: none;
+                        color: white;
+                        padding: 10px 20px;
+                        border-radius: 8px;
+                        font-weight: 500;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    ">
+                        <span>🔗</span> 测试连接
+                    </button>
+                    <button type="submit" class="control-button primary-btn" style="
+                        padding: 10px 20px;
+                        border-radius: 8px;
+                        font-weight: 500;
+                    ">💾 保存配置</button>
+                </div>
+
+                <div id="db-connection-status" style="margin-top: 12px;"></div>
+            </div>
+
+            <!-- 数据迁移区域 -->
+            <div class="db-migration-section" style="
+                background: white;
+                border-radius: 12px;
+                padding: 24px;
+                border: 1px solid var(--border-color, #e8e8e8);
+            ">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                    <span style="font-size: 18px;">📦</span>
+                    <h4 style="margin: 0; font-size: 16px; font-weight: 600;">数据迁移</h4>
+                </div>
+                <p class="form-hint" style="margin: 0 0 16px; color: var(--text-secondary, #666); font-size: 13px; font-style: normal;">
+                    将本地文件数据复制到 PostgreSQL 数据库。本地数据将保留作为备份。
+                </p>
+
+                <div id="migration-scope-panel" style="
+                    margin-bottom: 16px;
+                    background: #fafafa;
+                    border: 1px solid #f0f0f0;
+                    border-radius: 8px;
+                    padding: 12px;
+                    font-size: 13px;
+                    color: var(--text-secondary, #666);
+                ">
+                    正在加载迁移范围说明...
+                </div>
+                
+                <div style="display: flex; gap: 12px;">
+                    <button type="button" id="dry-run-migration-btn" class="control-button" style="
+                        background: #f5f5f5;
+                        border: 1px solid #d9d9d9;
+                        color: #555;
+                        padding: 10px 16px;
+                        border-radius: 8px;
+                        font-weight: 500;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    ">
+                        <span>🧪</span> 测试迁移
+                    </button>
+                    <button type="button" id="run-migration-btn" class="control-button" style="
+                        background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
+                        border: none;
+                        color: white;
+                        padding: 10px 16px;
+                        border-radius: 8px;
+                        font-weight: 500;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                    ">
+                        <span>🚀</span> 执行迁移
+                    </button>
+                </div>
+                <div style="
+                    margin-top: 14px;
+                    padding-top: 14px;
+                    border-top: 1px dashed var(--border-color, #e8e8e8);
+                ">
+                    <p class="form-hint" style="margin: 0; font-style: normal;">
+                        执行“正式迁移”时会自动将全局 .env 中的 AI 模型与代理参数迁移到当前登录用户私有配置。
+                    </p>
+                </div>
+
+                <div id="migration-result" style="margin-top: 12px;"></div>
+            </div>
+        </form>
+
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.5; }
+            }
+            .db-warehouse-switch .slider {
+                background-color: rgba(255,255,255,0.3) !important;
+            }
+            .db-warehouse-switch input:checked + .slider {
+                background-color: rgba(255,255,255,0.5) !important;
+            }
+            .db-warehouse-switch .slider:before {
+                background-color: white !important;
+            }
+            #test-db-connection-btn:hover, #run-migration-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            }
+        </style>
+    `;
+}
+
+function initializeDatabaseSettingsEvents() {
+    const form = document.getElementById('database-settings-form');
+    if (!form) return;
+
+    // 数据仓库主控开关
+    const dbWarehouseToggle = document.getElementById('db-warehouse-toggle');
+    if (dbWarehouseToggle) {
+        dbWarehouseToggle.addEventListener('change', async (e) => {
+            const isEnabling = e.target.checked;
+
+            if (isEnabling) {
+                // 开启PostgreSQL模式
+                const dbHost = document.getElementById('db-host')?.value?.trim();
+                const dbName = document.getElementById('db-name')?.value?.trim();
+                const dbUser = document.getElementById('db-user')?.value?.trim();
+
+                if (!dbHost || !dbName || !dbUser) {
+                    Notification.warning('请先填写完整的数据库连接信息（主机、数据库名、用户名）并保存配置。');
+                    e.target.checked = false;
+                    return;
+                }
+
+                const confirmResult = await Notification.confirm(
+                    '开启后系统将使用 PostgreSQL 存储数据。请确保已完成数据迁移，否则数据可能丢失。',
+                    '确定开启 PostgreSQL 模式？',
+                    {
+                        icon: 'warning',
+                        confirmButtonText: '确定开启',
+                        confirmButtonColor: '#722ed1'
+                    }
+                );
+
+                if (!confirmResult.isConfirmed) {
+                    e.target.checked = false;
+                    return;
+                }
+
+                Notification.loading('正在验证数据库并切换模式...', '开启中');
+
+                try {
+                    const response = await fetch('/api/settings/database/enable', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    Notification.close();
+
+                    if (response.ok && result.success) {
+                        await Notification.successDialog(
+                            '系统将刷新进入登录页面。请使用您的账号登录。',
+                            'PostgreSQL 模式已开启'
+                        );
+                        window.location.href = '/login';
+                    } else {
+                        Notification.error(result.detail || result.message || '开启失败，请检查数据库是否已正确迁移。');
+                        e.target.checked = false;
+                    }
+                } catch (error) {
+                    Notification.close();
+                    Notification.error(`请求失败: ${error.message}`);
+                    e.target.checked = false;
+                }
+            } else {
+                // 关闭PostgreSQL模式，切换回本地存储
+                const confirmResult = await Notification.confirm(
+                    '关闭后系统将切换回本地文件存储模式。PostgreSQL中的数据不会丢失，但也不会同步到本地文件。',
+                    '确定关闭 PostgreSQL 模式？',
+                    {
+                        icon: 'warning',
+                        confirmButtonText: '确定关闭',
+                        confirmButtonColor: '#ff4d4f'
+                    }
+                );
+
+                if (!confirmResult.isConfirmed) {
+                    e.target.checked = true;
+                    return;
+                }
+
+                Notification.loading('正在切换到本地存储模式...', '切换中');
+
+                try {
+                    const response = await fetch('/api/settings/database/disable', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const result = await response.json();
+                    Notification.close();
+
+                    if (response.ok && result.success) {
+                        await Notification.successDialog(
+                            '系统将刷新进入登录页面。',
+                            '已切换到本地存储模式'
+                        );
+                        window.location.href = '/login';
+                    } else {
+                        Notification.error(result.detail || result.message || '关闭失败。');
+                        e.target.checked = true;
+                    }
+                } catch (error) {
+                    Notification.close();
+                    Notification.error(`请求失败: ${error.message}`);
+                    e.target.checked = true;
+                }
+            }
+        });
+    }
+
+    const dbHostInput = document.getElementById('db-host');
+    const dbPortInput = document.getElementById('db-port');
+    const normalizeDbHostInput = () => {
+        if (!dbHostInput) return;
+        const raw = (dbHostInput.value || '').trim();
+        if (!raw) return;
+
+        let host = raw;
+        let port = '';
+
+        // 主机地址兼容 http(s):// 与 host:port
+        if (raw.includes('://')) {
+            try {
+                const parsed = new URL(raw);
+                if (parsed.hostname) {
+                    host = parsed.hostname;
+                    port = parsed.port || '';
+                } else {
+                    host = raw.split('://')[1] || raw;
+                }
+            } catch (error) {
+                host = raw.split('://')[1] || raw;
+            }
+        }
+
+        host = host.split('/')[0];
+
+        if (host.includes(':') && host.indexOf(':') === host.lastIndexOf(':') && !host.startsWith('[')) {
+            const [hostPart, portPart] = host.split(':');
+            if (/^\d+$/.test(portPart)) {
+                host = hostPart;
+                port = portPart;
+            }
+        }
+
+        dbHostInput.value = host;
+        if (port && dbPortInput) {
+            dbPortInput.value = port;
+        }
+    };
+
+    if (dbHostInput) {
+        dbHostInput.addEventListener('blur', normalizeDbHostInput);
+        dbHostInput.addEventListener('change', normalizeDbHostInput);
+        dbHostInput.addEventListener('paste', () => setTimeout(normalizeDbHostInput, 0));
+    }
+
+    // 密码显示/隐藏切换
+    const toggleDbPassword = document.getElementById('toggle-db-password');
+    const dbPasswordInput = document.getElementById('db-password');
+    if (toggleDbPassword && dbPasswordInput) {
+        toggleDbPassword.addEventListener('click', () => {
+            dbPasswordInput.type = dbPasswordInput.type === 'password' ? 'text' : 'password';
+        });
+    }
+
+    const toggleEncryptionKey = document.getElementById('toggle-encryption-key');
+    const encryptionKeyInput = document.getElementById('encryption-key');
+    if (toggleEncryptionKey && encryptionKeyInput) {
+        toggleEncryptionKey.addEventListener('click', () => {
+            encryptionKeyInput.type = encryptionKeyInput.type === 'password' ? 'text' : 'password';
+        });
+    }
+
+    // 测试连接
+    const testBtn = document.getElementById('test-db-connection-btn');
+    const statusDiv = document.getElementById('db-connection-status');
+    if (testBtn) {
+        testBtn.addEventListener('click', async () => {
+            const formData = new FormData(form);
+            const settings = {
+                DB_HOST: formData.get('DB_HOST'),
+                DB_PORT: formData.get('DB_PORT'),
+                DB_NAME: formData.get('DB_NAME'),
+                DB_USER: formData.get('DB_USER')
+            };
+            const passwordValue = formData.get('DB_PASSWORD');
+            if (passwordValue) {
+                settings.DB_PASSWORD = passwordValue;
+            }
+
+            testBtn.disabled = true;
+            testBtn.textContent = '测试中...';
+            statusDiv.innerHTML = '<p style="color: var(--text-secondary);">正在测试连接...</p>';
+
+            try {
+                const response = await fetch('/api/settings/database/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    const versionHtml = result.version ? `<div style="color: var(--text-secondary); margin-top: 4px;">${result.version}</div>` : '';
+                    statusDiv.innerHTML = `<div style="color: #52c41a;">✅ ${result.message}</div>${versionHtml}`;
+                } else {
+                    statusDiv.innerHTML = `<div style="color: #ff4d4f;">❌ ${result.message}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<p style="color: #ff4d4f;">❌ 测试失败: ${error.message}</p>`;
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = '测试连接';
+            }
+        });
+    }
+
+    // 保存配置
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const passwordValue = formData.get('DB_PASSWORD');
+
+        const settings = {
+            DB_HOST: formData.get('DB_HOST'),
+            DB_PORT: formData.get('DB_PORT'),
+            DB_NAME: formData.get('DB_NAME'),
+            DB_USER: formData.get('DB_USER'),
+            ENCRYPTION_MASTER_KEY: formData.get('ENCRYPTION_MASTER_KEY')
+        };
+
+        if (!String(settings.DB_HOST || '').trim() || !String(settings.DB_NAME || '').trim()) {
+            Notification.warning('请先填写主机地址和数据库名，再保存配置。');
+            return;
+        }
+
+        // 只有当密码被修改（不是占位符）时才发送密码
+        if (passwordValue) {
+            settings.DB_PASSWORD = passwordValue;
+        }
+
+        const saveBtn = form.querySelector('button[type="submit"]');
+        const originalText = saveBtn.textContent;
+        saveBtn.disabled = true;
+        saveBtn.textContent = '保存中...';
+
+        try {
+            const response = await fetch('/api/settings/database', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                Notification.success(result.message || '数据库配置已保存！');
+            } else {
+                Notification.error('保存失败: ' + (result.detail || '未知错误'));
+            }
+        } catch (error) {
+            Notification.error('保存失败: ' + error.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+        }
+    });
+
+    // 数据迁移
+    const dryRunBtn = document.getElementById('dry-run-migration-btn');
+    const runMigrationBtn = document.getElementById('run-migration-btn');
+    const migrationResultDiv = document.getElementById('migration-result');
+    const migrationScopePanel = document.getElementById('migration-scope-panel');
+
+    const migrationLabelMap = {
+        tasks: '任务配置',
+        results: '监控结果',
+        bayes_profiles: '贝叶斯模型',
+        bayes_samples: '贝叶斯样本',
+        ai_criteria: 'AI标准',
+        platform_accounts: '平台账号'
+    };
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+    const renderMigrationScope = (scope) => {
+        if (!migrationScopePanel) return;
+        const policyNotice = (scope?.policy_notice || '').toString().trim();
+        const willMigrate = Array.isArray(scope?.will_migrate) ? scope.will_migrate : [];
+        const sharedBaseAssets = Array.isArray(scope?.shared_base_assets) ? scope.shared_base_assets : [];
+        const willNotMigrate = Array.isArray(scope?.will_not_migrate) ? scope.will_not_migrate : [];
+
+        if (!policyNotice && !willMigrate.length && !sharedBaseAssets.length && !willNotMigrate.length) {
+            migrationScopePanel.innerHTML = '<span style="color:#ff4d4f;">未获取到迁移范围说明。</span>';
+            return;
+        }
+
+        const policyHtml = policyNotice
+            ? `<div style="padding: 8px 10px; border-radius: 6px; background: #fffbe6; border: 1px solid #ffe58f; color: #8c6d1f;">${escapeHtml(policyNotice)}</div>`
+            : '';
+
+        const willMigrateHtml = willMigrate.map((item) => (
+            `<li style="margin: 4px 0;">
+                <strong>${escapeHtml(item.label || item.key)}</strong>
+                <span style="color: var(--text-secondary, #666);">：${escapeHtml(item.description || '')}</span>
+            </li>`
+        )).join('');
+
+        const sharedBaseAssetsHtml = sharedBaseAssets.map((item) => (
+            `<li style="margin: 4px 0;">
+                <strong>${escapeHtml(item.label || item.key)}</strong>
+                <span style="color: var(--text-secondary, #666);">：${escapeHtml(item.description || '')}</span>
+            </li>`
+        )).join('');
+
+        const willNotMigrateHtml = willNotMigrate.map((item) => (
+            `<li style="margin: 4px 0;">
+                <strong>${escapeHtml(item.label || item.key)}</strong>
+                <span style="color: var(--text-secondary, #666);">：${escapeHtml(item.reason || '')}</span>
+            </li>`
+        )).join('');
+
+        migrationScopePanel.innerHTML = `
+            <div style="display: grid; gap: 10px;">
+                ${policyHtml}
+                <div>
+                    <div style="font-weight: 600; color: #52c41a; margin-bottom: 6px;">会迁移</div>
+                    <ul style="margin: 0; padding-left: 20px;">${willMigrateHtml}</ul>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #1677ff; margin-bottom: 6px;">系统级基础资源</div>
+                    <ul style="margin: 0; padding-left: 20px;">${sharedBaseAssetsHtml}</ul>
+                </div>
+                <div>
+                    <div style="font-weight: 600; color: #fa8c16; margin-bottom: 6px;">不会迁移</div>
+                    <ul style="margin: 0; padding-left: 20px;">${willNotMigrateHtml}</ul>
+                </div>
+            </div>
+        `;
+    };
+
+    const loadMigrationScope = async () => {
+        if (!migrationScopePanel) return;
+        migrationScopePanel.innerHTML = '正在加载迁移范围说明...';
+        try {
+            const response = await fetch('/api/settings/database/migration-scope');
+            const result = await response.json();
+            if (response.ok && result.success) {
+                renderMigrationScope(result.scope || {});
+            } else {
+                migrationScopePanel.innerHTML = `<span style="color:#ff4d4f;">迁移范围加载失败：${escapeHtml(result.detail || result.message || '未知错误')}</span>`;
+            }
+        } catch (error) {
+            migrationScopePanel.innerHTML = `<span style="color:#ff4d4f;">迁移范围加载失败：${escapeHtml(error.message)}</span>`;
+        }
+    };
+
+    const runMigration = async (dryRun) => {
+        const btn = dryRun ? dryRunBtn : runMigrationBtn;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        dryRunBtn.disabled = true;
+        runMigrationBtn.disabled = true;
+        btn.textContent = '迁移中...';
+        migrationResultDiv.innerHTML = '<p style="color: var(--text-secondary);">正在执行迁移，请稍候...</p>';
+
+        try {
+            const response = await fetch('/api/settings/database/migrate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dry_run: dryRun, auto_enable_mode: !dryRun })
+            });
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                const stats = result.stats || {};
+                const modeText = dryRun ? '测试迁移' : '正式迁移';
+                const aiProxyMigration = result.ai_proxy_migration && typeof result.ai_proxy_migration === 'object'
+                    ? result.ai_proxy_migration
+                    : null;
+                let html = `<div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-top: 8px;">
+                    <p style="color: #52c41a; margin-bottom: 8px;"><strong>✅ ${modeText}完成</strong></p>`;
+
+                renderMigrationScope(result.scope || {});
+
+                for (const [category, counts] of Object.entries(stats)) {
+                    const migrated = counts.migrated || 0;
+                    const errors = counts.errors || 0;
+                    const statusIcon = errors > 0 ? '⚠️' : '✅';
+                    const categoryLabel = migrationLabelMap[category] || category;
+                    html += `<p style="margin: 4px 0;">${statusIcon} ${categoryLabel}: ${migrated} 条迁移${dryRun ? '(模拟)' : '成功'}${errors > 0 ? `, ${errors} 条错误` : ''}</p>`;
+                }
+                if (!dryRun && result.mode_switch_message) {
+                    const switchColor = result.mode_switched ? '#52c41a' : '#faad14';
+                    html += `<p style="margin: 8px 0 0; color: ${switchColor};">${result.mode_switch_message}</p>`;
+                }
+                if (!dryRun && aiProxyMigration && aiProxyMigration.enabled) {
+                    const aiProxySuccess = Boolean(aiProxyMigration.success);
+                    const aiProxyColor = aiProxySuccess ? '#52c41a' : '#faad14';
+                    const aiProxyIcon = aiProxySuccess ? '✅' : '⚠️';
+                    const aiProxyMessage = escapeHtml(aiProxyMigration.message || (aiProxySuccess ? 'AI/代理配置迁移成功。' : 'AI/代理配置迁移未完成。'));
+                    html += `<p style="margin: 8px 0 0; color: ${aiProxyColor};">${aiProxyIcon} ${aiProxyMessage}</p>`;
+                }
+                html += '</div>';
+                migrationResultDiv.innerHTML = html;
+                Notification.success(result.message || `${modeText}完成！`);
+            } else {
+                migrationResultDiv.innerHTML = `<p style="color: #ff4d4f;">❌ 迁移失败: ${result.detail || result.message || '未知错误'}</p>`;
+                Notification.error(result.detail || result.message || '迁移失败，请检查日志后重试');
+            }
+        } catch (error) {
+            migrationResultDiv.innerHTML = `<p style="color: #ff4d4f;">❌ 迁移失败: ${error.message}</p>`;
+            Notification.error(`迁移失败: ${error.message}`);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+            dryRunBtn.disabled = false;
+            runMigrationBtn.disabled = false;
+        }
+    };
+
+    if (dryRunBtn) {
+        dryRunBtn.addEventListener('click', () => runMigration(true));
+    }
+
+    if (runMigrationBtn) {
+        runMigrationBtn.addEventListener('click', async () => {
+            const confirmResult = await Notification.confirm('确定要执行正式迁移吗？建议先执行测试迁移确认无误后再正式迁移。');
+            if (confirmResult.isConfirmed) {
+                await runMigration(false);
+            }
+        });
+    }
+
+    loadMigrationScope();
 }
