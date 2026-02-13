@@ -363,6 +363,41 @@ def _save_account_state(state_file_path: str, state_data: dict) -> bool:
         print(f"LOG: 写入账号状态文件失败: {e}")
         return False
 
+
+def _parse_storage_cookies(raw_cookies: Any) -> list:
+    """解析存储层返回的 cookies，兼容 list/JSON字符串/dict 三种结构。"""
+    if raw_cookies is None:
+        return []
+    if isinstance(raw_cookies, list):
+        return raw_cookies
+    if isinstance(raw_cookies, str):
+        try:
+            loaded = json.loads(raw_cookies)
+            if isinstance(loaded, list):
+                return loaded
+            if isinstance(loaded, dict):
+                value = loaded.get("cookies", [])
+                return value if isinstance(value, list) else []
+        except Exception:
+            return []
+    if isinstance(raw_cookies, dict):
+        value = raw_cookies.get("cookies", [])
+        return value if isinstance(value, list) else []
+    return []
+
+
+def _is_cookie_valid_for_task(cookies: list, current_time: float) -> bool:
+    """按采集任务口径判断 Cookie 是否可用。"""
+    if not cookies:
+        return False
+    required_cookies = {"_m_h5_tk", "cookie2", "sgcookie"}
+    for cookie in cookies:
+        if cookie.get("name") in required_cookies:
+            expires = cookie.get("expires", 0)
+            if expires and expires > 0 and expires < current_time:
+                return False
+    return True
+
 async def refresh_account_cookies(context, state_file_path: str, last_fingerprint: Optional[str],
                                   account_name: Optional[str], task_name: Optional[str]) -> Optional[str]:
     """每处理一个商品尝试刷新Cookie，仅在发生变化时落盘。"""
@@ -597,8 +632,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     Args:
         task_config: 任务配置
         debug_limit: 调试模式下的商品处理限制
-        bound_account: 绑定的账号名，如果指定则从 state/{bound_account}.json 加载
+    bound_account: 绑定的账号名，如果指定则从 state/{bound_account}.json 加载
     """
+    owner_id = (os.getenv("GOOFISH_OWNER_ID") or "").strip() or None
     keyword = task_config['keyword']
     task_name = task_config.get('task_name', keyword)
     max_pages = task_config.get('max_pages', 1)
@@ -663,56 +699,137 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
             else:
                 browser = await p.chromium.launch(headless=RUN_HEADLESS(), channel="chrome", args=launch_args)
 
-        # 确定要使用的state文件路径
-        # 确定要使用的state文件路径
+        # 确定要使用的账号快照（多用户模式优先走存储层，本地模式走 state 文件）
+        state_file_path: Optional[str] = None
+        snapshot_data = None
         current_account_name = None
-        if bound_account:
+        current_time = datetime.now().timestamp()
+        owner_storage = None
+
+        if owner_id:
+            try:
+                from src.storage import get_storage
+                owner_storage = get_storage()
+            except Exception as e:
+                print(f"LOG: 初始化存储层失败，将回退本地 state 文件: {e}")
+
+        if owner_id and owner_storage is not None:
+            try:
+                storage_accounts = owner_storage.get_user_platform_accounts(owner_id) or []
+            except Exception as e:
+                print(f"LOG: 读取用户账号失败，将回退本地 state 文件: {e}")
+                storage_accounts = []
+
+            if bound_account:
+                selected_account_data = next(
+                    (acc for acc in storage_accounts if str(acc.get("id")) == str(bound_account)),
+                    None
+                )
+                if selected_account_data is None:
+                    print("\n==================== 绑定账号不存在 ====================")
+                    print(f"未找到绑定账号 '{bound_account}'，任务无法执行。")
+                    print("====================================================")
+                    await browser.close()
+                    return 0, 0, f"NO_ACCOUNT:绑定账号不存在({bound_account})"
+
+                selected_cookies = _parse_storage_cookies(selected_account_data.get("cookies"))
+                if not _is_cookie_valid_for_task(selected_cookies, current_time):
+                    print("\n==================== 绑定账号Cookie无效 ====================")
+                    print(f"绑定账号 '{bound_account}' 的Cookie已过期或缺失，任务无法执行。")
+                    print("请在账号管理页面更新Cookie后重试。")
+                    print("========================================================")
+                    await browser.close()
+                    return 0, 0, f"NO_VALID_COOKIE:绑定账号Cookie无效({bound_account})"
+
+                snapshot_data = {"cookies": _filter_cookies_for_state(selected_cookies)}
+                current_account_name = str(
+                    selected_account_data.get("display_name")
+                    or selected_account_data.get("id")
+                    or bound_account
+                )
+                print(f"LOG: 使用绑定账号 '{current_account_name}' 的数据库快照")
+
+                try:
+                    selected_account_data["last_used_at"] = datetime.now().isoformat()
+                    owner_storage.save_user_platform_account(owner_id, selected_account_data)
+                except Exception as e:
+                    print(f"LOG: 更新绑定账号使用时间失败: {e}")
+            else:
+                available_accounts = []
+                valid_accounts = []
+                for account_data in storage_accounts:
+                    account_id = str(account_data.get("id") or "").strip()
+                    if not account_id:
+                        continue
+                    available_accounts.append(account_data)
+                    cookies = _parse_storage_cookies(account_data.get("cookies"))
+                    if _is_cookie_valid_for_task(cookies, current_time):
+                        valid_accounts.append(account_data)
+
+                if valid_accounts:
+                    selected_account_data = random.choice(valid_accounts)
+                    selected_cookies = _parse_storage_cookies(selected_account_data.get("cookies"))
+                    snapshot_data = {"cookies": _filter_cookies_for_state(selected_cookies)}
+                    current_account_name = str(
+                        selected_account_data.get("display_name")
+                        or selected_account_data.get("id")
+                        or "unknown_account"
+                    )
+                    print(f"LOG: 随机选择有效数据库账号 '{current_account_name}'")
+                    try:
+                        selected_account_data["last_used_at"] = datetime.now().isoformat()
+                        owner_storage.save_user_platform_account(owner_id, selected_account_data)
+                    except Exception as e:
+                        print(f"LOG: 更新数据库账号使用时间失败: {e}")
+                elif available_accounts:
+                    print("\n==================== 无有效Cookie ====================")
+                    print("所有账号的Cookie均已过期，任务无法执行。")
+                    print("请在账号管理页面更新Cookie后重试。")
+                    print("==================================================")
+                    await browser.close()
+                    return 0, 0, "NO_VALID_COOKIE:所有账号Cookie已过期"
+                else:
+                    print("\n==================== 无可用账号 ====================")
+                    print("未找到任何可用账号，任务无法执行。")
+                    print("请在账号管理页面添加账号后重试。")
+                    print("==================================================")
+                    await browser.close()
+                    return 0, 0, "NO_ACCOUNT:无可用账号"
+        elif bound_account:
             state_file_path = os.path.join("state", f"{bound_account}.json")
             current_account_name = bound_account
             print(f"LOG: 使用绑定账号 '{bound_account}' 的状态文件: {state_file_path}")
         else:
-            # 默认随机选择一个有效账号
+            # 本地模式默认随机选择一个有效账号
             state_dir = "state"
             available_accounts = []
             valid_accounts = []
-            current_time = datetime.now().timestamp()
-            
+
             if os.path.exists(state_dir):
                 for filename in os.listdir(state_dir):
                     if filename.endswith(".json") and not filename.startswith("_"):
                         account_name = filename[:-5]
                         account_file = os.path.join(state_dir, filename)
                         available_accounts.append(account_name)
-                        
+
                         # 检查账号Cookie是否有效
                         try:
                             with open(account_file, "r", encoding="utf-8") as f:
                                 account_data = json.load(f)
-                            
+
                             cookies = account_data.get("cookies", [])
-                            is_valid = True
-                            
-                            # 检查关键Cookie是否过期
-                            required_cookies = ["_m_h5_tk", "cookie2", "sgcookie"]
-                            for cookie in cookies:
-                                if cookie.get("name") in required_cookies:
-                                    expires = cookie.get("expires", 0)
-                                    if expires > 0 and expires < current_time:
-                                        is_valid = False
-                                        break
-                            
-                            if is_valid and cookies:
+                            if _is_cookie_valid_for_task(cookies, current_time):
                                 valid_accounts.append(account_name)
                         except Exception as e:
                             print(f"LOG: 检查账号 {account_name} 有效性时出错: {e}")
-            
+
             # 优先选择有效账号
             if valid_accounts:
                 selected_account = random.choice(valid_accounts)
                 state_file_path = os.path.join("state", f"{selected_account}.json")
                 current_account_name = selected_account
                 print(f"LOG: 随机选择有效账号 '{selected_account}': {state_file_path}")
-                
+
                 # 更新账号最后使用时间
                 try:
                     with open(state_file_path, "r", encoding="utf-8") as f:
@@ -722,14 +839,14 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                         json.dump(account_data, f, indent=2, ensure_ascii=False)
                 except Exception as e:
                     print(f"LOG: 更新账号使用时间失败: {e}")
-                    
+
             elif available_accounts:
                 # 没有有效账号但有账号存在
                 print("\n==================== 无有效Cookie ====================")
                 print("所有账号的Cookie均已过期，任务无法执行。")
                 print("请在账号管理页面更新Cookie后重试。")
                 print("==================================================")
-                
+
                 await browser.close()
                 return 0, 0, "NO_VALID_COOKIE:所有账号Cookie已过期"
             else:
@@ -738,23 +855,22 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 print("未找到任何可用账号，任务无法执行。")
                 print("请在账号管理页面添加账号后重试。")
                 print("==================================================")
-                
+
                 await browser.close()
                 return 0, 0, "NO_ACCOUNT:无可用账号"
 
-        snapshot_data = None
         cookie_fingerprint = None
         try:
-            if os.path.exists(state_file_path):
+            if snapshot_data is None and state_file_path and os.path.exists(state_file_path):
                 with open(state_file_path, "r", encoding="utf-8") as f:
                     snapshot_data = json.load(f)
-            else:
+            elif snapshot_data is None and state_file_path:
                 print(f"警告：登录状态文件不存在: {state_file_path}")
         except Exception as e:
             print(f"警告：读取登录状态文件失败，将使用默认配置: {e}")
 
         context_kwargs = _default_context_options()
-        storage_state_arg = state_file_path
+        storage_state_arg = state_file_path if state_file_path else {"cookies": []}
 
         if isinstance(snapshot_data, dict):
             snapshot_cookies = _filter_cookies_for_state(snapshot_data.get("cookies", []))
@@ -764,7 +880,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
             use_snapshot_env = _should_use_snapshot_env(snapshot_data)
             # 新版扩展导出的增强快照，包含环境和Header
             if any(key in snapshot_data for key in ("env", "headers", "page", "storage")):
-                print(f"检测到增强浏览器快照，应用环境参数: {state_file_path}")
+                snapshot_source = state_file_path if state_file_path else "storage_account"
+                print(f"检测到增强浏览器快照，应用环境参数: {snapshot_source}")
                 storage_state_arg = {"cookies": snapshot_cookies}
                 context_kwargs.update(_build_mobile_first_context_overrides(snapshot_data, use_snapshot_env))
                 extra_headers = _build_extra_headers(snapshot_data.get("headers"))
@@ -1214,10 +1331,16 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 "卖家信息": user_profile_data
                             }
 
+                            # 当前任务使用的Bayes版本，供预计算与推荐度融合统一使用
+                            bayes_profile = task_config.get("bayes_profile", "bayes_v1")
+
                             # Bayes先验预计算，供后续AI分析使用（失败不影响主流程）
                             try:
-                                bayes_profile = task_config.get("bayes_profile", "bayes_v1")
-                                bayes_precalc = build_bayes_precalc(final_record, bayes_profile)
+                                bayes_precalc = build_bayes_precalc(
+                                    final_record,
+                                    bayes_profile,
+                                    owner_id=owner_id,
+                                )
                                 if bayes_precalc:
                                     final_record["ml_precalc"] = {"bayes": bayes_precalc}
                             except Exception as e:
@@ -1234,7 +1357,13 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 
                                 # 直接发送通知，将所有商品标记为推荐
                                 log_time("商品已跳过AI分析，准备发送通知...", task_name=task_name)
-                                await send_all_notifications(item_data, "商品已跳过AI分析，直接通知")
+                                await send_all_notifications(
+                                    item_data,
+                                    "商品已跳过AI分析，直接通知",
+                                    owner_id=owner_id,
+                                    bound_task=task_name,
+                                    bound_account=bound_account,
+                                )
                             else:
                                 log_time(f"开始对商品 #{item_data['商品ID']} 进行实时AI分析...", task_name=task_name)
                                 
@@ -1246,7 +1375,13 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 if ai_prompt_text:
                                     try:
                                         # 注意：这里我们将整个记录传给AI，让它拥有最全的上下文
-                                        ai_analysis_result = await get_ai_analysis(final_record, downloaded_image_paths, prompt_text=ai_prompt_text)
+                                        ai_analysis_result = await get_ai_analysis(
+                                            final_record,
+                                            downloaded_image_paths,
+                                            prompt_text=ai_prompt_text,
+                                            owner_id=owner_id,
+                                            bayes_profile=bayes_profile,
+                                        )
                                         if ai_analysis_result:
                                             final_record['ai_analysis'] = ai_analysis_result
                                             level = ai_analysis_result.get("recommendation_level", "未知")
@@ -1274,7 +1409,15 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                                 print(f"   [图片] 删除图片文件时出错: {ex}")
                                         # 发送任务终止通知
                                         from src.notifier import notifier
-                                        await notifier.send_task_completion_notification(task_name, f"AI调用失败-结束原因：{e}", processed_item_count, recommended_item_count)
+                                        await notifier.send_task_completion_notification(
+                                            task_name,
+                                            f"AI调用失败-结束原因：{e}",
+                                            processed_item_count,
+                                            recommended_item_count,
+                                            owner_id=owner_id,
+                                            bound_task=task_name,
+                                            bound_account=bound_account,
+                                        )
                                         # 停止任务
                                         stop_scraping = True
                                         end_reason = f"AI_CALL_FAILURE:{e}"
@@ -1302,7 +1445,13 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                     # 创建item_data的副本并将ai_analysis添加到其中
                                     item_data_with_analysis = item_data.copy()
                                     item_data_with_analysis['ai_analysis'] = ai_analysis_result
-                                    await send_all_notifications(item_data_with_analysis, ai_analysis_result.get("reason", "无"))
+                                    await send_all_notifications(
+                                        item_data_with_analysis,
+                                        ai_analysis_result.get("reason", "无"),
+                                        owner_id=owner_id,
+                                        bound_task=task_name,
+                                        bound_account=bound_account,
+                                    )
                             # --- END: 实时AI分析和通知 ---
 
                             # 4. 保存包含AI结果的完整记录
