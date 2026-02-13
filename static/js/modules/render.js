@@ -1,38 +1,198 @@
-// --- 渲染函数 ---
+﻿// --- 渲染函数 ---
 function renderLoginStatusWidget(status) {
     const container = document.getElementById('login-status-widget-container');
     if (!container) return;
 
-    const loginState = status.login_state_file;
-    const hasCookie = loginState && loginState.exists;
+    const renderStorageRuntimeSummary = () => {
+        const storageRuntime = status?.storage_runtime || {};
+        const database = storageRuntime?.database || {};
+        if (!storageRuntime || Object.keys(storageRuntime).length === 0) {
+            return '';
+        }
 
-    // 固定按钮样式，无论登录状态如何都显示相同的按钮
-    const content = `
+        const configuredLabel = escapeHtmlWidget(storageRuntime.configured_backend_label || '未知');
+        const runtimeLabel = escapeHtmlWidget(storageRuntime.runtime_backend_label || '未知');
+        const isConsistent = storageRuntime.mode_consistent !== false;
+        const modeColor = isConsistent ? '#52c41a' : '#faad14';
+        const modeText = isConsistent ? '一致' : '不一致';
+
+        const dbLevel = database.level || 'info';
+        const dbColor = dbLevel === 'ok'
+            ? '#52c41a'
+            : (dbLevel === 'error' ? '#ff4d4f' : (dbLevel === 'warning' ? '#faad14' : '#1890ff'));
+        const dbLabel = escapeHtmlWidget(database.label || '数据库状态未知');
+        const dbMessage = escapeHtmlWidget(database.message || '');
+
+        return `
+            <div style="padding: 10px 15px; border-bottom: 1px solid #f0f0f0; background: #fafcff;">
+                <div style="color: #8c8c8c; font-size: 12px; margin-bottom: 6px;">系统存储状态</div>
+                <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px;">
+                    <span style="color: #595959;">配置模式</span>
+                    <span style="color: #262626;">${configuredLabel}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px;">
+                    <span style="color: #595959;">运行模式</span>
+                    <span style="color: #262626;">${runtimeLabel}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px;">
+                    <span style="color: #595959;">模式一致性</span>
+                    <span style="color: ${modeColor}; font-weight: 600;">${modeText}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px;">
+                    <span style="color: #595959;">数据库连接</span>
+                    <span style="color: ${dbColor}; font-weight: 600;">${dbLabel}</span>
+                </div>
+                ${dbMessage ? `<div style="font-size: 12px; color: #8c8c8c; margin-top: 4px; line-height: 1.4;">${dbMessage}</div>` : ''}
+            </div>
+        `;
+    };
+
+    // 获取当前用户信息
+    fetchMyProfileForWidget().then(profile => {
+        const username = profile?.username || '用户';
+        const userRole = profile?.role || 'viewer';
+        const avatarUrl = profile?.avatar_url || null;
+
+        // 角色标签
+        const roleLabels = {
+            'super_admin': '超级管理员',
+            'admin': '管理员',
+            'operator': '操作员',
+            'viewer': '查看者'
+        };
+        const roleLabel = roleLabels[userRole] || '用户';
+
+        // 生成头像
+        const initial = (username || 'U')[0].toUpperCase();
+        const avatarColors = ['#1890ff', '#52c41a', '#faad14', '#eb2f96', '#722ed1', '#13c2c2'];
+        const colorIndex = username.charCodeAt(0) % avatarColors.length;
+        const avatarColor = avatarColors[colorIndex];
+
+        const avatarHtml = avatarUrl
+            ? `<img src="${avatarUrl}" alt="${escapeHtmlWidget(username)}" style="width: 56px; height: 56px; border-radius: 8px; object-fit: cover; border: 2px solid #e8e8e8;">`
+            : `<div style="width: 56px; height: 56px; border-radius: 8px; background: ${avatarColor}; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: 600; border: 2px solid #e8e8e8;">${initial}</div>`;
+
+        // 固定按钮样式，显示头像
+        const content = `
             <div class="login-status-widget">
                 <div class="login-dropdown-container" style="position: relative; display: inline-block;">
-                    <button class="login-status-btn control-button primary-btn" 
-                        style="background-color: #1890ff; border: 1px solid #1890ff; color: white; padding: 8px 16px;">
-                        👤 账号
+                    <button class="login-status-btn" style="background: none; border: none; cursor: pointer; padding: 4px;">
+                        ${avatarUrl
+                ? `<img src="${avatarUrl}" alt="${escapeHtmlWidget(username)}" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">`
+                : `<div style="width: 36px; height: 36px; border-radius: 50%; background: ${avatarColor}; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: 600;">${initial}</div>`
+            }
                     </button>
-                    <div class="login-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; min-width: 150px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; margin-top: 5px; overflow: hidden;">
-                        <a href="#accounts" class="login-menu-item" style="display: block; padding: 12px 15px; color: #333; text-decoration: none; font-size: 14px;">
-                            ➕ 添加闲鱼账号
-                        </a>
-                        <a href="/logout" class="login-menu-item" style="display: block; padding: 12px 15px; color: #333; text-decoration: none; font-size: 14px;">
-                            🚪 退出登录
-                        </a>
+                    <div class="login-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; width: 260px; background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 1000; margin-top: 8px; overflow: hidden;">
+                        <!-- 用户信息头部 -->
+                        <div style="display: flex; align-items: center; gap: 14px; padding: 20px; border-bottom: 1px solid #f0f0f0;">
+                            ${avatarHtml}
+                            <div>
+                                <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 4px;">${roleLabel}</div>
+                                <div style="font-size: 16px; font-weight: 600; color: #1a1a1a;">${escapeHtmlWidget(username)}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 菜单项 -->
+                        <div style="padding: 8px 0;">
+                            <a href="#profile" class="login-menu-item" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; color: #333; text-decoration: none; font-size: 14px; transition: background 0.2s;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                个人信息
+                            </a>
+                            <a href="#settings" class="login-menu-item" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; color: #333; text-decoration: none; font-size: 14px; transition: background 0.2s;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                系统设定
+                            </a>
+                            <a href="#accounts" class="login-menu-item" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; color: #333; text-decoration: none; font-size: 14px; transition: background 0.2s;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                                闲鱼账号
+                            </a>
+                            <a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" target="_blank" rel="noopener noreferrer" class="login-menu-item" data-default-bg="#f5f5f5" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; margin: 6px 12px 0; background: #f5f5f5; border-radius: 10px; color: #333; text-decoration: none; font-size: 14px; transition: background 0.2s;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.22c0 4.5 2.87 8.32 6.84 9.67.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.73-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.58 2.36 1.12 2.94.85.09-.67.35-1.12.64-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05A9.32 9.32 0 0 1 12 6.95c.85 0 1.71.12 2.51.36 1.9-1.32 2.74-1.05 2.74-1.05.55 1.41.2 2.45.1 2.71.64.72 1.02 1.64 1.02 2.76 0 3.93-2.34 4.8-4.57 5.06.36.31.68.93.68 1.87 0 1.35-.01 2.44-.01 2.77 0 .27.18.59.69.49A10.24 10.24 0 0 0 22 12.22C22 6.58 17.52 2 12 2z"></path></svg>
+                                关于项目
+                            </a>
+                        </div>
+                        
+                        <!-- 退出登录按钮 -->
+                        <div style="padding: 12px 16px; border-top: 1px solid #f0f0f0;">
+                            <a href="/logout" class="login-logout-btn" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%); color: white; text-decoration: none; font-size: 14px; font-weight: 500; border-radius: 8px; transition: all 0.2s;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                                退出登录
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
 
-    container.innerHTML = content;
+        container.innerHTML = content;
+        setupLoginWidgetDropdown(container);
+    }).catch(() => {
+        // 兜底：如果获取用户信息失败，显示默认
+        const content = `
+            <div class="login-status-widget">
+                <div class="login-dropdown-container" style="position: relative; display: inline-block;">
+                    <button class="login-status-btn" style="background: none; border: none; cursor: pointer; padding: 4px;">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: #1890ff; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: 600;">U</div>
+                    </button>
+                    <div class="login-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; width: 260px; background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 1000; margin-top: 8px; overflow: hidden;">
+                        <!-- 用户信息头部 -->
+                        <div style="display: flex; align-items: center; gap: 14px; padding: 20px; border-bottom: 1px solid #f0f0f0;">
+                            <div style="width: 56px; height: 56px; border-radius: 8px; background: #1890ff; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: 600; border: 2px solid #e8e8e8;">U</div>
+                            <div>
+                                <div style="font-size: 12px; color: #8c8c8c; margin-bottom: 4px;">用户</div>
+                                <div style="font-size: 16px; font-weight: 600; color: #1a1a1a;">账号</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 菜单项 -->
+                        <div style="padding: 8px 0;">
+                            <a href="#profile" class="login-menu-item" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; color: #333; text-decoration: none; font-size: 14px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                个人信息
+                            </a>
+                            <a href="#settings" class="login-menu-item" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; color: #333; text-decoration: none; font-size: 14px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                系统设定
+                            </a>
+                            <a href="#accounts" class="login-menu-item" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; color: #333; text-decoration: none; font-size: 14px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                                闲鱼账号
+                            </a>
+                            <a href="https://github.com/banbanzhige/ai-goofish-monitor-QB" target="_blank" rel="noopener noreferrer" class="login-menu-item" data-default-bg="#f5f5f5" style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; margin: 6px 12px 0; background: #f5f5f5; border-radius: 10px; color: #333; text-decoration: none; font-size: 14px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.22c0 4.5 2.87 8.32 6.84 9.67.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.73-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.58 2.36 1.12 2.94.85.09-.67.35-1.12.64-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05A9.32 9.32 0 0 1 12 6.95c.85 0 1.71.12 2.51.36 1.9-1.32 2.74-1.05 2.74-1.05.55 1.41.2 2.45.1 2.71.64.72 1.02 1.64 1.02 2.76 0 3.93-2.34 4.8-4.57 5.06.36.31.68.93.68 1.87 0 1.35-.01 2.44-.01 2.77 0 .27.18.59.69.49A10.24 10.24 0 0 0 22 12.22C22 6.58 17.52 2 12 2z"></path></svg>
+                                关于项目
+                            </a>
+                        </div>
+                        
+                        <!-- 退出登录按钮 -->
+                        <div style="padding: 12px 16px; border-top: 1px solid #f0f0f0;">
+                            <a href="/logout" class="login-logout-btn" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%); color: white; text-decoration: none; font-size: 14px; font-weight: 500; border-radius: 8px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                                退出登录
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
 
-    // 下拉菜单交互
+        container.innerHTML = content;
+        setupLoginWidgetDropdown(container);
+    });
+}
+
+// 辅助函数：设置下拉菜单交互
+function setupLoginWidgetDropdown(container) {
     const dropdownBtn = container.querySelector('.login-status-btn');
     const dropdownMenu = container.querySelector('.login-dropdown-menu');
 
     if (dropdownBtn && dropdownMenu) {
+        const accountsLink = dropdownMenu.querySelector('.login-menu-item[href="#accounts"]');
+        const settingsLink = dropdownMenu.querySelector('.login-menu-item[href="#settings"]');
+        if (accountsLink && settingsLink && accountsLink.nextElementSibling !== settingsLink) {
+            accountsLink.insertAdjacentElement('afterend', settingsLink);
+        }
+
         dropdownBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             const isVisible = dropdownMenu.style.display === 'block';
@@ -47,138 +207,86 @@ function renderLoginStatusWidget(status) {
         // 菜单项hover效果
         dropdownMenu.querySelectorAll('.login-menu-item').forEach(item => {
             item.addEventListener('mouseenter', () => {
-                if (!item.classList.contains('delete-item')) {
-                    item.style.backgroundColor = '#f5f5f5';
-                } else {
-                    item.style.backgroundColor = '#fff2f0';
-                }
+                const defaultBg = item.dataset.defaultBg || 'transparent';
+                item.style.backgroundColor = defaultBg === 'transparent' ? '#f5f5f5' : '#ebebeb';
             });
             item.addEventListener('mouseleave', () => {
-                item.style.backgroundColor = 'transparent';
+                item.style.backgroundColor = item.dataset.defaultBg || 'transparent';
             });
         });
+
+        // 退出登录按钮hover效果
+        const logoutBtn = dropdownMenu.querySelector('.login-logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('mouseenter', () => {
+                logoutBtn.style.background = 'linear-gradient(135deg, #ff4d4d 0%, #e63939 100%)';
+                logoutBtn.style.transform = 'scale(1.02)';
+            });
+            logoutBtn.addEventListener('mouseleave', () => {
+                logoutBtn.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)';
+                logoutBtn.style.transform = 'scale(1)';
+            });
+        }
     }
+}
 
-    // 自动获取/更新Cookie按钮事件
-    const autoGetBtn = container.querySelector('#auto-get-cookie-btn') || container.querySelector('#auto-update-cookie-btn');
-    if (autoGetBtn) {
-        autoGetBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            dropdownMenu.style.display = 'none';
-
-            // 显示自动登录确认模态框
-            const confirmModal = document.getElementById('manual-login-confirm-modal');
-            if (!confirmModal) return;
-
-            confirmModal.style.display = 'flex';
-            setTimeout(() => confirmModal.classList.add('visible'), 10);
-
-            const confirmBtn = document.getElementById('confirm-manual-login-confirm-btn');
-            const cancelBtn = document.getElementById('cancel-manual-login-confirm-btn');
-            const closeBtn = document.getElementById('close-manual-login-confirm-modal');
-
-            const closeModal = () => {
-                confirmModal.classList.remove('visible');
-                setTimeout(() => { confirmModal.style.display = 'none'; }, 300);
-            };
-
-            const handleConfirmation = async () => {
-                try {
-                    const response = await fetch('/api/manual-login', { method: 'POST' });
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        Notification.error('启动失败: ' + (errorData.detail || '未知错误'));
-                    } else {
-                        // 轮询检查登录状态
-                        const pollInterval = 2000;
-                        const pollTimeout = 300000;
-                        let pollAttempts = 0;
-                        const maxAttempts = pollTimeout / pollInterval;
-
-                        const intervalId = setInterval(async () => {
-                            pollAttempts++;
-                            try {
-                                const status = await fetchSystemStatus();
-                                if (status && status.login_state_file && status.login_state_file.exists) {
-                                    await refreshLoginStatusWidget();
-                                    clearInterval(intervalId);
-                                    return;
-                                }
-                            } catch (error) {
-                                console.error('轮询检查登录状态时出错:', error);
-                            }
-                            if (pollAttempts >= maxAttempts) {
-                                console.log('轮询检查登录状态超时');
-                                clearInterval(intervalId);
-                            }
-                        }, pollInterval);
-                    }
-                } catch (error) {
-                    Notification.error('启动失败: ' + error.message);
-                } finally {
-                    closeModal();
-                }
-            };
-
-            if (!confirmBtn.dataset.bound) {
-                confirmBtn.dataset.bound = '1';
-                confirmBtn.addEventListener('click', handleConfirmation);
+// 辅助函数：获取当前用户信息（用于小部件）
+async function fetchMyProfileForWidget() {
+    try {
+        const response = await fetch('/api/users/me');
+        if (!response.ok) return null;
+        const profile = await response.json();
+        if (!profile) return null;
+        if (!profile.avatar_url) {
+            const avatarInfo = await fetchMyAvatarForWidget();
+            if (avatarInfo && avatarInfo.avatar_url) {
+                profile.avatar_url = avatarInfo.avatar_url;
             }
-            if (!cancelBtn.dataset.bound) {
-                cancelBtn.dataset.bound = '1';
-                cancelBtn.addEventListener('click', closeModal);
-            }
-            if (!closeBtn.dataset.bound) {
-                closeBtn.dataset.bound = '1';
-                closeBtn.addEventListener('click', closeModal);
-            }
-            if (!confirmModal.dataset.overlayBound) {
-                confirmModal.dataset.overlayBound = '1';
-                confirmModal.addEventListener('click', (e) => {
-                    if (e.target === confirmModal) closeModal();
-                });
-            }
-        });
+        }
+        if (profile.avatar_url) {
+            profile.avatar_url = appendAvatarCacheBust(profile.avatar_url);
+        }
+        return profile;
+    } catch (error) {
+        return null;
     }
+}
 
-    // 手动输入Cookie按钮事件
-    const manualInputBtn = container.querySelector('#manual-input-cookie-btn') || container.querySelector('#manual-update-cookie-btn');
-    if (manualInputBtn) {
-        manualInputBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            dropdownMenu.style.display = 'none';
-            // 跳转到系统设置页面（或显示Cookie输入模态框）
-            const settingsLink = document.querySelector('.nav-link[data-section="settings"]');
-            if (settingsLink) settingsLink.click();
-        });
+async function fetchMyAvatarForWidget() {
+    try {
+        const response = await fetch('/api/users/me/avatar');
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        return null;
     }
+}
 
-    // 删除Cookie按钮事件
-    const deleteCookieBtn = container.querySelector('#delete-cookie-btn');
-    if (deleteCookieBtn) {
-        deleteCookieBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            dropdownMenu.style.display = 'none';
+function appendAvatarCacheBust(url) {
+    const avatarUrl = String(url || '').trim();
+    if (!avatarUrl) return avatarUrl;
+    const joiner = avatarUrl.includes('?') ? '&' : '?';
+    return `${avatarUrl}${joiner}t=${Date.now()}`;
+}
 
-            const result = await Notification.confirmDelete('确定要删除当前 Cookie 吗？', '确认删除');
-            if (result.isConfirmed) {
-                try {
-                    const response = await fetch('/api/login-state', { method: 'DELETE' });
-                    if (response.ok) {
-                        await refreshLoginStatusWidget();
-                    } else {
-                        Notification.error('删除失败');
-                    }
-                } catch (error) {
-                    Notification.error('删除失败: ' + error.message);
-                }
-            }
-        });
-    }
+// 辅助函数：转义HTML
+function escapeHtmlWidget(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function renderNotificationSettings(settings) {
     if (!settings) return '<p>无法加载通知设置。</p>';
+    const wxSecretPlaceholder = settings.WX_SECRET_SET ? '已设置，留空不修改' : '例如: your_app_secret';
+    const wxSecretHint = settings.WX_SECRET_SET
+        ? '已保存应用密钥，出于安全原因不会回显明文；留空保存将保持不变。'
+        : '企业微信管理后台获取';
+    const dingtalkSecretPlaceholder = settings.DINGTALK_SECRET_SET ? '已设置，留空不修改' : '例如: SECxxxxxxx';
+    const dingtalkSecretHint = settings.DINGTALK_SECRET_SET
+        ? '已保存加签密钥，出于安全原因不会回显明文；留空保存将保持不变。'
+        : '钉钉机器人的加签密钥，如果启用了安全设置中的"加签"功能则必填';
 
     return `
             <form id="notification-settings-form">
@@ -239,7 +347,7 @@ function renderNotificationSettings(settings) {
                     <div class="form-group">
                         <label for="wx-secret">应用密钥</label>
                         <div style="position: relative;">
-                            <input type="password" id="wx-secret" name="WX_SECRET" value="${settings.WX_SECRET || ''}" placeholder="例如: your_app_secret">
+                            <input type="password" id="wx-secret" name="WX_SECRET" value="" placeholder="${wxSecretPlaceholder}">
                         <button type="button" id="toggle-wx-secret-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -247,7 +355,7 @@ function renderNotificationSettings(settings) {
                             </svg>
                         </button>
                         </div>
-                        <p class="form-hint">企业微信管理后台获取</p>
+                        <p class="form-hint">${wxSecretHint}</p>
                     </div>
 
                     <div class="form-group">
@@ -306,7 +414,7 @@ function renderNotificationSettings(settings) {
                     <div class="form-group">
                         <label for="dingtalk-secret">加签密钥 (可选)</label>
                         <div style="position: relative;">
-                            <input type="password" id="dingtalk-secret" name="DINGTALK_SECRET" value="${settings.DINGTALK_SECRET || ''}" placeholder="例如: SECxxxxxxx">
+                            <input type="password" id="dingtalk-secret" name="DINGTALK_SECRET" value="" placeholder="${dingtalkSecretPlaceholder}">
                         <button type="button" id="toggle-dingtalk-secret-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -314,7 +422,7 @@ function renderNotificationSettings(settings) {
                             </svg>
                         </button>
                         </div>
-                        <p class="form-hint">钉钉机器人的加签密钥，如果启用了安全设置中的"加签"功能则必填</p>
+                        <p class="form-hint">${dingtalkSecretHint}</p>
                     </div>
                     <div class="form-group">
                         <button type="button" class="test-notification-btn" data-channel="dingtalk" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>
@@ -337,7 +445,7 @@ function renderNotificationSettings(settings) {
                     </div>
                     <div class="form-group">
                         <label for="telegram-bot-token">Bot Token</label>
-                        <input type="text" id="telegram-bot-token" name="TELEGRAM_BOT_TOKEN" value="${settings.TELEGRAM_BOT_TOKEN || ''}" placeholder="例如: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz123456789">
+                        <input type="password" id="telegram-bot-token" name="TELEGRAM_BOT_TOKEN" value="" placeholder="例如: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz123456789">
                         <p class="form-hint">Telegram 机器人的 Token，从 @BotFather 获取</p>
                     </div>
 
@@ -397,7 +505,7 @@ function renderNotificationSettings(settings) {
 
                     <div class="form-group">
                         <label for="gotify-token">应用 Token</label>
-                        <input type="text" id="gotify-token" name="GOTIFY_TOKEN" value="${settings.GOTIFY_TOKEN || ''}" placeholder="例如: your_gotify_token">
+                        <input type="password" id="gotify-token" name="GOTIFY_TOKEN" value="" placeholder="例如: your_gotify_token">
                         <p class="form-hint">Gotify 应用的 Token</p>
                     </div>
                     <div class="form-group">
@@ -631,13 +739,16 @@ function setupModelTabs() {
 
 function renderAISettings(settings) {
     if (!settings) return '<p>无法加载AI设置。</p>';
+    const hasApiKey = Boolean(settings.OPENAI_API_KEY_SET);
+    const apiKeyPlaceholder = hasApiKey ? '已设置，留空不修改' : '例如: sk-...';
+    const apiKeyHint = hasApiKey ? '已保存API Key，出于安全原因不会回显明文；留空保存将保持不变。' : '你的AI模型服务商提供的API Key';
 
     return `
             <form id="ai-settings-form">
                 <div class="form-group">
                     <label for="openai-api-key">API Key<span class="required-pill">必填</span></label>
                     <div style="position: relative;">
-                        <input type="password" id="openai-api-key" name="OPENAI_API_KEY" value="${settings.OPENAI_API_KEY || ''}" placeholder="例如: sk-..." required>
+                        <input type="password" id="openai-api-key" name="OPENAI_API_KEY" value="" placeholder="${apiKeyPlaceholder}" ${hasApiKey ? '' : 'required'}>
                         <button type="button" id="toggle-openai-api-key-visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 14px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -645,7 +756,7 @@ function renderAISettings(settings) {
                             </svg>
                         </button>
                     </div>
-                    <p class="form-hint">你的AI模型服务商提供的API Key</p>
+                    <p class="form-hint">${apiKeyHint}</p>
                 </div>
 
                 <div class="form-group">
@@ -812,8 +923,20 @@ function renderSystemStatus(status) {
     const renderStatusTag = (isOk) => isOk
         ? `<span class="tag status-ok">正常</span>`
         : `<span class="tag status-error">异常</span>`;
+    const renderLevelTag = (level, text) => {
+        const color = level === 'ok'
+            ? '#52c41a'
+            : (level === 'error' ? '#ff4d4f' : (level === 'warning' ? '#faad14' : '#1890ff'));
+        return `<span style="color: ${color}; font-weight: 600;">${escapeHtmlWidget(text || '未知')}</span>`;
+    };
 
     const env = status.env_file || {};
+    const storageRuntime = status.storage_runtime || {};
+    const database = storageRuntime.database || {};
+    const configuredMode = storageRuntime.configured_backend_label || '未知';
+    const runtimeMode = storageRuntime.runtime_backend_label || '未知';
+    const isModeConsistent = storageRuntime.mode_consistent !== false;
+    const modeText = `${configuredMode} / ${runtimeMode}${isModeConsistent ? '' : '（不一致）'}`;
 
     // 检查是否配置了至少一个通知渠道
     const hasAnyNotificationChannel = env.ntfy_topic_url_set ||
@@ -846,6 +969,14 @@ function renderSystemStatus(status) {
                 <li class="status-item">
                     <span class="label">通知渠道配置</span>
                     <span class="value">${renderStatusTag(hasAnyNotificationChannel)}</span>
+                </li>
+                <li class="status-item">
+                    <span class="label">存储模式（配置 / 运行）</span>
+                    <span class="value">${renderLevelTag(isModeConsistent ? 'ok' : 'warning', modeText)}</span>
+                </li>
+                <li class="status-item">
+                    <span class="label">数据库连接状态</span>
+                    <span class="value">${renderLevelTag(database.level || 'info', database.label || '未知')}</span>
                 </li>
             </ul>
         `;
@@ -1002,11 +1133,82 @@ function renderResultsGrid(data) {
             AI标准: item.AI标准
         };
 
+        // 反馈闭环使用的标准化商品数据（兼容 feature_extractor）
+        const parseNumericFromText = (value) => {
+            const text = String(value || '').replace(/[,，￥元\s]/g, '');
+            const matched = text.match(/-?\d+(\.\d+)?/);
+            if (!matched) return 0;
+            const num = Number(matched[0]);
+            return Number.isFinite(num) ? num : 0;
+        };
+
+        const parseRateFromText = (value) => {
+            const text = String(value || '').trim();
+            if (!text) return 0;
+            const matched = text.match(/(\d+(\.\d+)?)/);
+            if (!matched) return 0;
+            const num = Number(matched[1]);
+            if (!Number.isFinite(num)) return 0;
+            return text.includes('%') ? num / 100 : num;
+        };
+
+        const parseSoldCountFromText = (value) => {
+            const text = String(value || '');
+            const matched = text.match(/已售[^\d]*(\d+)/);
+            if (matched) return Number(matched[1]);
+            return parseNumericFromText(text);
+        };
+
+        const feedbackProfileVersion = String(
+            item?.ml_precalc?.bayes?.profile
+            || item?.ml_precalc?.bayes?.version
+            || item?.bayes_profile
+            || 'bayes_v1'
+        ).trim() || 'bayes_v1';
+
+        const feedbackPayload = {
+            title: String(info.商品标题 || ''),
+            description: String(info.商品描述 || info.商品标题 || ''),
+            price: parseNumericFromText(info.当前售价),
+            original_price: parseNumericFromText(info.原价 || info.当前售价),
+            images: Array.isArray(info.商品图片列表) ? info.商品图片列表 : [],
+            publish_time: String(info.发布时间 || ''),
+            seller: {
+                credit: String(seller.卖家信用等级 || seller.卖家芝麻信用 || ''),
+                good_rate: parseRateFromText(seller.作为卖家的好评率),
+                trade_count: parseSoldCountFromText(seller['在售/已售商品数']),
+                sold_count: parseSoldCountFromText(seller['在售/已售商品数']),
+            },
+            profile_version: feedbackProfileVersion,
+        };
+
         // 从商品链接中提取商品ID
-        const itemId = extractItemId(info.商品链接);
+        const itemId = String(
+            extractItemId(info.商品链接)
+            || info.item_id
+            || info.id
+            || item.item_id
+            || ''
+        );
         const checkedAttr = selectedIds.has(itemId) ? 'checked' : '';
+        const rawFeedbackStatus = String(item.feedback_status || '').trim().toLowerCase();
+        const feedbackStatus = rawFeedbackStatus === 'trusted' || rawFeedbackStatus === 'untrusted'
+            ? rawFeedbackStatus
+            : '';
+        const trustedActiveClass = feedbackStatus === 'trusted' ? 'is-active' : '';
+        const untrustedActiveClass = feedbackStatus === 'untrusted' ? 'is-active' : '';
+        const trustedButtonText = feedbackStatus === 'trusted' ? '已可信' : '可信';
+        const untrustedButtonText = feedbackStatus === 'untrusted' ? '已不可信' : '不可信';
+        const trustedIcon = feedbackStatus === 'trusted' ? '✅' : '👍';
+        const untrustedIcon = feedbackStatus === 'untrusted' ? '⛔' : '👎';
         return `
-            <div class="result-card" data-notification='${escapeHtml(JSON.stringify(notificationData))}' data-item-id='${escapeHtml(itemId)}'>
+            <div class="result-card"
+                data-notification='${escapeHtml(JSON.stringify(notificationData))}'
+                data-feedback-payload='${escapeHtml(JSON.stringify(feedbackPayload))}'
+                data-feedback-keyword='${escapeHtml(String(item.搜索关键字 || ''))}'
+                data-feedback-profile='${escapeHtml(feedbackProfileVersion)}'
+                data-feedback-status='${escapeHtml(feedbackStatus)}'
+                data-item-id='${escapeHtml(itemId)}'>
             <label class="result-select-box" title="选择此商品">
                 <input type="checkbox" class="result-select-checkbox" data-item-id="${escapeHtml(itemId)}" ${checkedAttr}>
                 <span></span>
@@ -1014,6 +1216,10 @@ function renderResultsGrid(data) {
             <button class="delete-card-btn" title="删除此商品"></button>
                 <div class="card-image">
                     <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(info.商品标题) || '商品图片'}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJhzwvdGV4dD48L3N2Zz4=';"></a>
+                    <div class="card-image-overlay">
+                        <button type="button" class="overlay-fb-btn overlay-trusted-btn ${trustedActiveClass}" data-feedback-type="trusted" title="标记为可信样本"><span class="fb-icon">${trustedIcon}</span><span class="fb-text">${trustedButtonText}</span></button>
+                        <button type="button" class="overlay-fb-btn overlay-untrusted-btn ${untrustedActiveClass}" data-feedback-type="untrusted" title="标记为不可信样本"><span class="fb-icon">${untrustedIcon}</span><span class="fb-text">${untrustedButtonText}</span></button>
+                    </div>
                 </div>
                 <div class="card-content">
                 <h3 class="card-title"><a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" title="${escapeHtml(info.商品标题) || ''}">${highlightKeyword(escapeHtml(info.商品标题), manualKeyword) || '无标题'}</a></h3>
@@ -1088,7 +1294,7 @@ function renderResultsGrid(data) {
                             </div>
                         </div>
                         <div class="card-buttons">
-                            <button class="action-btn send-notification-btn" title="发送通知">发送通知</button>
+                            <button type="button" class="action-btn send-notification-btn" title="发送通知">发送通知</button>
                             <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" class="action-btn">查看详情</a>
                         </div>
                     </div>
