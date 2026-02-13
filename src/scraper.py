@@ -23,10 +23,13 @@ from src.ai_handler import (
 from src.config import (
     AI_DEBUG_MODE,
     API_URL_PATTERN,
+    DB_DEDUP_ENABLED,
     DETAIL_API_URL_PATTERN,
     LOGIN_IS_EDGE,
     RUN_HEADLESS,
     RUNNING_IN_DOCKER,
+    SKIP_AI_ANALYSIS,
+    STORAGE_BACKEND,
 )
 from src.parsers import (
     _parse_search_results_json,
@@ -36,6 +39,7 @@ from src.parsers import (
     parse_user_head_data,
 )
 from src.utils import (
+    build_result_dedup_item_id,
     format_registration_days,
     get_link_unique_key,
     random_sleep,
@@ -659,10 +663,13 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     recommended_item_count = 0
     stop_scraping = False
     end_reason = "完成了全部设置商品分析"
+    db_dedup_enabled = bool(owner_id) and STORAGE_BACKEND() == "postgres" and DB_DEDUP_ENABLED()
 
     processed_links = set()
     output_filename = os.path.join("jsonl", f"{keyword.replace(' ', '_')}_full_data.jsonl")
-    if os.path.exists(output_filename):
+    if db_dedup_enabled:
+        print("LOG: 已启用数据库去重主路径，启动阶段跳过jsonl历史预加载。")
+    elif os.path.exists(output_filename):
         print(f"LOG: 发现已存在文件 {output_filename}，正在加载历史记录以去重...")
         try:
             with open(output_filename, 'r', encoding='utf-8') as f:
@@ -712,6 +719,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 owner_storage = get_storage()
             except Exception as e:
                 print(f"LOG: 初始化存储层失败，将回退本地 state 文件: {e}")
+        use_storage_dedup = bool(db_dedup_enabled and owner_storage is not None)
+        if db_dedup_enabled and not use_storage_dedup:
+            print("LOG: 数据库去重已开启但存储层不可用，后续将依赖写入阶段处理。")
 
         if owner_id and owner_storage is not None:
             try:
@@ -1221,6 +1231,26 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                         log_time(f"[页内进度 {i}/{total_items_on_page}] 商品 '{item_data['商品标题'][:20]}...' 已存在，跳过。", task_name=task_name)
                         continue
 
+                    dedup_item_id = build_result_dedup_item_id({"商品信息": item_data})
+                    if use_storage_dedup:
+                        if not dedup_item_id:
+                            log_time(
+                                f"[页内进度 {i}/{total_items_on_page}] 商品缺少可用去重键，跳过：{item_data.get('商品标题', '')[:20]}...",
+                                task_name=task_name,
+                                level="warning",
+                            )
+                            continue
+                        try:
+                            if owner_storage.result_exists(dedup_item_id, owner_id=owner_id, task_name=task_name):
+                                processed_links.add(unique_key)
+                                log_time(
+                                    f"[页内进度 {i}/{total_items_on_page}] 商品命中数据库去重，跳过：{item_data['商品标题'][:20]}...",
+                                    task_name=task_name,
+                                )
+                                continue
+                        except Exception as e:
+                            log_time(f"数据库预去重检查失败，继续处理详情: {e}", task_name=task_name, level="warning")
+
                     log_time(f"[页内进度 {i}/{total_items_on_page}] 发现新商品，获取详情: {item_data['商品标题'][:30]}...", task_name=task_name)
                     # --- 修改: 访问详情页前的等待时间，模拟用户在列表页上看了一会儿 ---
                     await random_sleep(3, 6) # 原来是 (2, 4)
@@ -1347,31 +1377,26 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 log_time(f"Bayes预计算失败: {e}", task_name=task_name)
 
                             # --- START: 实时AI分析和通知 ---
-                            from src.config import SKIP_AI_ANALYSIS
-                            
-                            # 检查是否跳过AI分析并直接发送通知
+                            should_notify = False
+                            notify_item_data = item_data
+                            notify_reason = "无"
+                            ai_analysis_result = None
+
+                            # 检查是否跳过AI分析
                             if SKIP_AI_ANALYSIS():
-                                log_time("环境变量 SKIP_AI_ANALYSIS 已设置，跳过AI分析并直接发送通知...", task_name=task_name)
+                                log_time("环境变量 SKIP_AI_ANALYSIS 已设置，跳过AI分析。", task_name=task_name)
                                 # 跳过AI分析时不需要下载图片，避免无意义的IO开销
                                 downloaded_image_paths = []
-                                
-                                # 直接发送通知，将所有商品标记为推荐
-                                log_time("商品已跳过AI分析，准备发送通知...", task_name=task_name)
-                                await send_all_notifications(
-                                    item_data,
-                                    "商品已跳过AI分析，直接通知",
-                                    owner_id=owner_id,
-                                    bound_task=task_name,
-                                    bound_account=bound_account,
-                                )
+                                should_notify = True
+                                notify_reason = "商品已跳过AI分析，直接通知"
                             else:
-                                log_time(f"开始对商品 #{item_data['商品ID']} 进行实时AI分析...", task_name=task_name)
+                                current_item_id = item_data.get("商品ID", "未知ID")
+                                log_time(f"开始对商品 #{current_item_id} 进行实时AI分析...", task_name=task_name)
                                 
                                 # 方案2：不再注入image_url/base64，避免为多模态下载冗余图片
                                 downloaded_image_paths = []
 
                                 # 2. 获取AI分析
-                                ai_analysis_result = None
                                 if ai_prompt_text:
                                     try:
                                         # 注意：这里我们将整个记录传给AI，让它拥有最全的上下文
@@ -1439,29 +1464,40 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                     except Exception as e:
                                         print(f"   [图片] 删除图片文件时出错: {e}")
 
-                                # 3. 如果商品被推荐则发送通知
+                                # 3. 标记推荐商品，后续仅在落库成功时通知
                                 if _is_ai_recommended(ai_analysis_result):
-                                    log_time("商品被AI推荐，准备发送通知...", task_name=task_name)
-                                    # 创建item_data的副本并将ai_analysis添加到其中
+                                    should_notify = True
                                     item_data_with_analysis = item_data.copy()
                                     item_data_with_analysis['ai_analysis'] = ai_analysis_result
-                                    await send_all_notifications(
-                                        item_data_with_analysis,
-                                        ai_analysis_result.get("reason", "无"),
-                                        owner_id=owner_id,
-                                        bound_task=task_name,
-                                        bound_account=bound_account,
-                                    )
+                                    notify_item_data = item_data_with_analysis
+                                    notify_reason = ai_analysis_result.get("reason", "无")
                             # --- END: 实时AI分析和通知 ---
 
-                            # 4. 保存包含AI结果的完整记录
-                            await save_to_jsonl(final_record, keyword)
+                            # 4. 先幂等保存，保存成功且首次创建才允许通知
+                            save_meta = await save_to_jsonl(final_record, keyword, return_meta=True)
+                            if not save_meta.get("saved"):
+                                log_time("结果保存失败，跳过通知并继续后续流程。", task_name=task_name, level="warning")
+                                continue
+
+                            if not save_meta.get("created"):
+                                processed_links.add(unique_key)
+                                log_time("结果命中去重（并发或历史数据），本次不通知。", task_name=task_name)
+                                continue
+
+                            if should_notify:
+                                log_time("结果首次入库且满足通知条件，开始发送通知。", task_name=task_name)
+                                await send_all_notifications(
+                                    notify_item_data,
+                                    notify_reason,
+                                    owner_id=owner_id,
+                                    bound_task=task_name,
+                                    bound_account=bound_account,
+                                )
 
                             processed_links.add(unique_key)
                             processed_item_count += 1
-                            # 如果商品被推荐，增加推荐计数
-                            from src.config import SKIP_AI_ANALYSIS
-                            if SKIP_AI_ANALYSIS() or _is_ai_recommended(ai_analysis_result):
+                            # 首次入库且满足推荐/跳过AI直推时才增加推荐计数
+                            if should_notify:
                                 recommended_item_count += 1
                             log_time(f"商品处理流程完毕。累计处理 {processed_item_count} 个新商品，其中 {recommended_item_count} 个被推荐。", task_name=task_name)
                             

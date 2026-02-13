@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import math
 import os
@@ -116,20 +117,83 @@ def get_link_unique_key(link: str) -> str:
     return link.split('&', 1)[0]
 
 
-async def save_to_jsonl(data_record: dict, keyword: str):
-    """将完整商品记录追加保存到 jsonl，若多用户上下文可用则优先写入统一存储层。"""
+def build_result_dedup_item_id(data_record: dict) -> str:
+    """统一生成结果去重键：优先商品ID，缺失时回退链接哈希。"""
+    product_info = data_record.get("商品信息") if isinstance(data_record, dict) else {}
+    if not isinstance(product_info, dict):
+        product_info = {}
+
+    raw_item_id = product_info.get("商品ID")
+    item_id = str(raw_item_id).strip() if raw_item_id is not None else ""
+    if item_id:
+        return item_id
+
+    raw_link = product_info.get("商品链接")
+    link = str(raw_link).strip() if raw_link is not None else ""
+    if not link:
+        return ""
+
+    link_key = get_link_unique_key(link)
+    if not link_key:
+        return ""
+    return f"link:{hashlib.sha1(link_key.encode('utf-8')).hexdigest()}"
+
+
+async def save_to_jsonl(data_record: dict, keyword: str, return_meta: bool = False):
+    """保存完整商品记录，优先走存储层，必要时回退jsonl。"""
+    meta = {
+        "saved": False,
+        "created": False,
+        "duplicate": False,
+        "backend": "none",
+    }
     owner_id = str(os.getenv("GOOFISH_OWNER_ID", "")).strip()
     task_name = str(os.getenv("GOOFISH_TASK_NAME", "")).strip() or keyword
 
     if owner_id:
         try:
+            from src.config import DB_DEDUP_ENABLED
             from src.web.auth import is_multi_user_mode
             if is_multi_user_mode():
                 from src.storage import get_storage
                 storage = get_storage()
+                dedup_item_id = build_result_dedup_item_id(data_record)
+
+                if DB_DEDUP_ENABLED():
+                    if not dedup_item_id:
+                        logger.warning(
+                            "结果缺少可用去重键，放弃写入",
+                            extra={"event": "save_result_missing_dedup_key", "owner_id": owner_id, "task_name": task_name},
+                        )
+                        meta["backend"] = "storage"
+                        return meta if return_meta else False
+
+                    saved_result, created = storage.save_result_if_absent(task_name, data_record, owner_id=owner_id)
+                    meta.update({
+                        "saved": True,
+                        "created": bool(created),
+                        "duplicate": not bool(created),
+                        "backend": "storage",
+                    })
+                    if saved_result is None and created:
+                        logger.warning(
+                            "存储层返回创建成功但结果为空，使用输入数据回填",
+                            extra={"event": "save_result_empty_created", "owner_id": owner_id, "task_name": task_name},
+                        )
+                    return meta if return_meta else True
+
                 storage.save_result(task_name, data_record, owner_id=owner_id)
-                return True
+                meta.update({"saved": True, "created": True, "backend": "storage"})
+                return meta if return_meta else True
         except Exception as e:
+            from src.config import JSONL_FALLBACK_ON_DB_ERROR
+            if not JSONL_FALLBACK_ON_DB_ERROR():
+                logger.error(
+                    f"多用户结果写入存储层失败且未启用jsonl回退: {e}",
+                    extra={"event": "save_result_storage_failed_no_fallback", "owner_id": owner_id, "task_name": task_name},
+                )
+                meta["backend"] = "storage"
+                return meta if return_meta else False
             logger.warning(
                 f"多用户结果写入存储层失败，降级写入jsonl: {e}",
                 extra={"event": "save_result_fallback", "owner_id": owner_id, "task_name": task_name},
@@ -141,13 +205,15 @@ async def save_to_jsonl(data_record: dict, keyword: str):
     try:
         with open(filename, "a", encoding="utf-8") as f:
             f.write(json.dumps(data_record, ensure_ascii=False) + "\n")
-        return True
+        meta.update({"saved": True, "created": True, "backend": "jsonl"})
+        return meta if return_meta else True
     except IOError as e:
         logger.error(
             f"写入结果文件失败: {e}",
             extra={"event": "result_file_write_failed", "filename": filename},
         )
-        return False
+        meta["backend"] = "jsonl"
+        return meta if return_meta else False
 
 def format_registration_days(total_days: int) -> str:
     """

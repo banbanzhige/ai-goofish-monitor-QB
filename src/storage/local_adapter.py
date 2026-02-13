@@ -8,14 +8,15 @@ Local Storage Adapter - 本地文件存储适配器
 import os
 import json
 import uuid
+import hashlib
 from pathlib import Path
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from filelock import FileLock
 
 from .interface import StorageInterface
 from .utils import hash_password, verify_password, hash_token, generate_uuid
-from src.config import get_env_value, get_bool_env_value
+from src.config import get_env_value, get_bool_env_value, DB_DEDUP_SCOPE
 
 class LocalStorageAdapter(StorageInterface):
     """
@@ -271,15 +272,52 @@ class LocalStorageAdapter(StorageInterface):
         # 清理任务名作为文件名
         safe_name = task_name.replace(" ", "_").replace("/", "_")
         return self.jsonl_dir / f"{safe_name}_full_data.jsonl"
+
+    def _extract_result_item_id(self, result: Dict[str, Any]) -> str:
+        """提取并规范化结果去重键，缺失商品ID时回退链接哈希。"""
+        product_info = result.get("商品信息") if isinstance(result, dict) else {}
+        if not isinstance(product_info, dict):
+            product_info = {}
+
+        raw_item_id = product_info.get("商品ID")
+        item_id = str(raw_item_id).strip() if raw_item_id is not None else ""
+        if item_id:
+            return item_id
+
+        raw_link = product_info.get("商品链接")
+        link = str(raw_link).strip() if raw_link is not None else ""
+        if not link:
+            return ""
+
+        link_key = link.split('&', 1)[0]
+        if not link_key:
+            return ""
+        return f"link:{hashlib.sha1(link_key.encode('utf-8')).hexdigest()}"
+
+    def _normalize_result_item_id(self, result: Dict[str, Any], item_id: str) -> Dict[str, Any]:
+        """确保写入前结果内的商品ID字段与去重键一致。"""
+        if not isinstance(result, dict):
+            return result
+        normalized = dict(result)
+        product_info = normalized.get("商品信息")
+        if not isinstance(product_info, dict):
+            product_info = {}
+        else:
+            product_info = dict(product_info)
+        product_info["商品ID"] = item_id
+        normalized["商品信息"] = product_info
+        return normalized
     
     def save_result(self, task_name: str, result: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
         """保存监控结果"""
         result_file = self._get_result_file(task_name)
+        item_id = self._extract_result_item_id(result)
+        result_to_save = self._normalize_result_item_id(result, item_id) if item_id else result
         
         with open(result_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(result, ensure_ascii=False) + '\n')
+            f.write(json.dumps(result_to_save, ensure_ascii=False) + '\n')
         
-        return result
+        return result_to_save
     
     def get_results(
         self, 
@@ -328,11 +366,59 @@ class LocalStorageAdapter(StorageInterface):
                     if line.strip():
                         try:
                             result = json.loads(line)
-                            if result.get("商品信息", {}).get("商品ID") == item_id:
+                            if self._extract_result_item_id(result) == item_id:
                                 return result
                         except json.JSONDecodeError:
                             continue
         return None
+
+    def result_exists(
+        self,
+        item_id: str,
+        owner_id: Optional[str] = None,
+        task_name: Optional[str] = None
+    ) -> bool:
+        """检查结果是否存在（本地模式按scope兼容）。"""
+        normalized_item_id = str(item_id or "").strip()
+        if not normalized_item_id:
+            return False
+
+        if DB_DEDUP_SCOPE() == "task" and task_name:
+            result_files = [self._get_result_file(task_name)]
+        else:
+            result_files = list(self.jsonl_dir.glob("*_full_data.jsonl"))
+
+        for result_file in result_files:
+            if not result_file.exists():
+                continue
+            with open(result_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        result = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if self._extract_result_item_id(result) == normalized_item_id:
+                        return True
+        return False
+
+    def save_result_if_absent(
+        self,
+        task_name: str,
+        result_data: Dict[str, Any],
+        owner_id: Optional[str] = None
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """幂等保存结果（本地模式为文件级检查后追加）。"""
+        item_id = self._extract_result_item_id(result_data)
+        if not item_id:
+            return None, False
+
+        if self.result_exists(item_id, owner_id=owner_id, task_name=task_name):
+            return None, False
+
+        saved = self.save_result(task_name, result_data, owner_id=owner_id)
+        return saved, True
     
     def delete_results(
         self, 

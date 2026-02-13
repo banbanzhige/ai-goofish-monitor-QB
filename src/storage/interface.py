@@ -5,7 +5,7 @@ Storage Interface - 存储抽象接口
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 
 
@@ -167,6 +167,26 @@ class StorageInterface(ABC):
     @abstractmethod
     def get_result_by_item_id(self, item_id: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """根据商品ID获取结果"""
+        pass
+
+    @abstractmethod
+    def result_exists(
+        self,
+        item_id: str,
+        owner_id: Optional[str] = None,
+        task_name: Optional[str] = None
+    ) -> bool:
+        """检查结果是否已存在"""
+        pass
+
+    @abstractmethod
+    def save_result_if_absent(
+        self,
+        task_name: str,
+        result_data: Dict[str, Any],
+        owner_id: Optional[str] = None
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """幂等保存结果，返回(结果数据, 是否新建)"""
         pass
     
     @abstractmethod

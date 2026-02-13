@@ -4,16 +4,17 @@ PostgreSQL Storage Adapter - PostgreSQL 数据库存储适配器
 实现 StorageInterface，使用 SQLAlchemy ORM 操作 PostgreSQL 数据库。
 """
 
-import os
+import hashlib
+import json
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import UUID
 
 from sqlalchemy import create_engine, and_, or_
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker, Session as DBSession
-from sqlalchemy.exc import IntegrityError
 
 from .interface import StorageInterface
 from .models import (
@@ -769,50 +770,102 @@ class PostgresAdapter(StorageInterface):
             return True
     
     # ============== 监控结果管理 ==============
+
+    def _get_task_by_name(self, session: DBSession, task_name: str, owner_id: Optional[str]) -> Optional[Task]:
+        """按任务名获取任务对象。"""
+        task_query = session.query(Task).filter(Task.task_name == task_name)
+        if owner_id:
+            task_query = task_query.filter(Task.owner_id == owner_id)
+        return task_query.first()
+
+    def _extract_result_item_id(self, result_data: Dict[str, Any]) -> str:
+        """提取并规范化结果去重键，缺失商品ID时回退链接哈希。"""
+        product_info = result_data.get("商品信息") if isinstance(result_data, dict) else {}
+        if not isinstance(product_info, dict):
+            product_info = {}
+
+        raw_item_id = product_info.get("商品ID")
+        item_id = str(raw_item_id).strip() if raw_item_id is not None else ""
+        if item_id:
+            return item_id
+
+        raw_link = product_info.get("商品链接")
+        link = str(raw_link).strip() if raw_link is not None else ""
+        if not link:
+            return ""
+        link_key = link.split('&', 1)[0]
+        if not link_key:
+            return ""
+        return f"link:{hashlib.sha1(link_key.encode('utf-8')).hexdigest()}"
+
+    def _build_result_payload(
+        self,
+        session: DBSession,
+        task_name: str,
+        result_data: Dict[str, Any],
+        owner_id: Optional[str],
+    ) -> Dict[str, Any]:
+        """构造监控结果入库载荷。"""
+        task = self._get_task_by_name(session, task_name, owner_id)
+        task_id = task.id if task else None
+        item_id = self._extract_result_item_id(result_data)
+
+        ai_analysis = result_data.get("ai_analysis") or result_data.get("AI分析") or {}
+        if not isinstance(ai_analysis, dict):
+            ai_analysis = {}
+
+        recommended_levels = {"STRONG_BUY", "CAUTIOUS_BUY", "CONDITIONAL_BUY"}
+        recommendation_level = str(ai_analysis.get("recommendation_level") or "").strip()
+        if isinstance(result_data.get("is_recommended"), bool):
+            is_recommended = bool(result_data.get("is_recommended"))
+        elif recommendation_level:
+            is_recommended = recommendation_level in recommended_levels
+        else:
+            is_recommended = bool(ai_analysis.get("is_recommended", False))
+
+        recommendation_score = result_data.get("推荐度")
+        if recommendation_score is None:
+            score_v2 = ai_analysis.get("recommendation_score_v2")
+            if isinstance(score_v2, dict):
+                raw_score = score_v2.get("recommendation_score")
+                if isinstance(raw_score, (int, float)):
+                    recommendation_score = float(raw_score)
+
+        product_info = result_data.get("商品信息")
+        if not isinstance(product_info, dict):
+            product_info = {}
+        else:
+            product_info = dict(product_info)
+        if item_id and not str(product_info.get("商品ID") or "").strip():
+            product_info["商品ID"] = item_id
+
+        seller_info = result_data.get("卖家信息")
+        if not isinstance(seller_info, dict):
+            seller_info = {}
+
+        return {
+            "owner_id": owner_id or None,
+            "task_id": task_id,
+            "item_id": item_id,
+            "product_info": product_info,
+            "seller_info": seller_info,
+            "ai_analysis": ai_analysis,
+            "ml_precalc": result_data.get("ml_precalc"),
+            "recommendation_score": recommendation_score,
+            "is_recommended": is_recommended,
+        }
     
     def save_result(self, task_name: str, result_data: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
         """保存监控结果"""
         with self.get_session() as session:
-            # 获取任务ID
-            task_query = session.query(Task).filter(Task.task_name == task_name)
-            if owner_id:
-                task_query = task_query.filter(Task.owner_id == owner_id)
-            task = task_query.first()
-            task_id = str(task.id) if task else None
-            
-            # 转换结果数据格式
-            item_id = result_data.get("商品信息", {}).get("商品ID", "")
-            ai_analysis = result_data.get("ai_analysis") or result_data.get("AI分析") or {}
+            payload = self._build_result_payload(session, task_name, result_data, owner_id)
+            if not payload.get("item_id"):
+                legacy_payload = json.dumps(result_data or {}, ensure_ascii=False, sort_keys=True)
+                payload["item_id"] = f"legacy:{hashlib.sha1(legacy_payload.encode('utf-8')).hexdigest()}"
+                if isinstance(payload.get("product_info"), dict):
+                    payload["product_info"]["商品ID"] = payload["item_id"]
 
-            # 兼容新旧结构：优先使用显式字段，缺失时从 ai_analysis 推断推荐状态与推荐度
-            recommended_levels = {"STRONG_BUY", "CAUTIOUS_BUY", "CONDITIONAL_BUY"}
-            recommendation_level = str(ai_analysis.get("recommendation_level") or "").strip()
-            if isinstance(result_data.get("is_recommended"), bool):
-                is_recommended = bool(result_data.get("is_recommended"))
-            elif recommendation_level:
-                is_recommended = recommendation_level in recommended_levels
-            else:
-                is_recommended = bool(ai_analysis.get("is_recommended", False))
-
-            recommendation_score = result_data.get("推荐度")
-            if recommendation_score is None:
-                score_v2 = ai_analysis.get("recommendation_score_v2") if isinstance(ai_analysis, dict) else None
-                if isinstance(score_v2, dict):
-                    raw_score = score_v2.get("recommendation_score")
-                    if isinstance(raw_score, (int, float)):
-                        recommendation_score = float(raw_score)
-            
-            result = MonitoringResult(
-                owner_id=owner_id,
-                task_id=task_id,
-                item_id=item_id,
-                product_info=result_data.get("商品信息"),
-                seller_info=result_data.get("卖家信息"),
-                ai_analysis=ai_analysis,
-                ml_precalc=result_data.get("ml_precalc"),
-                recommendation_score=recommendation_score,
-                is_recommended=is_recommended
-            )
+            result = MonitoringResult(**payload)
             
             session.add(result)
             session.flush()
@@ -874,6 +927,56 @@ class PostgresAdapter(StorageInterface):
                 query = query.filter(MonitoringResult.owner_id == owner_id)
             result = query.first()
             return self._result_to_legacy_format(result) if result else None
+
+    def result_exists(
+        self,
+        item_id: str,
+        owner_id: Optional[str] = None,
+        task_name: Optional[str] = None
+    ) -> bool:
+        """检查结果是否已存在。"""
+        normalized_item_id = str(item_id or "").strip()
+        if not normalized_item_id:
+            return False
+
+        with self.get_session() as session:
+            query = session.query(MonitoringResult).filter(MonitoringResult.item_id == normalized_item_id)
+            if owner_id:
+                query = query.filter(MonitoringResult.owner_id == owner_id)
+            else:
+                query = query.filter(MonitoringResult.owner_id.is_(None))
+
+            # 当前数据库唯一约束为(owner_id, item_id)，为保持软硬去重口径一致，
+            # PostgreSQL 后端在未完成task维度迁移前始终按owner范围判重。
+
+            return query.first() is not None
+
+    def save_result_if_absent(
+        self,
+        task_name: str,
+        result_data: Dict[str, Any],
+        owner_id: Optional[str] = None
+    ) -> Tuple[Optional[Dict[str, Any]], bool]:
+        """幂等保存结果（基于数据库唯一约束）。"""
+        with self.get_session() as session:
+            payload = self._build_result_payload(session, task_name, result_data, owner_id)
+            if not payload.get("item_id"):
+                return None, False
+
+            insert_stmt = (
+                insert(MonitoringResult)
+                .values(**payload)
+                .on_conflict_do_nothing(index_elements=["owner_id", "item_id"])
+                .returning(MonitoringResult.id)
+            )
+            inserted_id = session.execute(insert_stmt).scalar_one_or_none()
+            if inserted_id is None:
+                return None, False
+
+            created = session.query(MonitoringResult).filter(MonitoringResult.id == inserted_id).first()
+            if not created:
+                return None, False
+            return self._result_to_legacy_format(created), True
     
     def delete_results(
         self, 

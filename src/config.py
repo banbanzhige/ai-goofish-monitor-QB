@@ -236,6 +236,19 @@ def AI_MAX_TOKENS_LIMIT():
 def SKIP_AI_ANALYSIS():
     return get_bool_env_value("SKIP_AI_ANALYSIS", False)
 
+def DB_DEDUP_ENABLED():
+    """数据库去重主路径开关（PostgreSQL模式生效）。"""
+    return get_bool_env_value("DB_DEDUP_ENABLED", True)
+
+def DB_DEDUP_SCOPE():
+    """数据库去重范围：owner 或 task。"""
+    scope = str(get_env_value("DB_DEDUP_SCOPE", "owner") or "owner").strip().lower()
+    return scope if scope in {"owner", "task"} else "owner"
+
+def JSONL_FALLBACK_ON_DB_ERROR():
+    """数据库写入失败时是否回退jsonl。"""
+    return get_bool_env_value("JSONL_FALLBACK_ON_DB_ERROR", False)
+
 def ENABLE_THINKING():
     return get_bool_env_value("ENABLE_THINKING", False)
 
@@ -367,6 +380,8 @@ def save_env_settings(settings: dict, setting_keys: list):
         "ENABLE_THINKING",
         "ENABLE_RESPONSE_FORMAT",
         "AI_VISION_ENABLED",
+        "DB_DEDUP_ENABLED",
+        "JSONL_FALLBACK_ON_DB_ERROR",
         "PCURL_TO_MOBILE",
         "NOTIFY_AFTER_TASK_COMPLETE",
         # 代理相关开关
