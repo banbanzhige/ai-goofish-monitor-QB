@@ -3,6 +3,16 @@
  * 统一管理项目中的所有提示、警告和确认对话框
  */
 
+function fireSafe(options = {}) {
+    // 统一关闭 SweetAlert2 默认的滚动与焦点回跳行为，避免页面跳到顶部
+    const baseOptions = {
+        heightAuto: false,
+        scrollbarPadding: false,
+        returnFocus: false
+    };
+    return Swal.fire({ ...baseOptions, ...options });
+}
+
 const Notification = {
     /**
      * 成功提示 (Toast 样式,自动消失)
@@ -11,7 +21,7 @@ const Notification = {
      * @param {number} timer - 自动关闭时间(ms),默认 2000
      */
     success(message, title = '成功', timer = 2000) {
-        return Swal.fire({
+        return fireSafe({
             icon: 'success',
             title: title,
             text: message,
@@ -32,7 +42,7 @@ const Notification = {
      * @param {string} title - 标题 (可选)
      */
     successDialog(message, title = '成功') {
-        return Swal.fire({
+        return fireSafe({
             icon: 'success',
             title: title,
             text: message,
@@ -47,7 +57,7 @@ const Notification = {
      * @param {string} title - 标题 (可选)
      */
     error(message, title = '错误') {
-        return Swal.fire({
+        return fireSafe({
             icon: 'error',
             title: title,
             text: message,
@@ -62,7 +72,7 @@ const Notification = {
      * @param {string} title - 标题 (可选)
      */
     warning(message, title = '警告') {
-        return Swal.fire({
+        return fireSafe({
             icon: 'warning',
             title: title,
             text: message,
@@ -77,7 +87,7 @@ const Notification = {
      * @param {string} title - 标题 (可选)
      */
     info(message, title = '提示') {
-        return Swal.fire({
+        return fireSafe({
             icon: 'info',
             title: title,
             text: message,
@@ -93,7 +103,7 @@ const Notification = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-        return Swal.fire({
+        return fireSafe({
             icon: 'info',
             title: title,
             html: safeMessage.replace(/\n/g, '<br>'),
@@ -116,7 +126,7 @@ const Notification = {
             confirmButtonText = '确定',
             cancelButtonText = '取消'
         } = options;
-        return Swal.fire({
+        return fireSafe({
             title: title,
             text: message,
             input: 'text',
@@ -153,7 +163,7 @@ const Notification = {
             focusCancel: true
         };
 
-        return Swal.fire({ ...defaultOptions, ...options });
+        return fireSafe({ ...defaultOptions, ...options });
     },
 
     /**
@@ -163,7 +173,7 @@ const Notification = {
      * @returns {Promise} - 返回 Promise,result.isConfirmed 表示用户是否确认
      */
     confirmDelete(message, title = '确定删除?') {
-        return Swal.fire({
+        return fireSafe({
             title: title,
             html: `<p>${message}</p><p style="color: #ff4d4f; font-weight: 600;">此操作不可恢复！</p>`,
             icon: 'warning',
@@ -183,7 +193,7 @@ const Notification = {
      * @param {string} title - 标题 (可选)
      */
     loading(message = '加载中...', title = '') {
-        return Swal.fire({
+        return fireSafe({
             title: title,
             text: message,
             allowOutsideClick: false,
@@ -209,7 +219,7 @@ const Notification = {
      * @param {number} timer - 自动关闭时间(ms)
      */
     toast(message, icon = 'info', timer = 2000) {
-        return Swal.fire({
+        return fireSafe({
             toast: true,
             position: 'top-end',
             icon: icon,
