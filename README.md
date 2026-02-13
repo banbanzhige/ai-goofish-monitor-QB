@@ -337,8 +337,10 @@ Docker 提供标准化部署环境，实现开箱即用。
 <summary><b>🗄️ 数据库模式（推荐）</b></summary>
 
 > - 复制 `.env.example` 为 `.env`
-> - 修改 `POSTGRES_PASSWORD`、`ENCRYPTION_MASTER_KEY`
+> - 填写好`.env`的=== v1.0.0 多用户配置内容 ===的下方内容
+> - `.env`开启数据库模式 STORAGE_BACKEND = postgres 
 > - 确认端口未占用（8001/5432）
+
 
 ```yaml
 services:
