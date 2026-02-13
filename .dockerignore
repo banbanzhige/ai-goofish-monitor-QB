@@ -30,6 +30,8 @@ start_web_server.bat
 config.json
 docs/
 AGENTS.md
+GEMINI.md
+CLAUDE.md
 images/logo/banner.psd
 .aider*
 installed_packages.txt
