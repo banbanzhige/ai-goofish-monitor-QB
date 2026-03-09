@@ -95,6 +95,11 @@ MIGRATION_SCOPE = {
             "description": "迁移 jsonl 结果文件到 PostgreSQL，并归属到 .env 登录账户。",
         },
         {
+            "key": "prompt_templates",
+            "label": "Prompt 模板",
+            "description": "迁移 prompts/*.txt 为系统级 Prompt 模板（owner_id=NULL）。",
+        },
+        {
             "key": "bayes_profiles",
             "label": "贝叶斯模型",
             "description": "迁移 prompts/bayes 模型为系统级基础资源（owner_id=NULL）。",
@@ -196,6 +201,7 @@ class DataMigrator:
         self.stats = {
             "tasks": {"migrated": 0, "skipped": 0, "errors": 0},
             "results": {"migrated": 0, "skipped": 0, "errors": 0},
+            "prompt_templates": {"migrated": 0, "skipped": 0, "errors": 0},
             "bayes_profiles": {"migrated": 0, "skipped": 0, "errors": 0},
             "bayes_samples": {"migrated": 0, "skipped": 0, "errors": 0},
             "ai_criteria": {"migrated": 0, "skipped": 0, "errors": 0},
@@ -387,6 +393,59 @@ class DataMigrator:
         
         self.log(f"Bayes profiles migrated: {self.stats['bayes_profiles']['migrated']}")
         return self.stats["bayes_profiles"]["migrated"]
+
+    def migrate_prompt_templates(self) -> int:
+        """迁移 Prompt 模板（prompts/*.txt）到系统级资源。"""
+        self.log("Migrating prompt templates...")
+        migrated_total = 0
+
+        try:
+            local_templates = self.local.list_prompt_templates(owner_id=None, include_system=True)
+        except Exception as exc:
+            self.log(f"Load local prompt templates failed: {exc}", "ERROR")
+            self.stats["prompt_templates"]["errors"] += 1
+            return 0
+
+        self.log(f"Found {len(local_templates)} prompt templates to migrate")
+        for template in local_templates:
+            template_name = str(template.get("name") or "").strip()
+            if not template_name:
+                self.stats["prompt_templates"]["skipped"] += 1
+                continue
+
+            try:
+                existing = None if self.dry_run else self.postgres.get_prompt_template(template_name, owner_id=None)
+                if existing:
+                    self.stats["prompt_templates"]["skipped"] += 1
+                    continue
+
+                local_template = self.local.get_prompt_template(template_name, owner_id=None) or {}
+                content = str(local_template.get("content") or "")
+                if not content:
+                    self.stats["prompt_templates"]["skipped"] += 1
+                    continue
+
+                if not self.dry_run:
+                    self.postgres.save_prompt_template(
+                        {
+                            "name": template_name,
+                            "content": content,
+                            "is_default": bool(local_template.get("is_default", template_name == "base_prompt.txt")),
+                        },
+                        owner_id=None,
+                    )
+                self.stats["prompt_templates"]["migrated"] += 1
+                migrated_total += 1
+            except Exception as exc:
+                self.log(f"Error migrating prompt template {template_name}: {exc}", "ERROR")
+                self.stats["prompt_templates"]["errors"] += 1
+
+        self.log(
+            f"Prompt templates migrated: {self.stats['prompt_templates']['migrated']}, "
+            f"skipped: {self.stats['prompt_templates']['skipped']}, "
+            f"errors: {self.stats['prompt_templates']['errors']}"
+        )
+        return migrated_total
     
     def migrate_bayes_samples(self, owner_id: Optional[str] = None) -> int:
         """迁移贝叶斯样本"""
@@ -566,14 +625,17 @@ class DataMigrator:
         # 4. 迁移结果
         self.migrate_results(owner_id)
         
-        # 5. 迁移贝叶斯配置和样本
+        # 5. 迁移 Prompt 模板（系统级）
+        self.migrate_prompt_templates()
+
+        # 6. 迁移贝叶斯配置和样本
         self.migrate_bayes_profiles()
         self.migrate_bayes_samples()
 
-        # 6. 迁移 AI 标准（系统级基础资源）
+        # 7. 迁移 AI 标准（系统级基础资源）
         self.migrate_ai_criteria()
 
-        # 7. 迁移平台账号
+        # 8. 迁移平台账号
         self.migrate_platform_accounts(owner_id)
         
         # 统计

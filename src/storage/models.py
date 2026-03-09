@@ -45,6 +45,7 @@ class User(Base):
     platform_accounts = relationship("UserPlatformAccount", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")
     group_memberships = relationship("UserGroupMember", back_populates="user", cascade="all, delete-orphan")
+    prompt_templates = relationship("PromptTemplate", back_populates="owner", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -237,6 +238,26 @@ class BayesSample(Base):
         Index('idx_sample_owner', 'owner_id'),
         Index('idx_sample_profile', 'profile_id'),
         Index('idx_sample_label', 'label'),
+    )
+
+
+class PromptTemplate(Base):
+    """Prompt 模板表"""
+    __tablename__ = 'prompt_templates'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=True)  # NULL = 系统模板
+    name = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    owner = relationship("User", back_populates="prompt_templates")
+
+    __table_args__ = (
+        UniqueConstraint('owner_id', 'name', name='uq_prompt_owner_name'),
+        Index('idx_prompt_owner', 'owner_id'),
     )
 
 

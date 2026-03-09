@@ -174,11 +174,73 @@ def _merge_runtime_feedback_samples(
         )
 
 
+def _load_bayes_profile_db_first(version: str, owner_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """DB 优先读取 Bayes 配置，失败时返回 None 由调用方回退文件。"""
+    if not is_multi_user_mode():
+        return None
+    try:
+        from src.storage import get_storage
+
+        storage = get_storage()
+        return storage.get_bayes_profile(version, owner_id=owner_id)
+    except Exception as e:
+        logger.warning(
+            "数据库读取 Bayes 配置失败，回退文件读取",
+            extra={"event": "bayes_profile_db_read_failed", "version": version, "owner_id": owner_id},
+            exc_info=e
+        )
+        return None
+
+
+def _save_bayes_profile_db_first(version: str, payload: Dict[str, Any], owner_id: Optional[str]) -> bool:
+    """DB 优先保存 Bayes 配置，返回是否成功写入数据库。"""
+    if not is_multi_user_mode():
+        return False
+    try:
+        from src.storage import get_storage
+
+        storage = get_storage()
+        data = dict(payload or {})
+        data["version"] = version
+        storage.save_bayes_profile(data, owner_id=owner_id)
+        return True
+    except Exception as e:
+        logger.warning(
+            "数据库保存 Bayes 配置失败，回退文件保存",
+            extra={"event": "bayes_profile_db_save_failed", "version": version, "owner_id": owner_id},
+            exc_info=e
+        )
+        return False
+
+
+def _delete_bayes_profile_db_first(version: str, owner_id: Optional[str]) -> bool:
+    """DB 优先删除 Bayes 配置，返回是否处理成功。"""
+    if not is_multi_user_mode():
+        return False
+    try:
+        from src.storage import get_storage
+
+        storage = get_storage()
+        return bool(storage.delete_bayes_profile(version, owner_id=owner_id))
+    except Exception as e:
+        logger.warning(
+            "数据库删除 Bayes 配置失败，回退文件删除",
+            extra={"event": "bayes_profile_db_delete_failed", "version": version, "owner_id": owner_id},
+            exc_info=e
+        )
+        return False
+
+
 @router.get('/config')
 async def get_bayes_config(request: Request, version: str = 'bayes_v1'):
     """获取贝叶斯配置"""
     owner_id = _require_config_owner_id(request)
     normalized_version = _normalize_profile_version(version)
+    config = _load_bayes_profile_db_first(normalized_version, owner_id=owner_id)
+    if isinstance(config, dict):
+        _merge_runtime_feedback_samples(config=config, version=normalized_version, owner_id=owner_id)
+        return JSONResponse(content=config)
+
     config_file = resolve_virtual_task_file(
         f"prompts/bayes/{normalized_version}.json",
         owner_id=owner_id,
@@ -213,6 +275,10 @@ async def save_bayes_config(request: Request, data: dict):
         errors = validate_bayes_config(data)
         if errors:
             raise HTTPException(status_code=400, detail={'errors': errors})
+
+        db_saved = _save_bayes_profile_db_first(version, data, owner_id=owner_id)
+        if db_saved:
+            return {'success': True, 'message': '配置保存成功'}
         
         # 保存文件
         config_file = resolve_virtual_task_file(
@@ -245,6 +311,10 @@ async def delete_bayes_config(request: Request, version: str = 'bayes_v1'):
     """删除贝叶斯配置"""
     normalized_version = _normalize_profile_version(version)
     owner_id = _require_config_owner_id(request)
+
+    if _delete_bayes_profile_db_first(normalized_version, owner_id=owner_id):
+        return {'success': True, 'message': '配置删除成功'}
+
     if owner_id:
         config_file = resolve_virtual_task_file(
             f"prompts/bayes/{normalized_version}.json",
@@ -297,6 +367,27 @@ async def get_versions(request: Request):
     """获取所有可用的贝叶斯配置版本"""
     try:
         owner_id = _require_config_owner_id(request)
+        if is_multi_user_mode():
+            try:
+                from src.storage import get_storage
+
+                storage = get_storage()
+                profiles = storage.list_bayes_profiles(owner_id=owner_id, include_system=True)
+                versions = sorted(
+                    {
+                        _normalize_profile_version(str(item.get("version") or ""))
+                        for item in profiles
+                        if str(item.get("version") or "").strip()
+                    }
+                )
+                if versions:
+                    return {'versions': versions}
+            except Exception as e:
+                logger.warning(
+                    "数据库读取 Bayes 版本失败，回退文件扫描",
+                    extra={"event": "bayes_versions_db_read_failed", "owner_id": owner_id},
+                    exc_info=e
+                )
         files = list_scoped_files("bayes", owner_id=owner_id, include_shared=True)
         versions = sorted({str(name).replace(".json", "") for name in files if str(name).endswith(".json")})
         return {'versions': versions}

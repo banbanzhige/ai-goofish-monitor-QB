@@ -19,7 +19,7 @@ from sqlalchemy.orm import sessionmaker, Session as DBSession
 from .interface import StorageInterface
 from .models import (
     Base, User, Session, Task, MonitoringResult,
-    BayesProfile, BayesSample, UserFeedback, AiCriteria,
+    BayesProfile, BayesSample, UserFeedback, AiCriteria, PromptTemplate,
     UserApiConfig, UserNotificationConfig, UserPlatformAccount, AuditLog,
     UserGroup, UserGroupMember, GroupPermission
 )
@@ -73,6 +73,16 @@ class PostgresAdapter(StorageInterface):
         "operator": "operator_group",
         "viewer": "viewer_group",
     }
+    DEFAULT_BAYES_FEATURE_NAMES = [
+        "seller_credit_level_score",
+        "positive_rate_score",
+        "register_score",
+        "on_sale_score",
+        "img_score",
+        "desc_score",
+        "heat_score",
+        "category_score",
+    ]
     
     def __init__(self, database_url: str, echo: bool = False):
         """
@@ -98,6 +108,7 @@ class PostgresAdapter(StorageInterface):
         Base.metadata.create_all(bind=self.engine)
         with self.get_session() as session:
             self._ensure_system_groups(session)
+            self._ensure_system_prompt_templates(session)
             self._ensure_system_ai_criteria(session)
             self._ensure_default_super_admin(session)
     
@@ -233,6 +244,55 @@ class PostgresAdapter(StorageInterface):
         ).first()
         if not exists:
             session.add(UserGroupMember(user_id=user_id, group_id=group.id))
+
+    def _normalize_prompt_template_name(self, name: str) -> str:
+        """标准化 Prompt 模板名称。"""
+        normalized = str(name or "").strip()
+        if not normalized:
+            raise ValueError("Prompt 模板名称不能为空")
+        if not normalized.lower().endswith(".txt"):
+            normalized = f"{normalized}.txt"
+        return normalized
+
+    def _iter_system_prompt_templates(self) -> List[Dict[str, str]]:
+        """扫描系统级 Prompt 模板（prompts/*.txt）。"""
+        prompt_dir = self.project_root / "prompts"
+        templates: List[Dict[str, str]] = []
+        if not prompt_dir.exists():
+            return templates
+
+        for file_path in sorted(prompt_dir.glob("*.txt")):
+            try:
+                content = file_path.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            templates.append(
+                {
+                    "name": file_path.name,
+                    "content": content,
+                    "is_default": file_path.name == "base_prompt.txt",
+                }
+            )
+        return templates
+
+    def _ensure_system_prompt_templates(self, session: DBSession):
+        """确保系统级 Prompt 模板存在。"""
+        existing_templates = session.query(PromptTemplate).filter(PromptTemplate.owner_id == None).all()
+        existing_names = {item.name for item in existing_templates if item.name}
+
+        for template in self._iter_system_prompt_templates():
+            template_name = self._normalize_prompt_template_name(template.get("name"))
+            if template_name in existing_names:
+                continue
+            session.add(
+                PromptTemplate(
+                    owner_id=None,
+                    name=template_name,
+                    content=str(template.get("content") or ""),
+                    is_default=bool(template.get("is_default")),
+                )
+            )
+            existing_names.add(template_name)
 
     def _ensure_default_super_admin(self, session: DBSession):
         """确保默认登录账户在数据库中具备超级管理员能力。"""
@@ -1007,64 +1067,324 @@ class PostgresAdapter(StorageInterface):
     
     # ============== 贝叶斯配置管理 ==============
     
+    def _find_effective_bayes_profile(
+        self,
+        session: DBSession,
+        version: str,
+        owner_id: Optional[str] = None
+    ) -> Optional[BayesProfile]:
+        """查询生效的贝叶斯配置（用户优先，系统回退）。"""
+        query = session.query(BayesProfile).filter(BayesProfile.version == version)
+        if owner_id:
+            user_profile = query.filter(BayesProfile.owner_id == owner_id).first()
+            if user_profile:
+                return user_profile
+        return query.filter(BayesProfile.owner_id == None).first()
+
+    def _serialize_bayes_samples(self, samples: List[BayesSample]) -> Dict[str, List[Dict[str, Any]]]:
+        """将样本列表转换为兼容原 JSON 配置的 _samples 结构。"""
+        buckets: Dict[str, List[Dict[str, Any]]] = {"可信": [], "不可信": []}
+        for sample in samples:
+            sample_id = str(sample.id) if sample.id else ""
+            normalized_sample = {
+                "id": sample_id,
+                "name": sample.name or "样本",
+                "vector": list(sample.vector or []),
+                "label": int(sample.label or 0),
+                "source": sample.source or "preset",
+                "item_id": sample.item_id,
+                "note": sample.note,
+                "timestamp": sample.created_at.isoformat() if sample.created_at else "",
+            }
+            bucket = "可信" if int(sample.label or 0) == 1 else "不可信"
+            buckets.setdefault(bucket, []).append(normalized_sample)
+        return buckets
+
+    def _extract_bayes_samples_from_payload(self, profile_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """从配置 payload 中提取样本，便于落库。"""
+        samples: List[Dict[str, Any]] = []
+        raw_samples = profile_data.get("_samples")
+        if not isinstance(raw_samples, dict):
+            return samples
+
+        for bucket, label in (("可信", 1), ("不可信", 0)):
+            bucket_samples = raw_samples.get(bucket)
+            if not isinstance(bucket_samples, list):
+                continue
+            for item in bucket_samples:
+                if not isinstance(item, dict):
+                    continue
+                vector = item.get("vector")
+                if not isinstance(vector, list):
+                    continue
+                try:
+                    normalized_vector = [float(x) for x in vector]
+                except (TypeError, ValueError):
+                    continue
+                samples.append(
+                    {
+                        "name": item.get("name") or "导入样本",
+                        "vector": normalized_vector,
+                        "label": label,
+                        "source": str(item.get("source") or "preset"),
+                        "item_id": item.get("item_id"),
+                        "note": item.get("note"),
+                    }
+                )
+        return samples
+
     def get_bayes_profile(self, version: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """获取贝叶斯配置"""
+        """获取贝叶斯配置（用户优先，系统回退，附带样本兼容字段）。"""
+        normalized_version = str(version or "").replace(".json", "").strip()
+        if not normalized_version:
+            return None
+
         with self.get_session() as session:
-            query = session.query(BayesProfile).filter(BayesProfile.version == version)
-            
-            # 优先获取用户自己的配置，否则获取系统配置
+            effective_profile = self._find_effective_bayes_profile(session, normalized_version, owner_id=owner_id)
+            if not effective_profile:
+                return None
+
+            profile_dict = self._to_dict(effective_profile)
+            sample_owner_conditions = []
             if owner_id:
-                user_profile = query.filter(BayesProfile.owner_id == owner_id).first()
-                if user_profile:
-                    return self._to_dict(user_profile)
-            
-            # 获取系统配置
-            system_profile = query.filter(BayesProfile.owner_id == None).first()
-            return self._to_dict(system_profile)
+                sample_owner_conditions.append(BayesSample.owner_id == owner_id)
+            sample_owner_conditions.append(BayesSample.owner_id == None)
+            samples = session.query(BayesSample).filter(
+                BayesSample.profile_version == normalized_version,
+                or_(*sample_owner_conditions)
+            ).all()
+
+            profile_dict["version"] = normalized_version
+            profile_dict.setdefault("feature_names", list(self.DEFAULT_BAYES_FEATURE_NAMES))
+            profile_dict["_samples"] = self._serialize_bayes_samples(samples)
+            profile_dict.setdefault("_priors_mode", "auto_from_samples")
+            profile_dict.setdefault("_stats_mode", "auto_from_samples")
+            profile_dict.setdefault("_min_variance", 1e-4)
+            return profile_dict
     
     def save_bayes_profile(self, profile_data: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
-        """保存贝叶斯配置"""
+        """保存贝叶斯配置，并在提供 _samples 时同步样本。"""
+        normalized_version = str(profile_data.get("version") or "bayes_v1").replace(".json", "").strip() or "bayes_v1"
+        normalized_owner = str(owner_id).strip() if owner_id else None
+
+        payload = {
+            "owner_id": normalized_owner,
+            "version": normalized_version,
+            "display_name": profile_data.get("display_name") or normalized_version,
+            "recommendation_fusion": profile_data.get("recommendation_fusion"),
+            "bayes_feature_rules": profile_data.get("bayes_feature_rules"),
+            "is_default": bool(profile_data.get("is_default", False)),
+        }
+        sample_payloads = self._extract_bayes_samples_from_payload(profile_data)
+
         with self.get_session() as session:
-            version = profile_data.get('version', 'bayes_v1')
-            
-            if owner_id:
-                profile_data['owner_id'] = owner_id
-            
             existing = session.query(BayesProfile).filter(
-                BayesProfile.version == version,
-                BayesProfile.owner_id == profile_data.get('owner_id')
+                BayesProfile.version == normalized_version,
+                BayesProfile.owner_id == normalized_owner
             ).first()
-            
+
             if existing:
-                for key, value in profile_data.items():
-                    if hasattr(existing, key) and key != 'id':
-                        setattr(existing, key, value)
-                session.flush()
-                return self._to_dict(existing)
+                existing.display_name = payload["display_name"]
+                existing.recommendation_fusion = payload["recommendation_fusion"]
+                existing.bayes_feature_rules = payload["bayes_feature_rules"]
+                existing.is_default = payload["is_default"]
+                profile_row = existing
             else:
-                profile = BayesProfile(**profile_data)
-                session.add(profile)
+                profile_row = BayesProfile(**payload)
+                session.add(profile_row)
                 session.flush()
-                return self._to_dict(profile)
+
+            if "_samples" in profile_data:
+                sample_query = session.query(BayesSample).filter(
+                    BayesSample.profile_version == normalized_version
+                )
+                if normalized_owner:
+                    sample_query = sample_query.filter(BayesSample.owner_id == normalized_owner)
+                else:
+                    sample_query = sample_query.filter(BayesSample.owner_id == None)
+                sample_query.delete(synchronize_session=False)
+
+                for sample_data in sample_payloads:
+                    session.add(
+                        BayesSample(
+                            owner_id=normalized_owner,
+                            profile_id=profile_row.id,
+                            profile_version=normalized_version,
+                            name=sample_data.get("name"),
+                            vector=sample_data.get("vector") or [],
+                            label=int(sample_data.get("label", 0)),
+                            source=str(sample_data.get("source") or "preset"),
+                            item_id=sample_data.get("item_id"),
+                            note=sample_data.get("note"),
+                        )
+                    )
+
+            session.flush()
+            response_profile = self._to_dict(profile_row)
+            sample_owner_conditions = []
+            if normalized_owner:
+                sample_owner_conditions.append(BayesSample.owner_id == normalized_owner)
+            sample_owner_conditions.append(BayesSample.owner_id == None)
+            current_samples = session.query(BayesSample).filter(
+                BayesSample.profile_version == normalized_version,
+                or_(*sample_owner_conditions)
+            ).all()
+            response_profile["version"] = normalized_version
+            response_profile.setdefault("feature_names", list(self.DEFAULT_BAYES_FEATURE_NAMES))
+            response_profile["_samples"] = self._serialize_bayes_samples(current_samples)
+            response_profile.setdefault("_priors_mode", "auto_from_samples")
+            response_profile.setdefault("_stats_mode", "auto_from_samples")
+            response_profile.setdefault("_min_variance", 1e-4)
+            return response_profile
     
     def list_bayes_profiles(self, owner_id: Optional[str] = None, include_system: bool = True) -> List[Dict[str, Any]]:
-        """获取贝叶斯配置列表"""
+        """获取贝叶斯配置列表。"""
         with self.get_session() as session:
+            query = session.query(BayesProfile)
             conditions = []
-            
             if owner_id:
                 conditions.append(BayesProfile.owner_id == owner_id)
-            
             if include_system:
                 conditions.append(BayesProfile.owner_id == None)
-            
+
             if conditions:
-                query = session.query(BayesProfile).filter(or_(*conditions))
-            else:
-                query = session.query(BayesProfile)
-            
+                query = query.filter(or_(*conditions))
+            elif owner_id is None:
+                query = query.filter(BayesProfile.owner_id == None)
+
             profiles = query.all()
-            return [self._to_dict(p) for p in profiles]
+            return [self._to_dict(profile) for profile in profiles]
+
+    def delete_bayes_profile(self, version: str, owner_id: Optional[str] = None) -> bool:
+        """删除贝叶斯配置。"""
+        normalized_version = str(version or "").replace(".json", "").strip()
+        if not normalized_version:
+            return False
+
+        normalized_owner = str(owner_id).strip() if owner_id else None
+        with self.get_session() as session:
+            query = session.query(BayesProfile).filter(BayesProfile.version == normalized_version)
+            if normalized_owner:
+                query = query.filter(BayesProfile.owner_id == normalized_owner)
+            else:
+                query = query.filter(BayesProfile.owner_id == None)
+
+            profile = query.first()
+            if not profile:
+                return False
+
+            session.query(BayesSample).filter(
+                BayesSample.profile_version == normalized_version,
+                BayesSample.owner_id == (normalized_owner if normalized_owner else None)
+            ).delete(synchronize_session=False)
+            session.delete(profile)
+            session.flush()
+            return True
+
+    # ============== Prompt 模板管理 ==============
+
+    def list_prompt_templates(
+        self,
+        owner_id: Optional[str] = None,
+        include_system: bool = True
+    ) -> List[Dict[str, Any]]:
+        """获取 Prompt 模板列表（用户模板优先，可包含系统模板）。"""
+        with self.get_session() as session:
+            records: List[PromptTemplate] = []
+            if owner_id:
+                records.extend(
+                    session.query(PromptTemplate)
+                    .filter(PromptTemplate.owner_id == owner_id)
+                    .order_by(PromptTemplate.name.asc())
+                    .all()
+                )
+            if include_system:
+                records.extend(
+                    session.query(PromptTemplate)
+                    .filter(PromptTemplate.owner_id == None)
+                    .order_by(PromptTemplate.name.asc())
+                    .all()
+                )
+
+            dedup_by_name: Dict[str, Dict[str, Any]] = {}
+            for record in records:
+                normalized = self._to_dict(record)
+                name = str(normalized.get("name") or "")
+                if not name:
+                    continue
+                if name not in dedup_by_name:
+                    dedup_by_name[name] = normalized
+            return list(dedup_by_name.values())
+
+    def get_prompt_template(self, name: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """获取 Prompt 模板（用户优先，系统回退）。"""
+        normalized_name = self._normalize_prompt_template_name(name)
+        with self.get_session() as session:
+            if owner_id:
+                user_template = session.query(PromptTemplate).filter(
+                    PromptTemplate.owner_id == owner_id,
+                    PromptTemplate.name == normalized_name
+                ).first()
+                if user_template:
+                    return self._to_dict(user_template)
+
+            system_template = session.query(PromptTemplate).filter(
+                PromptTemplate.owner_id == None,
+                PromptTemplate.name == normalized_name
+            ).first()
+            return self._to_dict(system_template)
+
+    def save_prompt_template(self, template: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
+        """保存 Prompt 模板。"""
+        normalized_name = self._normalize_prompt_template_name(
+            template.get("name") or template.get("filename") or template.get("id")
+        )
+        normalized_owner = str(owner_id).strip() if owner_id else None
+        content = str(template.get("content") or "")
+        is_default = bool(template.get("is_default", normalized_name == "base_prompt.txt"))
+
+        with self.get_session() as session:
+            existing = session.query(PromptTemplate).filter(
+                PromptTemplate.owner_id == normalized_owner,
+                PromptTemplate.name == normalized_name
+            ).first()
+            if existing:
+                existing.content = content
+                existing.is_default = is_default
+                session.flush()
+                return self._to_dict(existing)
+
+            created = PromptTemplate(
+                owner_id=normalized_owner,
+                name=normalized_name,
+                content=content,
+                is_default=is_default,
+            )
+            session.add(created)
+            session.flush()
+            return self._to_dict(created)
+
+    def delete_prompt_template(self, id_or_name: str, owner_id: Optional[str] = None) -> bool:
+        """删除 Prompt 模板。"""
+        identity = str(id_or_name or "").strip()
+        if not identity:
+            return False
+
+        normalized_owner = str(owner_id).strip() if owner_id else None
+        with self.get_session() as session:
+            query = session.query(PromptTemplate)
+            try:
+                query = query.filter(PromptTemplate.id == UUID(identity))
+            except (TypeError, ValueError):
+                query = query.filter(PromptTemplate.name == self._normalize_prompt_template_name(identity))
+
+            if normalized_owner:
+                query = query.filter(PromptTemplate.owner_id == normalized_owner)
+            else:
+                query = query.filter(PromptTemplate.owner_id == None)
+
+            count = query.delete(synchronize_session=False)
+            return count > 0
     
     # ============== 贝叶斯样本管理 ==============
     

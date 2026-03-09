@@ -465,6 +465,19 @@ class LocalStorageAdapter(StorageInterface):
     def _get_bayes_file(self, version: str) -> Path:
         """获取贝叶斯配置文件路径"""
         return self.bayes_dir / f"{version}.json"
+
+    def _normalize_prompt_template_name(self, name: str) -> str:
+        """标准化 Prompt 模板名称，统一补齐 .txt 后缀。"""
+        normalized = str(name or "").strip()
+        if not normalized:
+            raise ValueError("Prompt 模板名称不能为空")
+        if not normalized.lower().endswith(".txt"):
+            normalized = f"{normalized}.txt"
+        return normalized
+
+    def _get_prompt_file(self, name: str) -> Path:
+        """获取 Prompt 模板文件路径。"""
+        return self.prompts_dir / self._normalize_prompt_template_name(name)
     
     def get_bayes_profile(self, version: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """获取贝叶斯配置"""
@@ -498,6 +511,84 @@ class LocalStorageAdapter(StorageInterface):
             except (json.JSONDecodeError, IOError):
                 continue
         return profiles
+
+    def delete_bayes_profile(self, version: str, owner_id: Optional[str] = None) -> bool:
+        """删除贝叶斯配置"""
+        bayes_file = self._get_bayes_file(str(version or "").replace(".json", ""))
+        if not bayes_file.exists():
+            return False
+        bayes_file.unlink()
+        return True
+
+    # ============== Prompt 模板管理 ==============
+
+    def list_prompt_templates(
+        self,
+        owner_id: Optional[str] = None,
+        include_system: bool = True
+    ) -> List[Dict[str, Any]]:
+        """获取 Prompt 模板列表（本地模式直接扫描 prompts/*.txt）。"""
+        templates: List[Dict[str, Any]] = []
+        if not self.prompts_dir.exists():
+            return templates
+
+        for prompt_file in sorted(self.prompts_dir.glob("*.txt")):
+            templates.append(
+                {
+                    "id": prompt_file.stem,
+                    "owner_id": None,
+                    "name": prompt_file.name,
+                    "is_default": prompt_file.name == "base_prompt.txt",
+                    "created_at": None,
+                    "updated_at": None,
+                }
+            )
+        return templates
+
+    def get_prompt_template(self, name: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """获取 Prompt 模板内容。"""
+        prompt_file = self._get_prompt_file(name)
+        if not prompt_file.exists():
+            return None
+
+        content = prompt_file.read_text(encoding="utf-8")
+        return {
+            "id": prompt_file.stem,
+            "owner_id": None,
+            "name": prompt_file.name,
+            "content": content,
+            "is_default": prompt_file.name == "base_prompt.txt",
+            "created_at": None,
+            "updated_at": None,
+        }
+
+    def save_prompt_template(self, template: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
+        """保存 Prompt 模板内容。"""
+        name = self._normalize_prompt_template_name(
+            template.get("name") or template.get("filename") or template.get("id")
+        )
+        content = str(template.get("content") or "")
+        prompt_file = self._get_prompt_file(name)
+        prompt_file.parent.mkdir(parents=True, exist_ok=True)
+        prompt_file.write_text(content, encoding="utf-8")
+
+        return {
+            "id": prompt_file.stem,
+            "owner_id": None,
+            "name": prompt_file.name,
+            "content": content,
+            "is_default": bool(template.get("is_default", prompt_file.name == "base_prompt.txt")),
+            "created_at": None,
+            "updated_at": None,
+        }
+
+    def delete_prompt_template(self, id_or_name: str, owner_id: Optional[str] = None) -> bool:
+        """删除 Prompt 模板。"""
+        prompt_file = self._get_prompt_file(id_or_name)
+        if not prompt_file.exists():
+            return False
+        prompt_file.unlink()
+        return True
     
     # ============== 贝叶斯样本管理 ==============
     

@@ -215,6 +215,37 @@ class StorageInterface(ABC):
     def list_bayes_profiles(self, owner_id: Optional[str] = None, include_system: bool = True) -> List[Dict[str, Any]]:
         """获取贝叶斯配置列表"""
         pass
+
+    @abstractmethod
+    def delete_bayes_profile(self, version: str, owner_id: Optional[str] = None) -> bool:
+        """删除贝叶斯配置"""
+        pass
+
+    # ============== Prompt 模板管理 ==============
+
+    @abstractmethod
+    def list_prompt_templates(
+        self,
+        owner_id: Optional[str] = None,
+        include_system: bool = True
+    ) -> List[Dict[str, Any]]:
+        """获取 Prompt 模板列表"""
+        pass
+
+    @abstractmethod
+    def get_prompt_template(self, name: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """获取 Prompt 模板"""
+        pass
+
+    @abstractmethod
+    def save_prompt_template(self, template: Dict[str, Any], owner_id: Optional[str] = None) -> Dict[str, Any]:
+        """保存 Prompt 模板"""
+        pass
+
+    @abstractmethod
+    def delete_prompt_template(self, id_or_name: str, owner_id: Optional[str] = None) -> bool:
+        """删除 Prompt 模板"""
+        pass
     
     # ============== 贝叶斯样本管理 ==============
     

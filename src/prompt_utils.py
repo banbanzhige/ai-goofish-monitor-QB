@@ -11,6 +11,7 @@ from openai import APITimeoutError, AsyncOpenAI
 
 from src import config
 from src.logging_config import get_logger
+from src.config import STORAGE_BACKEND
 
 # 权重框架指导文件路径（策略资产，不作为硬编码权重依赖）
 WEIGHT_GUIDE_PATH = Path("prompts/guide/weight_framework_guide.md")
@@ -176,9 +177,39 @@ async def generate_criteria(user_description: str, reference_file_path: str, own
         f"正在读取参考文件: {reference_file_path}",
         extra={"event": "criteria_reference_read", "reference_file": reference_file_path}
     )
-    try:
+
+    def _load_reference_text() -> str:
+        """读取参考模板文本，PostgreSQL 模式下对 prompts/* 优先走数据库。"""
+        normalized_path = str(reference_file_path or "").strip().replace("\\", "/")
+        if STORAGE_BACKEND() == "postgres":
+            try:
+                from src.storage import get_storage
+
+                filename = ""
+                if normalized_path.startswith("prompts/"):
+                    filename = normalized_path.split("/", 1)[-1].split("/")[-1]
+                elif "/prompts/" in normalized_path:
+                    filename = normalized_path.split("/prompts/", 1)[-1].split("/")[-1]
+                if filename:
+                    template = get_storage().get_prompt_template(filename, owner_id=owner_id)
+                    if template and str(template.get("content") or ""):
+                        return str(template.get("content") or "")
+            except Exception as exc:
+                logger.warning(
+                    "数据库读取参考 Prompt 失败，回退文件读取",
+                    extra={
+                        "event": "criteria_reference_prompt_db_read_failed",
+                        "reference_file": reference_file_path,
+                        "owner_id": owner_id
+                    },
+                    exc_info=exc,
+                )
+
         with open(reference_file_path, 'r', encoding='utf-8') as f:
-            reference_text = f.read()
+            return f.read()
+
+    try:
+        reference_text = _load_reference_text()
     except FileNotFoundError:
         raise FileNotFoundError(f"参考文件未找到: {reference_file_path}")
     except IOError as e:
@@ -284,5 +315,4 @@ async def update_config_with_new_task(new_task: dict, config_file: str = "config
             extra={"event": "config_update_io_error", "config_file": config_file}
         )
         return False
-
 

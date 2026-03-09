@@ -17,6 +17,7 @@ import re
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from src.user_file_store import resolve_virtual_task_file
+from src.config import STORAGE_BACKEND
 
 
 class RecommendationScorer:
@@ -59,9 +60,13 @@ class RecommendationScorer:
             "risk_penalty": {"per_tag_penalty": 5, "max_penalty": 20}
         }
         
-        # 尝试从配置文件加载
+        # PostgreSQL 模式下优先从存储层读取
         fusion_config = default_fusion_config
-        if os.path.exists(self.config_path):
+        profile_config = self._load_profile_config_from_storage(self.bayes_profile)
+        if isinstance(profile_config, dict) and isinstance(profile_config.get("recommendation_fusion"), dict):
+            fusion_config = profile_config["recommendation_fusion"]
+            print(f"[推荐度] 已从数据库加载 Bayes 融合权重配置: {self.bayes_profile}")
+        elif os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
@@ -736,6 +741,19 @@ class RecommendationScorer:
             raw_path = os.path.join("prompts", "bayes", f"{profile_name}.json")
         resolved = resolve_virtual_task_file(raw_path, owner_id=self.owner_id, for_write=False)
         return str(resolved)
+
+    def _load_profile_config_from_storage(self, profile_name: str) -> Optional[Dict[str, Any]]:
+        """PostgreSQL 模式下从存储层读取 Bayes 配置。"""
+        if STORAGE_BACKEND() != "postgres":
+            return None
+        try:
+            from src.storage import get_storage
+
+            storage = get_storage()
+            profile = storage.get_bayes_profile(profile_name, owner_id=self.owner_id)
+            return profile if isinstance(profile, dict) else None
+        except Exception:
+            return None
 
     def _safe_parse_float(self, value: Any) -> Optional[float]:
         """从任意值中安全提取浮点数"""

@@ -4,6 +4,7 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from src.user_file_store import resolve_virtual_task_file
+from src.config import STORAGE_BACKEND
 
 
 # Bayes 配置文件目录
@@ -359,9 +360,19 @@ def extract_features(final_record: Dict[str, Any], profile: Optional[Dict[str, A
 def _load_bayes_profile(profile_name: str, owner_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     if not profile_name or profile_name == "disabled":
         return None
-    filename = profile_name
-    if not filename.endswith(".json"):
-        filename += ".json"
+    normalized_version = str(profile_name or "").replace(".json", "").strip()
+    if STORAGE_BACKEND() == "postgres":
+        try:
+            from src.storage import get_storage
+
+            storage = get_storage()
+            profile = storage.get_bayes_profile(normalized_version, owner_id=owner_id)
+            if profile:
+                return profile
+        except Exception:
+            pass
+
+    filename = f"{normalized_version}.json"
     filepath = resolve_virtual_task_file(
         os.path.join("prompts", "bayes", filename),
         owner_id=owner_id,

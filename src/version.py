@@ -3,11 +3,20 @@
 """
 版本信息文件
 """
-VERSION = "V1.0.0-beta"
+VERSION = "V1.0.2-beta"
 
 
 
 VERSION_HISTORY = [
+    {
+        "version": "V1.0.0-beta",
+        "date": "2026-02-14",
+        "changes": [
+            "优化了Prompt 自定义配置和Bayes 自定义配置的生成逻辑，现在这两个自定义配置会入库且用户数据隔离",
+
+        ]
+    },
+
 
     {
         "version": "V1.0.0-beta",

@@ -175,6 +175,18 @@ def _resolve_owner_for_scoped_files(user: dict) -> Optional[str]:
     return _resolve_current_user_id(user)
 
 
+def _normalize_bayes_version(value: str) -> str:
+    """标准化 Bayes 版本名称（不含 .json 后缀）。"""
+    text = str(value or "").strip()
+    if text.endswith(".json"):
+        text = text[:-5]
+    if not text:
+        raise HTTPException(status_code=400, detail="无效的 Bayes 版本名。")
+    if any(token in text for token in ("/", "\\", ":", "\x00")):
+        raise HTTPException(status_code=400, detail="无效的 Bayes 版本名。")
+    return text
+
+
 def _build_ai_settings_from_user_api_config(user_api_config: dict) -> dict:
     """将用户API配置转换为AI设置响应结构。"""
     config_data = user_api_config if isinstance(user_api_config, dict) else {}
@@ -287,8 +299,17 @@ async def get_system_status(_user: dict = Depends(_require_settings_admin)):
 
 @router.get("/api/prompts")
 async def list_prompts(user: dict = Depends(_require_ai_or_tasks_access)):
-    """列出 prompts/ 目录下的所有 .txt 文件。"""
+    """列出 Prompt 模板文件名。"""
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        storage = get_storage()
+        templates = storage.list_prompt_templates(owner_id=owner_id, include_system=True)
+        names = {
+            str(item.get("name") or "").strip()
+            for item in templates
+            if str(item.get("name") or "").strip().lower().endswith(".txt")
+        }
+        return sorted(name for name in names if name)
     return list_scoped_files("prompts", owner_id=owner_id, include_shared=True)
 
 
@@ -297,8 +318,22 @@ async def create_new_prompt(new_prompt: NewPromptRequest, user: dict = Depends(_
     """创建一个新的 prompt 文件。"""
     safe_filename = _validate_safe_filename(new_prompt.filename, required_ext=".txt")
     owner_id = _resolve_owner_for_scoped_files(user)
-    existing_path = resolve_scoped_path("prompts", safe_filename, owner_id=owner_id, for_write=False)
+    if STORAGE_BACKEND() == "postgres":
+        storage = get_storage()
+        existing = storage.get_prompt_template(safe_filename, owner_id=owner_id)
+        if existing:
+            raise HTTPException(status_code=400, detail="该文件名已存在。")
+        storage.save_prompt_template(
+            {
+                "name": safe_filename,
+                "content": new_prompt.content,
+                "is_default": safe_filename == "base_prompt.txt",
+            },
+            owner_id=owner_id,
+        )
+        return {"message": f"Prompt 文件 '{safe_filename}' 创建成功。"}
 
+    existing_path = resolve_scoped_path("prompts", safe_filename, owner_id=owner_id, for_write=False)
     if existing_path.exists():
         raise HTTPException(status_code=400, detail="该文件名已存在。")
 
@@ -314,8 +349,18 @@ async def create_new_prompt(new_prompt: NewPromptRequest, user: dict = Depends(_
 @router.get("/api/prompts/{filename}")
 async def get_prompt_content(filename: str, user: dict = Depends(_require_ai_or_tasks_access)):
     """获取指定 prompt 文件的内容。"""
-    safe_filename = _validate_safe_filename(filename)
+    safe_filename = _validate_safe_filename(filename, required_ext=".txt")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        storage = get_storage()
+        template = storage.get_prompt_template(safe_filename, owner_id=owner_id)
+        if not template:
+            raise HTTPException(status_code=404, detail="Prompt 文件未找到。")
+        return {
+            "filename": safe_filename,
+            "content": str(template.get("content") or ""),
+        }
+
     filepath = resolve_scoped_path("prompts", safe_filename, owner_id=owner_id, for_write=False)
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Prompt 文件未找到。")
@@ -404,8 +449,23 @@ async def update_criteria_content(filename: str, prompt_update: PromptUpdate, us
 @router.put("/api/prompts/{filename}")
 async def update_prompt_content(filename: str, prompt_update: PromptUpdate, user: dict = Depends(_require_ai_access)):
     """更新指定 prompt 文件的内容。"""
-    safe_filename = _validate_safe_filename(filename)
+    safe_filename = _validate_safe_filename(filename, required_ext=".txt")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        storage = get_storage()
+        existing = storage.get_prompt_template(safe_filename, owner_id=owner_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Prompt 文件未找到。")
+        storage.save_prompt_template(
+            {
+                "name": safe_filename,
+                "content": prompt_update.content,
+                "is_default": bool(existing.get("is_default", safe_filename == "base_prompt.txt")),
+            },
+            owner_id=owner_id,
+        )
+        return {"message": f"Prompt 文件 '{safe_filename}' 更新成功。"}
+
     read_path = resolve_scoped_path("prompts", safe_filename, owner_id=owner_id, for_write=False)
 
     if not read_path.exists():
@@ -427,8 +487,17 @@ async def update_prompt_content(filename: str, prompt_update: PromptUpdate, user
 
 @router.get("/api/bayes")
 async def list_bayes_profiles(user: dict = Depends(_require_ai_or_tasks_access)):
-    """列出 prompts/bayes/ 目录下的所有 .json 文件。"""
+    """列出 Bayes 配置文件名。"""
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        storage = get_storage()
+        profiles = storage.list_bayes_profiles(owner_id=owner_id, include_system=True)
+        versions = {
+            str(item.get("version") or "").strip()
+            for item in profiles
+            if str(item.get("version") or "").strip()
+        }
+        return sorted(f"{version}.json" for version in versions)
     return list_scoped_files("bayes", owner_id=owner_id, include_shared=True)
 
 
@@ -437,6 +506,22 @@ async def create_bayes_profile(new_profile: NewPromptRequest, user: dict = Depen
     """创建一个新的 Bayes 参数文件。"""
     safe_filename = _validate_safe_filename(new_profile.filename, required_ext=".json")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        normalized_version = _normalize_bayes_version(safe_filename)
+        storage = get_storage()
+        existing = storage.get_bayes_profile(normalized_version, owner_id=owner_id)
+        if existing:
+            raise HTTPException(status_code=400, detail="该文件名已存在。")
+        try:
+            payload = json.loads(new_profile.content or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"Bayes 配置 JSON 格式错误: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Bayes 配置必须是 JSON 对象。")
+        payload["version"] = normalized_version
+        storage.save_bayes_profile(payload, owner_id=owner_id)
+        return {"message": f"Bayes 文件 '{safe_filename}' 创建成功。"}
+
     existing_path = resolve_scoped_path("bayes", safe_filename, owner_id=owner_id, for_write=False)
     if existing_path.exists():
         raise HTTPException(status_code=400, detail="该文件名已存在。")
@@ -453,8 +538,19 @@ async def create_bayes_profile(new_profile: NewPromptRequest, user: dict = Depen
 @router.get("/api/bayes/{filename}")
 async def get_bayes_profile(filename: str, user: dict = Depends(_require_ai_or_tasks_access)):
     """获取指定 Bayes 参数文件的内容。"""
-    safe_filename = _validate_safe_filename(filename)
+    safe_filename = _validate_safe_filename(filename, required_ext=".json")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        normalized_version = _normalize_bayes_version(safe_filename)
+        storage = get_storage()
+        profile = storage.get_bayes_profile(normalized_version, owner_id=owner_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+        return {
+            "filename": safe_filename,
+            "content": json.dumps(profile, ensure_ascii=False, indent=2),
+        }
+
     filepath = resolve_scoped_path("bayes", safe_filename, owner_id=owner_id, for_write=False)
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
@@ -467,8 +563,24 @@ async def get_bayes_profile(filename: str, user: dict = Depends(_require_ai_or_t
 @router.put("/api/bayes/{filename}")
 async def update_bayes_profile(filename: str, bayes_update: BayesUpdate, user: dict = Depends(_require_ai_access)):
     """更新指定 Bayes 参数文件的内容。"""
-    safe_filename = _validate_safe_filename(filename)
+    safe_filename = _validate_safe_filename(filename, required_ext=".json")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        normalized_version = _normalize_bayes_version(safe_filename)
+        storage = get_storage()
+        existing = storage.get_bayes_profile(normalized_version, owner_id=owner_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+        try:
+            payload = json.loads(bayes_update.content or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"Bayes 配置 JSON 格式错误: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Bayes 配置必须是 JSON 对象。")
+        payload["version"] = normalized_version
+        storage.save_bayes_profile(payload, owner_id=owner_id)
+        return {"message": f"Bayes 文件 '{safe_filename}' 更新成功。"}
+
     read_path = resolve_scoped_path("bayes", safe_filename, owner_id=owner_id, for_write=False)
     if not read_path.exists():
         raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
@@ -490,8 +602,35 @@ async def update_bayes_profile(filename: str, bayes_update: BayesUpdate, user: d
 @router.delete("/api/bayes/{filename}")
 async def delete_bayes_profile(filename: str, user: dict = Depends(_require_ai_access)):
     """删除指定的 Bayes 参数文件。"""
-    safe_filename = _validate_safe_filename(filename)
+    safe_filename = _validate_safe_filename(filename, required_ext=".json")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        normalized_version = _normalize_bayes_version(safe_filename)
+        storage = get_storage()
+        if owner_id:
+            deleted = storage.delete_bayes_profile(normalized_version, owner_id=owner_id)
+            if deleted:
+                if storage.get_bayes_profile(normalized_version, owner_id=owner_id):
+                    return {"message": f"Bayes 文件 '{safe_filename}' 的个人副本已删除（系统共享模板仍保留）。"}
+                return {"message": f"Bayes 文件 '{safe_filename}' 删除成功。"}
+            if storage.get_bayes_profile(normalized_version, owner_id=owner_id):
+                raise HTTPException(status_code=400, detail="该 Bayes 文件为系统共享模板，当前账号不能直接删除。")
+            raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+
+        all_profiles = storage.list_bayes_profiles(owner_id=None, include_system=True)
+        all_versions = {
+            str(item.get("version") or "").strip()
+            for item in all_profiles
+            if str(item.get("version") or "").strip()
+        }
+        if normalized_version in all_versions and len(all_versions) <= 1:
+            raise HTTPException(status_code=400, detail="至少保留一个 Bayes 配置版本")
+
+        deleted = storage.delete_bayes_profile(normalized_version, owner_id=None)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
+        return {"message": f"Bayes 文件 '{safe_filename}' 删除成功。"}
+
     if owner_id:
         # 多用户模式：仅允许删除当前用户私有覆盖文件，不允许删除系统共享模板
         user_path = resolve_scoped_path("bayes", safe_filename, owner_id=owner_id, for_write=True)
@@ -532,8 +671,25 @@ async def get_bayes_guide(_user: dict = Depends(_require_ai_or_tasks_access)):
 @router.delete("/api/prompts/{filename}")
 async def delete_prompt(filename: str, user: dict = Depends(_require_ai_access)):
     """删除指定的 prompt 文件。"""
-    safe_filename = _validate_safe_filename(filename)
+    safe_filename = _validate_safe_filename(filename, required_ext=".txt")
     owner_id = _resolve_owner_for_scoped_files(user)
+    if STORAGE_BACKEND() == "postgres":
+        storage = get_storage()
+        if owner_id:
+            deleted = storage.delete_prompt_template(safe_filename, owner_id=owner_id)
+            if deleted:
+                if storage.get_prompt_template(safe_filename, owner_id=owner_id):
+                    return {"message": f"Prompt 文件 '{safe_filename}' 的个人副本已删除（系统共享模板仍保留）。"}
+                return {"message": f"Prompt 文件 '{safe_filename}' 删除成功。"}
+            if storage.get_prompt_template(safe_filename, owner_id=owner_id):
+                raise HTTPException(status_code=400, detail="该 Prompt 文件为系统共享模板，当前账号不能直接删除。")
+            raise HTTPException(status_code=404, detail="Prompt 文件未找到。")
+
+        deleted = storage.delete_prompt_template(safe_filename, owner_id=None)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Prompt 文件未找到。")
+        return {"message": f"Prompt 文件 '{safe_filename}' 删除成功。"}
+
     if owner_id:
         # 多用户模式：仅允许删除当前用户私有覆盖文件，不允许删除系统共享模板
         user_path = resolve_scoped_path("prompts", safe_filename, owner_id=owner_id, for_write=True)
