@@ -10,6 +10,7 @@ services:
       # ========== 最小必需挂载 ==========
       # 全局运行配置（数据库连接、存储后端、系统级参数）
       - .env:/app/.env
+      - config.json/app/config.json
       # 多用户文件资产与运行时临时文件
       - ./state:/app/state
 

@@ -336,10 +336,11 @@ Docker 提供标准化部署环境，实现开箱即用。
 <details open>
 <summary><b>🗄️ 数据库模式（推荐）</b></summary>
 
-> - 复制 `.env.example` 为 `.env`
-> - 填写好`.env`的=== v1.0.0 多用户配置内容 ===的下方内容
-> - `.env`开启数据库模式 STORAGE_BACKEND = postgres 
-> - 确认端口未占用（8001/5432）
+<b>必须要做的事情：</b>
+
+> - 复制 `.env.example` 为 `.env`并且放到docker的挂载目录
+> - 在docker的挂载目录下新建一个空的`config.json`.用来持久化任务，避免容器更新后任务丢失
+> - 确认端口未占用（8001/5432），占用则修改compose内端口配置
 
 
 ```yaml
@@ -355,6 +356,7 @@ services:
       # ========== 最小必需挂载 ==========
       # 全局运行配置（数据库连接、存储后端、系统级参数）
       - .env:/app/.env
+      - config.json/app/config.json
       # 多用户文件资产与运行时临时文件
       - ./state:/app/state
 
