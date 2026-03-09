@@ -40,7 +40,7 @@ installed_packages.txt
 
 
 #.使用产生的文件
-chrome-extension/
+
 requirement/
 logs/
 criteria/
