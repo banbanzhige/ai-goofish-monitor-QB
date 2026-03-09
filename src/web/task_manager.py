@@ -65,6 +65,7 @@ def _normalize_task_dict(task: Dict[str, Any], index: int) -> Dict[str, Any]:
     normalized.setdefault("generating_ai_criteria", False)
     normalized.setdefault("free_shipping", False)
     normalized.setdefault("new_publish_option", None)
+    normalized.setdefault("price_sort_order", "desc")
     normalized.setdefault("region", None)
     normalized.setdefault("inspection_service", False)
     normalized.setdefault("account_assurance", False)
@@ -75,6 +76,10 @@ def _normalize_task_dict(task: Dict[str, Any], index: int) -> Dict[str, Any]:
     normalized.setdefault("bound_account", None)
     normalized.setdefault("auto_switch_on_risk", False)
     normalized["bayes_profile"] = _normalize_bayes_profile_value(normalized.get("bayes_profile"))
+    normalized["price_sort_order"] = _normalize_price_sort_order_value(
+        normalized.get("price_sort_order"),
+        default="desc",
+    )
     return normalized
 
 
@@ -115,6 +120,14 @@ def _normalize_bayes_profile_value(value: Any) -> str:
     if text.endswith(".json"):
         text = text[:-5]
     return text or "bayes_v1"
+
+
+def _normalize_price_sort_order_value(value: Any, default: str = "desc") -> str:
+    """规范化价格排序字段，仅允许 asc/desc。"""
+    text = str(value or "").strip().lower()
+    if text in {"asc", "desc"}:
+        return text
+    return default
 
 
 def _parse_bool_for_env(value, default: bool = False) -> bool:
@@ -548,6 +561,11 @@ def _normalize_update_data(update_data: Dict[str, Any]) -> Dict[str, Any]:
             normalized[field] = bool(normalized[field])
     if "new_publish_option" in normalized:
         normalized["new_publish_option"] = normalized["new_publish_option"] or None
+    if "price_sort_order" in normalized:
+        normalized["price_sort_order"] = _normalize_price_sort_order_value(
+            normalized.get("price_sort_order"),
+            default="desc",
+        )
     if "region" in normalized:
         normalized["region"] = normalized["region"] or None
     if "bayes_profile" in normalized:
@@ -687,6 +705,7 @@ async def generate_task(req: TaskGenerateRequestWithReference, request: Request)
         "personal_only": req.personal_only,
         "min_price": req.min_price,
         "max_price": req.max_price,
+        "price_sort_order": _normalize_price_sort_order_value(req.price_sort_order, default="desc"),
         "cron": req.cron,
         "ai_prompt_base_file": reference_file,
         "ai_prompt_criteria_file": requirement_filename,

@@ -18,6 +18,7 @@ from src.config import (
 from src.storage import get_storage
 from src.logging_config import get_logger
 from src.user_file_store import list_scoped_files, resolve_scoped_path
+from src.web.ai_health import get_ai_health_snapshot, invalidate_ai_health_snapshot
 from src.web.auth import require_auth, check_permission, has_category, get_user_management_level
 
 logger = get_logger(__name__, service="web")
@@ -49,6 +50,16 @@ _PROXY_BOOL_KEYS = {
     "PROXY_TELEGRAM_ENABLED",
     "PROXY_WEBHOOK_ENABLED",
     "PROXY_DINGTALK_ENABLED",
+}
+_NOTIFICATION_REQUIRED_CONFIG_KEYS = {
+    "wx_app": ["corp_id", "agent_id", "secret"],
+    "wx_bot": ["bot_url"],
+    "dingtalk": ["webhook"],
+    "telegram": ["bot_token", "chat_id"],
+    "ntfy": ["topic_url"],
+    "gotify": ["url", "token"],
+    "bark": ["url"],
+    "webhook": ["url"],
 }
 
 
@@ -239,8 +250,85 @@ def _build_proxy_settings_from_extra_config(extra_config: dict) -> dict:
     return settings
 
 
+def _is_notification_config_complete(config_item: dict) -> bool:
+    """判断用户通知配置是否填写完整。"""
+    if not isinstance(config_item, dict):
+        return False
+    channel_type = str(config_item.get("channel_type") or "").strip().lower()
+    config_data = config_item.get("config") if isinstance(config_item.get("config"), dict) else {}
+    required_keys = _NOTIFICATION_REQUIRED_CONFIG_KEYS.get(channel_type, [])
+    if not required_keys:
+        return bool(config_data)
+    return all(bool(str(config_data.get(key) or "").strip()) for key in required_keys)
+
+
+def _build_notification_status(user: dict) -> dict:
+    """构建通知渠道状态，按运行模式选择真实配置来源。"""
+    if STORAGE_BACKEND() == "postgres":
+        try:
+            user_id = _resolve_current_user_id(user)
+            configs = get_storage().get_user_notification_configs(user_id)
+            enabled_configs = [
+                item for item in configs
+                if isinstance(item, dict) and bool(item.get("is_enabled", False))
+            ]
+            complete_enabled_configs = [
+                item for item in enabled_configs
+                if _is_notification_config_complete(item)
+            ]
+            ok = len(complete_enabled_configs) > 0
+            return {
+                "source": "postgres_user_notification_configs",
+                "source_label": "当前用户通知配置（PostgreSQL）",
+                "configured_count": len(configs),
+                "enabled_count": len(enabled_configs),
+                "complete_enabled_count": len(complete_enabled_configs),
+                "ok": ok,
+                "message": "已存在可用通知渠道。" if ok else "未配置可用通知渠道（需至少一个启用且完整的渠道）。",
+            }
+        except Exception as exc:
+            logger.warning(
+                "读取用户通知配置状态失败",
+                extra={"event": "notification_status_load_failed"},
+                exc_info=exc,
+            )
+            return {
+                "source": "postgres_user_notification_configs",
+                "source_label": "当前用户通知配置（PostgreSQL）",
+                "configured_count": 0,
+                "enabled_count": 0,
+                "complete_enabled_count": 0,
+                "ok": False,
+                "message": "读取用户通知配置失败，请检查日志。",
+            }
+
+    has_any_channel = bool(
+        get_env_value("NTFY_TOPIC_URL", "")
+        or (get_env_value("GOTIFY_URL", "") and get_env_value("GOTIFY_TOKEN", ""))
+        or get_env_value("BARK_URL", "")
+        or get_env_value("WX_BOT_URL", "")
+        or (
+            get_env_value("WX_CORP_ID", "")
+            and get_env_value("WX_AGENT_ID", "")
+            and get_env_value("WX_SECRET", "")
+        )
+        or (get_env_value("TELEGRAM_BOT_TOKEN", "") and get_env_value("TELEGRAM_CHAT_ID", ""))
+        or get_env_value("WEBHOOK_URL", "")
+        or get_env_value("DINGTALK_WEBHOOK", "")
+    )
+    return {
+        "source": "env_global_notification_config",
+        "source_label": "全局配置（.env）",
+        "configured_count": 1 if has_any_channel else 0,
+        "enabled_count": 1 if has_any_channel else 0,
+        "complete_enabled_count": 1 if has_any_channel else 0,
+        "ok": has_any_channel,
+        "message": "已存在可用通知渠道。" if has_any_channel else "未配置可用通知渠道。",
+    }
+
+
 @router.get("/api/settings/status")
-async def get_system_status(_user: dict = Depends(_require_settings_admin)):
+async def get_system_status(user: dict = Depends(_require_settings_admin)):
     """检查系统关键文件和配置的状态。"""
     from src.web.main import fetcher_processes
     from src.config import (
@@ -262,7 +350,21 @@ async def get_system_status(_user: dict = Depends(_require_settings_admin)):
             from src.web.task_manager import update_task_running_status
             import asyncio
             asyncio.create_task(update_task_running_status(task_id, False))
+
     storage_runtime = _get_storage_runtime_status()
+    ai_health = get_ai_health_snapshot(user)
+    ai_config = ai_health.get("config") if isinstance(ai_health.get("config"), dict) else {}
+    notification_status = _build_notification_status(user)
+
+    openai_api_key_set = bool(ai_config.get("api_key_set"))
+    openai_base_url_set = bool(ai_config.get("base_url_set"))
+    openai_model_name_set = bool(ai_config.get("model_name_set"))
+    if not any([openai_api_key_set, openai_base_url_set, openai_model_name_set]):
+        # 兼容旧逻辑：当健康快照无配置信息时回退到访问器读取。
+        openai_api_key_set = bool(API_KEY())
+        openai_base_url_set = bool(BASE_URL())
+        openai_model_name_set = bool(MODEL_NAME())
+
     status = {
         "scraper_running": len(running_pids) > 0,
         # [已弃用] 原xianyu_state.json检查 - 现改为检查账号目录
@@ -276,9 +378,9 @@ async def get_system_status(_user: dict = Depends(_require_settings_admin)):
         },
         "env_file": {
             "exists": os.path.exists(".env"),
-            "openai_api_key_set": bool(API_KEY()),
-            "openai_base_url_set": bool(BASE_URL()),
-            "openai_model_name_set": bool(MODEL_NAME()),
+            "openai_api_key_set": openai_api_key_set,
+            "openai_base_url_set": openai_base_url_set,
+            "openai_model_name_set": openai_model_name_set,
             "ntfy_topic_url_set": bool(NTFY_TOPIC_URL()),
             "gotify_url_set": bool(GOTIFY_URL()),
             "gotify_token_set": bool(GOTIFY_TOKEN()),
@@ -292,7 +394,9 @@ async def get_system_status(_user: dict = Depends(_require_settings_admin)):
             "webhook_url_set": bool(WEBHOOK_URL()),
             "dingtalk_webhook_set": bool(get_env_value("DINGTALK_WEBHOOK", "")),
         },
-        "storage_runtime": storage_runtime
+        "storage_runtime": storage_runtime,
+        "ai_api": ai_health,
+        "notification_status": notification_status,
     }
     return status
 
@@ -397,7 +501,7 @@ async def get_criteria_content(filename: str, user: dict = Depends(_require_ai_o
                 "event": "criteria_file_not_found",
                 "criteria_path": filepath,
                 "requirement_path": requirement_path,
-                "filename": safe_filename
+                "criteria_filename": safe_filename
             }
         )
         raise HTTPException(status_code=404, detail="Criteria 文件未找到。")
@@ -561,7 +665,7 @@ async def get_bayes_profile(filename: str, user: dict = Depends(_require_ai_or_t
         except Exception as e:
             logger.warning(
                 "数据库读取 Bayes 内容失败，回退文件读取",
-                extra={"event": "settings_bayes_get_db_failed", "owner_id": owner_id, "filename": safe_filename},
+                extra={"event": "settings_bayes_get_db_failed", "owner_id": owner_id, "bayes_filename": safe_filename},
                 exc_info=e
             )
 
@@ -1006,6 +1110,7 @@ async def update_ai_settings(settings: dict, user: dict = Depends(_require_ai_ac
                     "config_id": saved_config.get("id"),
                 }
             )
+            invalidate_ai_health_snapshot(user)
 
             return {"message": "AI模型设置已成功更新并保存到当前用户配置。"}
 
@@ -1021,6 +1126,7 @@ async def update_ai_settings(settings: dict, user: dict = Depends(_require_ai_ac
         save_env_settings(merged_settings, ai_keys)
         from src.config import reload_config
         reload_config()
+        invalidate_ai_health_snapshot(user)
         return {"message": "AI模型设置已成功更新。"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新AI模型设置时出错: {e}")
@@ -1086,6 +1192,7 @@ async def update_proxy_settings(settings: dict, user: dict = Depends(_require_se
                     "config_id": saved.get("id"),
                 }
             )
+            invalidate_ai_health_snapshot(user)
             return {"message": "代理设置已成功更新并保存到当前用户配置。"}
 
         save_env_settings(settings, _PROXY_SETTING_KEYS)
@@ -1096,6 +1203,7 @@ async def update_proxy_settings(settings: dict, user: dict = Depends(_require_se
 
         from src.notifier import config as notifier_config
         notifier_config.reload()
+        invalidate_ai_health_snapshot(user)
 
         return {"message": "代理设置已成功更新。"}
     except Exception as e:

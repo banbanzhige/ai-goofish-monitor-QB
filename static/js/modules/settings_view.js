@@ -518,6 +518,57 @@ async function initializeSettingsView() {
         }
     };
 
+    const refreshSystemStatusPanel = async () => {
+        const status = await fetchSystemStatus();
+        const statusContainer = document.getElementById('system-status-container');
+        if (statusContainer) {
+            statusContainer.innerHTML = renderSystemStatus(status);
+        }
+    };
+
+    const buildAiHealthSummaryLines = (health) => {
+        if (!health || typeof health !== 'object') {
+            return ['AI可用性检测失败：未获取到有效结果。'];
+        }
+
+        const lines = [];
+        const overallLabel = health.overall_label || '未知';
+        const overallMessage = health.overall_message || '';
+        const sourceLabel = health.source_label || '未知来源';
+        const checkedAt = health.checked_at || '未检测';
+        const webTest = health.web_test || {};
+        const backendTest = health.backend_test || {};
+        const vision = health.vision_capability || {};
+
+        const formatProbe = (title, probe) => {
+            const probeLevel = probe.level || 'unknown';
+            const probeLevelMap = {
+                ok: '成功',
+                warning: '警告',
+                error: '失败',
+                unknown: '未检测',
+            };
+            const probeLabel = probeLevelMap[probeLevel] || '未知';
+            const latency = probe.latency_ms ? `（${probe.latency_ms}ms）` : '';
+            return `${title}：${probeLabel} - ${probe.message || '未检测'}${latency}`;
+        };
+
+        const visionLabelMap = {
+            supported: '支持',
+            unsupported: '不支持',
+            unknown: '未知',
+        };
+        const visionLabel = visionLabelMap[vision.status] || '未知';
+
+        lines.push(`AI API 可用性：${overallLabel}${overallMessage ? ` - ${overallMessage}` : ''}`);
+        lines.push(`配置来源：${sourceLabel}`);
+        lines.push(formatProbe('Web连通性', webTest));
+        lines.push(formatProbe('后端连通性', backendTest));
+        lines.push(`图像输入能力：${visionLabel}${vision.message ? ` - ${vision.message}` : ''}`);
+        lines.push(`检测时间：${checkedAt}`);
+        return lines;
+    };
+
     if (aiForm) {
         aiForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -554,13 +605,13 @@ async function initializeSettingsView() {
             if (result) {
                 Notification.success(result.message || "AI设置已保存！");
                 await updateAiGenericToggleSettings(genericToggleSettings);
+                await checkAIHealth(
+                    { check_vision: genericToggleSettings.AI_VISION_ENABLED === true },
+                    { silent: true }
+                );
 
                 // 刷新系统状态检查
-                const status = await fetchSystemStatus();
-                const statusContainer = document.getElementById('system-status-container');
-                if (statusContainer) {
-                    statusContainer.innerHTML = renderSystemStatus(status);
-                }
+                await refreshSystemStatusPanel();
             }
 
             saveBtn.disabled = false;
@@ -598,70 +649,47 @@ async function initializeSettingsView() {
                 testBtn.disabled = true;
                 testBtn.textContent = '测试中...';
                 const results = [];
-                let browserOk = false;
-                let backendOk = false;
-
-                const browserResult = await testAISettings(settings, { silent: true });
-                if (browserResult && browserResult.success) {
-                    browserOk = true;
-                    results.push(`浏览器测试成功：${browserResult.message || '连接正常'}`);
-                } else if (browserResult) {
-                    results.push(`浏览器测试失败：${browserResult.message || '未知错误'}`);
-                } else {
-                    results.push('浏览器测试失败：无响应');
-                }
 
                 try {
                     const saveResult = await updateAISettings(settings);
                     if (!saveResult) {
-                        results.push('后端容器测试失败：保存AI设置失败');
+                        results.push('保存AI设置失败，无法继续执行可用性检测。');
                     } else {
                         const toggleSaveResult = await updateAiGenericToggleSettings(genericToggleSettings);
                         if (!toggleSaveResult) {
-                            results.push('后端容器测试失败：AI通用开关保存失败');
+                            results.push('AI通用开关保存失败，检测结果可能不准确。');
                         }
-                        const response = await fetch('/api/settings/ai/test/backend', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
+
+                        if (proxyForm) {
+                            const proxySaveResult = await saveProxySettingsNow();
+                            if (!proxySaveResult) {
+                                results.push('代理配置保存失败，检测结果可能不准确。');
+                            }
+                        }
+
+                        const health = await checkAIHealth(
+                            {
+                                check_vision: genericToggleSettings.AI_VISION_ENABLED === true,
+                                run_web: true,
+                                run_backend: true,
                             },
-                        });
-
-                        if (!response.ok) {
-                            throw new Error('后端测试请求失败');
-                        }
-
-                        const backendResult = await response.json();
-                        if (backendResult.success) {
-                            backendOk = true;
-                            results.push(`后端容器测试成功：${backendResult.message || '连接正常'}`);
+                            { silent: true }
+                        );
+                        if (health) {
+                            results.push(...buildAiHealthSummaryLines(health));
                         } else {
-                            results.push(`后端容器测试失败：${backendResult.message || '未知错误'}`);
+                            results.push('AI可用性检测失败：接口无响应。');
                         }
                     }
                 } catch (error) {
-                    results.push(`后端容器测试错误：${error.message}`);
+                    results.push(`检测过程发生错误：${error.message}`);
                 } finally {
                     testBtn.disabled = false;
                     testBtn.textContent = originalText;
-
-                    // 刷新系统状态检查
-                    const status = await fetchSystemStatus();
-                    const statusContainer = document.getElementById('system-status-container');
-                    if (statusContainer) {
-                        statusContainer.innerHTML = renderSystemStatus(status);
-                    }
+                    await refreshSystemStatusPanel();
                 }
 
-                const successLines = [
-                    '浏览器测试成功：AI模型连接测试成功！',
-                    '后端容器测试成功：后端AI模型连接测试成功！',
-                    '容器网络正常！系统已经准备好运行！'
-                ];
-                const message = (browserOk && backendOk)
-                    ? successLines.join('\n')
-                    : results.join('\n');
-                Notification.infoMultiline(message);
+                Notification.infoMultiline(results.join('\n'));
             });
         }
 

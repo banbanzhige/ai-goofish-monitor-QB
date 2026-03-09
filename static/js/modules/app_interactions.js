@@ -624,6 +624,7 @@ function initAppInteractions(mainContent) {
                 description: formData.get('description'),
                 min_price: formData.get('min_price') || null,
                 max_price: formData.get('max_price') || null,
+                price_sort_order: formData.get('price_sort_order') || 'desc',
                 personal_only: formData.get('personal_only') === 'on',
                 free_shipping: formData.get('free_shipping') === 'on',
                 inspection_service: formData.get('inspection_service') === 'on',
@@ -1355,6 +1356,7 @@ function initAppInteractions(mainContent) {
                 keyword: document.getElementById('edit-keyword').value,
                 min_price: document.getElementById('edit-min-price').value || null,
                 max_price: document.getElementById('edit-max-price').value || null,
+                price_sort_order: document.getElementById('edit-price-sort-order').value || 'desc',
                 max_pages: parseInt(document.getElementById('edit-max-pages').value, 10) || 3,
                 bound_account: document.getElementById('edit-bound-account').value || null,
                 auto_switch_on_risk: document.getElementById('edit-auto-switch-on-risk').checked,
@@ -1414,6 +1416,7 @@ function initAppInteractions(mainContent) {
             document.getElementById('edit-keyword').value = taskData.keyword || '';
             document.getElementById('edit-min-price').value = taskData.min_price || '';
             document.getElementById('edit-max-price').value = taskData.max_price || '';
+            document.getElementById('edit-price-sort-order').value = taskData.price_sort_order || 'desc';
             document.getElementById('edit-max-pages').value = taskData.max_pages || 3;
             document.getElementById('edit-auto-switch-on-risk').checked = taskData.auto_switch_on_risk || false;
             document.getElementById('edit-task-cron').value = taskData.cron || '';

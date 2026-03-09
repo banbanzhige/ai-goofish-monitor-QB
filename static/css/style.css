@@ -4365,6 +4365,10 @@ input:checked+.slider:before {
     min-width: 140px;
 }
 
+.editable-advanced-panel .filter-row .filter-price-sort-order {
+    min-width: 140px;
+}
+
 .editable-advanced-panel .filter-row .region-select-row {
     flex: 1 1 auto;
 }

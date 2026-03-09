@@ -345,7 +345,7 @@ async def delete_export(filename: str):
     
     try:
         os.remove(export_path)
-        logger.info(f"已删除导出文件: {filename}", extra={"event": "export_deleted", "filename": filename})
+        logger.info(f"已删除导出文件: {filename}", extra={"event": "export_deleted", "export_filename": filename})
         return {"message": f"已删除: {filename}"}
     except Exception as e:
         logger.error(f"删除导出文件时出错: {e}", extra={"event": "export_delete_error"})

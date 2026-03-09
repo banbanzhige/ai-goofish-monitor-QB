@@ -3,9 +3,10 @@ import json
 import os
 import random
 import hashlib
+import re
 from datetime import datetime
 from urllib.parse import urlencode
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 
 from playwright.async_api import (
     Response,
@@ -50,6 +51,133 @@ from src.utils import (
 
 # 新结构下推荐等级的推荐集合（与运行期口径一致）
 RECOMMENDED_LEVELS = {"STRONG_BUY", "CAUTIOUS_BUY", "CONDITIONAL_BUY"}
+
+
+class PriceSortApplyError(Exception):
+    """价格排序应用失败（严格失败模式）。"""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _parse_price_to_number(price_text: Any) -> Optional[float]:
+    """将价格文本解析为数值，无法解析或不可比较价格返回 None。"""
+    if price_text is None:
+        return None
+
+    text = str(price_text).strip()
+    if not text:
+        return None
+
+    compact = (
+        text.replace("当前价", "")
+        .replace("¥", "")
+        .replace("￥", "")
+        .replace("元", "")
+        .replace(",", "")
+        .replace(" ", "")
+        .strip()
+    )
+    if not compact:
+        return None
+    if any(token in compact for token in ("面议", "议价", "待议", "咨询")):
+        return None
+
+    number_matches = re.findall(r"\d+(?:\.\d+)?", compact)
+    if not number_matches:
+        return None
+
+    numbers = [float(value) for value in number_matches]
+    # 区间价格取均值，避免单边值造成方向误判
+    parsed = sum(numbers) / len(numbers)
+    if "万" in compact:
+        parsed *= 10000
+
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _normalize_price_bound_value(raw_value: Any) -> Optional[str]:
+    """规范化价格筛选值，避免 800.0 在站点输入框中被输入成 8000。"""
+    if raw_value is None:
+        return None
+
+    text = str(raw_value).strip()
+    if not text:
+        return None
+
+    int_like_match = re.fullmatch(r"(\d+)\.0+", text)
+    if int_like_match:
+        return int_like_match.group(1)
+    return text
+
+
+def _extract_price_values_from_search_json(json_data: Any, sample_limit: int = 12) -> List[float]:
+    """从搜索响应中抽样提取价格数值序列。"""
+    prices: List[float] = []
+    if not isinstance(json_data, dict):
+        return prices
+
+    result_list = ((json_data.get("data") or {}).get("resultList") or [])
+    if not isinstance(result_list, list):
+        return prices
+
+    for row in result_list:
+        if len(prices) >= sample_limit:
+            break
+        if not isinstance(row, dict):
+            continue
+        row_data = row.get("data") or {}
+        item_data = row_data.get("item") or {}
+        main_data = item_data.get("main") or {}
+        ex_content = main_data.get("exContent") or {}
+
+        price_text = ""
+        price_parts = ex_content.get("price")
+        if isinstance(price_parts, list):
+            part_texts = []
+            for part in price_parts:
+                if isinstance(part, dict):
+                    part_text = str(part.get("text") or "").strip()
+                    if part_text:
+                        part_texts.append(part_text)
+            price_text = "".join(part_texts).strip()
+        elif isinstance(price_parts, (str, int, float)):
+            price_text = str(price_parts).strip()
+
+        parsed_price = _parse_price_to_number(price_text)
+        if parsed_price is None:
+            continue
+        # 忽略异常高价，减少广告位/异常数据对排序方向校验的干扰
+        if parsed_price > 5_000_000:
+            continue
+        prices.append(parsed_price)
+
+    return prices
+
+
+def _check_price_monotonic(
+    prices: List[float],
+    order: str,
+    tolerance: float = 0.01,
+    max_violations: int = 1,
+) -> Tuple[bool, int]:
+    """校验价格序列是否符合目标单调方向，返回(是否通过, 违例次数)。"""
+    if len(prices) < 2:
+        return False, 0
+
+    violations = 0
+    for prev, curr in zip(prices, prices[1:]):
+        if order == "asc":
+            if curr + tolerance < prev:
+                violations += 1
+        else:
+            if curr - tolerance > prev:
+                violations += 1
+
+    return violations <= max_violations, violations
 
 
 def _is_ai_recommended(ai_analysis: Optional[Dict[str, Any]]) -> bool:
@@ -643,8 +771,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     task_name = task_config.get('task_name', keyword)
     max_pages = task_config.get('max_pages', 1)
     personal_only = task_config.get('personal_only', False)
-    min_price = task_config.get('min_price')
-    max_price = task_config.get('max_price')
+    min_price = _normalize_price_bound_value(task_config.get('min_price'))
+    max_price = _normalize_price_bound_value(task_config.get('max_price'))
     ai_prompt_text = task_config.get('ai_prompt_text', '')
     free_shipping = bool(task_config.get('free_shipping', False))
     inspection_service = bool(task_config.get('inspection_service', False))
@@ -657,6 +785,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     new_publish_option = raw_new_publish.strip()
     if new_publish_option == '__none__':
         new_publish_option = ''
+    raw_price_sort_order = str(task_config.get("price_sort_order") or "").strip().lower()
+    price_sort_order = "asc" if raw_price_sort_order == "asc" else "desc"
     region_filter = (task_config.get('region') or '').strip()
 
     processed_item_count = 0
@@ -1138,40 +1268,685 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 except Exception as e:
                     print(f"LOG: 应用区域筛选 '{region_filter}' 失败: {e}")
 
+            price_sort_target_label = "价格从低到高" if price_sort_order == "asc" else "价格从高到低"
+            price_sort_retry = 3
+            price_sort_applied = False
+            price_sort_last_stage = "init"
+            price_sort_last_ui_text = ""
+            price_sort_last_detail = ""
+            price_sort_sample_size = 12
+            sort_bar_debug_snapshot: List[Dict[str, Any]] = []
+            sort_trigger_debug_snapshot: List[Dict[str, Any]] = []
+
+            def _compact_text(raw_text: str) -> str:
+                return (raw_text or "").replace("\n", "").replace("\t", "").replace(" ", "").strip()
+
+            def _state_from_trigger_text(raw_text: str) -> str:
+                compact = _compact_text(raw_text)
+                has_asc = "价格从低到高" in compact
+                has_desc = "价格从高到低" in compact
+                # 下拉展开时可能把触发器文本和菜单文本拼在一起，优先按前缀判当前态
+                if has_asc and has_desc:
+                    if compact.startswith("价格从低到高"):
+                        return "asc"
+                    if compact.startswith("价格从高到低"):
+                        return "desc"
+                    if compact.startswith("价格"):
+                        return "neutral"
+                    asc_idx = compact.find("价格从低到高")
+                    desc_idx = compact.find("价格从高到低")
+                    return "asc" if asc_idx <= desc_idx else "desc"
+                if has_asc:
+                    return "asc"
+                if has_desc:
+                    return "desc"
+                if compact.startswith("价格") or compact == "价格":
+                    return "neutral"
+                return "unknown"
+
+            def _format_simple_debug(items: List[Dict[str, Any]], limit: int = 3) -> str:
+                if not items:
+                    return "none"
+                parts = []
+                for index, item in enumerate(items[:limit], start=1):
+                    parts.append(
+                        f"{index}:{item.get('class', '')}:{item.get('text', '')}@({int(item.get('x', 0))},{int(item.get('y', 0))}) h={int(item.get('h', 0))} score={item.get('score', 0):.2f}"
+                    )
+                return " | ".join(parts)
+
+            async def _find_sort_bar():
+                nonlocal sort_bar_debug_snapshot
+                sort_bar_debug_snapshot = []
+                bar_candidates = page.locator("div,section,ul,nav")
+                count = await bar_candidates.count()
+                best_bar = None
+                best_score = None
+                for index in range(min(count, 160)):
+                    bar = bar_candidates.nth(index)
+                    try:
+                        if not await bar.is_visible():
+                            continue
+                        text = _compact_text(await bar.inner_text())
+                        if "综合" not in text:
+                            continue
+                        if "新发布" not in text and "新降价" not in text:
+                            continue
+                        box = await bar.bounding_box()
+                        if not box:
+                            continue
+                        h = float(box.get("height", 0))
+                        w = float(box.get("width", 0))
+                        if h < 20 or h > 140:
+                            continue
+                        class_name = str(await bar.get_attribute("class") or "")
+                    except Exception:
+                        continue
+
+                    score = abs(h - 40) * 1.2 + w * 0.002
+                    if "价格" in text:
+                        score -= 20
+                    if "search-filter-select-container" in class_name:
+                        score -= 45
+                    if "search-filter-up-container" in class_name:
+                        score -= 35
+                    if "search-container" in class_name and "search-filter" not in class_name:
+                        score += 30
+
+                    candidate_meta = {
+                        "class": class_name[:60],
+                        "text": text[:30],
+                        "x": float(box.get("x", 0)),
+                        "y": float(box.get("y", 0)),
+                        "h": h,
+                        "score": score,
+                    }
+                    sort_bar_debug_snapshot.append(candidate_meta)
+
+                    if best_bar is None or (best_score is not None and score < best_score):
+                        best_bar = bar
+                        best_score = score
+                sort_bar_debug_snapshot.sort(key=lambda item: item["score"])
+                return best_bar
+
+            async def _find_sort_trigger_in_bar(sort_bar):
+                nonlocal sort_trigger_debug_snapshot
+                sort_trigger_debug_snapshot = []
+                if sort_bar is None:
+                    return None, ""
+                queries = [
+                    "[class*='search-select-container'],[class*='search-select-title']",
+                    "li,button,div,span,a,p",
+                ]
+                best_node = None
+                best_text = ""
+                best_score = None
+                seen_keys = set()
+
+                for query in queries:
+                    nodes = sort_bar.locator(query)
+                    count = await nodes.count()
+                    for index in range(min(count, 200)):
+                        node = nodes.nth(index)
+                        try:
+                            if not await node.is_visible():
+                                continue
+                            text = _compact_text(await node.inner_text())
+                            state = _state_from_trigger_text(text)
+                            if state == "unknown":
+                                continue
+                            if "价格" not in text:
+                                continue
+                            box = await node.bounding_box()
+                            if not box:
+                                continue
+                            class_name = str(await node.get_attribute("class") or "")
+                        except Exception:
+                            continue
+
+                        key = (int(box.get("x", 0)), int(box.get("y", 0)), text)
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+
+                        score = min(len(text), 24) * 0.15 + float(box.get("width", 0)) * 0.002
+                        if state == "neutral":
+                            score -= 6
+                        if text == "价格":
+                            score -= 8
+                        if text.startswith("价格从低到高") or text.startswith("价格从高到低"):
+                            score -= 12
+                        # 触发器应是短文本，包含两种排序文本的大块节点通常是“触发器+菜单”拼接文本
+                        if "价格从低到高" in text and "价格从高到低" in text:
+                            score += 80
+                        if len(text) > 18:
+                            score += 25
+                        h = float(box.get("height", 0))
+                        if h > 65:
+                            score += 40
+                        if "search-select-container" in class_name:
+                            score -= 20
+                        if "search-select-title" in class_name:
+                            score -= 10
+                        if "search-filter-select-container" in class_name:
+                            score += 30
+
+                        sort_trigger_debug_snapshot.append(
+                            {
+                                "class": class_name[:60],
+                                "text": text[:30],
+                                "x": float(box.get("x", 0)),
+                                "y": float(box.get("y", 0)),
+                                "h": float(box.get("height", 0)),
+                                "score": score,
+                            }
+                        )
+
+                        if best_node is None or (best_score is not None and score < best_score):
+                            best_node = node
+                            best_text = text
+                            best_score = score
+
+                sort_trigger_debug_snapshot.sort(key=lambda item: item["score"])
+                return best_node, best_text
+
+            async def _get_trigger_state_and_text():
+                sort_bar = await _find_sort_bar()
+                trigger, trigger_text = await _find_sort_trigger_in_bar(sort_bar)
+                return _state_from_trigger_text(trigger_text), trigger_text, trigger, sort_bar
+
+            async def _release_focus_after_new_publish():
+                try:
+                    await page.evaluate(
+                        "() => { const el = document.activeElement; if (el && typeof el.blur === 'function') el.blur(); }"
+                    )
+                except Exception:
+                    pass
+                try:
+                    await page.mouse.click(8, 8)
+                except Exception:
+                    pass
+                await random_sleep(0.2, 0.4)
+
+            async def _find_sort_menu(trigger_node):
+                menu_candidates = page.locator(
+                    "xpath=//*[self::div or self::ul or self::section][contains(normalize-space(.), '价格从低到高') and contains(normalize-space(.), '价格从高到低')]"
+                )
+                count = await menu_candidates.count()
+                trigger_box = None
+                if trigger_node is not None:
+                    try:
+                        trigger_box = await trigger_node.bounding_box()
+                    except Exception:
+                        trigger_box = None
+
+                best_menu = None
+                best_score = None
+                for index in range(min(count, 24)):
+                    menu = menu_candidates.nth(index)
+                    try:
+                        if not await menu.is_visible():
+                            continue
+                        text = _compact_text(await menu.inner_text())
+                        if "价格从低到高" not in text or "价格从高到低" not in text:
+                            continue
+                        box = await menu.bounding_box()
+                        if not box:
+                            continue
+                    except Exception:
+                        continue
+
+                    score = float(box.get("width", 0)) * float(box.get("height", 0)) * 0.001
+                    if trigger_box:
+                        trigger_x = float(trigger_box.get("x", 0)) + float(trigger_box.get("width", 0)) / 2
+                        trigger_y = float(trigger_box.get("y", 0)) + float(trigger_box.get("height", 0))
+                        center_x = float(box.get("x", 0)) + float(box.get("width", 0)) / 2
+                        center_y = float(box.get("y", 0))
+                        if center_y + 3 < trigger_y:
+                            continue
+                        score += abs(center_x - trigger_x) * 0.03 + abs(center_y - trigger_y) * 0.1
+                    if best_menu is None or (best_score is not None and score < best_score):
+                        best_menu = menu
+                        best_score = score
+                return best_menu
+
+            async def _wait_sort_menu(trigger_node, timeout_ms: int = 2500):
+                deadline = asyncio.get_event_loop().time() + timeout_ms / 1000
+                while asyncio.get_event_loop().time() < deadline:
+                    menu = await _find_sort_menu(trigger_node)
+                    if menu is not None:
+                        return menu
+                    await asyncio.sleep(0.12)
+                return None
+
+            async def _collect_option_candidates(menu, option_label: str, source: str = "menu", limit: int = 3):
+                nodes = menu.locator("li,button,a,span,div,p")
+                count = await nodes.count()
+                candidates = []
+                for strict_mode in (True, False):
+                    candidates = []
+                    for index in range(min(count, 120)):
+                        node = nodes.nth(index)
+                        try:
+                            if not await node.is_visible():
+                                continue
+                            text = _compact_text(await node.inner_text())
+                            if option_label not in text:
+                                continue
+                            if strict_mode and len(text) > len(option_label) + 6:
+                                continue
+                            box = await node.bounding_box()
+                            if not box:
+                                continue
+                        except Exception:
+                            continue
+                        score = 0.0
+                        if text != option_label:
+                            score += 6
+                        score += min(len(text), 24) * 0.1
+                        score += float(box.get("width", 0)) * 0.002
+                        candidates.append(
+                            {
+                                "node": node,
+                                "text": text,
+                                "x": float(box.get("x", 0)),
+                                "y": float(box.get("y", 0)),
+                                "score": score,
+                                "source": source,
+                            }
+                        )
+                    if candidates:
+                        break
+                candidates.sort(key=lambda item: item["score"])
+                return candidates[:limit]
+
+            def _format_candidate_debug(candidates):
+                if not candidates:
+                    return "none"
+                parts = []
+                for index, item in enumerate(candidates, start=1):
+                    parts.append(
+                        f"{index}:{item['source']}:{item['text']}@({int(item['x'])},{int(item['y'])}) score={item['score']:.2f}"
+                    )
+                return " | ".join(parts)
+
+            async def _open_price_sort_panel(trigger_node):
+                menu = await _find_sort_menu(trigger_node)
+                if menu is not None:
+                    return menu
+                if trigger_node is None:
+                    return None
+                await trigger_node.click(timeout=3000)
+                await random_sleep(0.25, 0.45)
+                menu = await _wait_sort_menu(trigger_node, timeout_ms=2500)
+                if menu is not None:
+                    return menu
+                try:
+                    await trigger_node.click(timeout=3000, force=True)
+                except Exception:
+                    pass
+                await random_sleep(0.25, 0.45)
+                return await _wait_sort_menu(trigger_node, timeout_ms=1800)
+
+            async def _click_sort_option_in_menu(menu, option_label: str, attempt: int, timeout_ms: int = 12000):
+                top_candidates = await _collect_option_candidates(menu, option_label, source="menu", limit=3)
+                if not top_candidates:
+                    preview_nodes = await _collect_option_candidates(menu, "价格从", source="menu_preview", limit=3)
+                    raise RuntimeError(
+                        f"option_not_found:target_not_found candidates={_format_candidate_debug(preview_nodes)}"
+                    )
+
+                chosen = top_candidates[0]
+                log_time(
+                    f"价格排序第{attempt}/{price_sort_retry}次 stage=click_sent target={option_label} candidate={chosen['text']}",
+                    task_name=task_name,
+                )
+                async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=timeout_ms) as response_info:
+                    await chosen["node"].click(timeout=3000)
+                    await random_sleep(0.8, 1.2)
+                return await response_info.value, top_candidates
+
+            await _release_focus_after_new_publish()
+
+            for attempt in range(1, price_sort_retry + 1):
+                try:
+                    current_state, trigger_text, trigger_node, sort_bar = await _get_trigger_state_and_text()
+                    price_sort_last_ui_text = trigger_text
+                    log_time(
+                        f"价格排序第{attempt}/{price_sort_retry}次 stage=state_detected state={current_state} trigger={trigger_text or 'n/a'}",
+                        task_name=task_name,
+                    )
+                    if current_state == price_sort_order:
+                        price_sort_applied = True
+                        log_time(
+                            f"价格排序已是目标状态，跳过点击：target={price_sort_target_label} state={current_state}",
+                            task_name=task_name,
+                        )
+                        break
+
+                    if sort_bar is None or trigger_node is None:
+                        price_sort_last_stage = "open_panel"
+                        price_sort_last_detail = (
+                            "未定位到排序条或价格触发器 "
+                            f"bar_candidates={_format_simple_debug(sort_bar_debug_snapshot)} "
+                            f"trigger_candidates={_format_simple_debug(sort_trigger_debug_snapshot)}"
+                        )
+                        log_time(
+                            f"价格排序第{attempt}/{price_sort_retry}次 stage=open_panel failed detail={price_sort_last_detail}",
+                            task_name=task_name,
+                        )
+                        await random_sleep(1, 2)
+                        continue
+
+                    sort_menu = await _open_price_sort_panel(trigger_node)
+                    if sort_menu is None:
+                        price_sort_last_stage = "open_panel"
+                        price_sort_last_detail = "价格排序下拉未展开"
+                        log_time(
+                            f"价格排序第{attempt}/{price_sort_retry}次 stage=open_panel failed detail={price_sort_last_detail} trigger={trigger_text or 'n/a'}",
+                            task_name=task_name,
+                        )
+                        await random_sleep(1, 2)
+                        continue
+                    log_time(
+                        f"价格排序第{attempt}/{price_sort_retry}次 stage=open_panel success trigger={trigger_text or 'n/a'}",
+                        task_name=task_name,
+                    )
+
+                    try:
+                        sort_response, top_candidates = await _click_sort_option_in_menu(
+                            sort_menu,
+                            price_sort_target_label,
+                            attempt=attempt,
+                            timeout_ms=12000,
+                        )
+                    except RuntimeError as scoped_error:
+                        if str(scoped_error).startswith("option_not_found"):
+                            price_sort_last_stage = "option_not_found"
+                            price_sort_last_detail = str(scoped_error)
+                            log_time(
+                                f"价格排序第{attempt}/{price_sort_retry}次 stage=option_not_found detail={price_sort_last_detail}",
+                                task_name=task_name,
+                            )
+                            await random_sleep(1, 2)
+                            continue
+                        raise
+
+                    if not sort_response or not sort_response.ok:
+                        price_sort_last_stage = "response_miss"
+                        status_code = getattr(sort_response, "status", "unknown")
+                        price_sort_last_detail = (
+                            f"响应状态异常 status={status_code} candidates={_format_candidate_debug(top_candidates)}"
+                        )
+                        log_time(
+                            f"价格排序第{attempt}/{price_sort_retry}次 stage=response_miss detail={price_sort_last_detail}",
+                            task_name=task_name,
+                        )
+                        await random_sleep(1, 2)
+                        continue
+
+                    final_response = sort_response
+                    # 关闭下拉焦点后再判状态，避免读取到“触发器+菜单”拼接文本
+                    await _release_focus_after_new_publish()
+                    current_state, trigger_text, _, _ = await _get_trigger_state_and_text()
+                    price_sort_last_ui_text = trigger_text
+                    if current_state != price_sort_order:
+                        price_sort_last_stage = "ui_not_changed"
+                        price_sort_last_detail = f"UI状态未切换到目标值 current_state={current_state}"
+                        log_time(
+                            f"价格排序第{attempt}/{price_sort_retry}次 stage=ui_not_changed detail={price_sort_last_detail} trigger={trigger_text or 'n/a'}",
+                            task_name=task_name,
+                        )
+                        await random_sleep(1, 2)
+                        continue
+
+                    sample_prices: List[float] = []
+                    try:
+                        response_json = await sort_response.json()
+                        sample_prices = _extract_price_values_from_search_json(
+                            response_json,
+                            sample_limit=price_sort_sample_size,
+                        )
+                    except Exception as e:
+                        price_sort_last_stage = "monotonic_check_failed"
+                        price_sort_last_detail = f"读取排序响应JSON失败: {e}"
+                        log_time(
+                            f"价格排序第{attempt}/{price_sort_retry}次 stage=monotonic_check_failed detail={price_sort_last_detail}",
+                            task_name=task_name,
+                        )
+                        await random_sleep(1, 2)
+                        continue
+
+                    monotonic_ok, violations = _check_price_monotonic(sample_prices, price_sort_order)
+                    if not monotonic_ok:
+                        price_sort_last_stage = "monotonic_check_failed"
+                        if len(sample_prices) < 2:
+                            price_sort_last_detail = f"可用抽样价格不足 sample_count={len(sample_prices)}"
+                        else:
+                            price_sort_last_detail = (
+                                f"单调性校验失败 sample_count={len(sample_prices)} violations={violations}"
+                            )
+                        log_time(
+                            f"价格排序第{attempt}/{price_sort_retry}次 stage=monotonic_check_failed detail={price_sort_last_detail}",
+                            task_name=task_name,
+                        )
+                        await random_sleep(1, 2)
+                        continue
+
+                    price_sort_applied = True
+                    first_price = sample_prices[0] if sample_prices else "n/a"
+                    last_price = sample_prices[-1] if sample_prices else "n/a"
+                    log_time(
+                        f"价格排序成功：target={price_sort_order} final_state={current_state} sample_count={len(sample_prices)} first_price={first_price} last_price={last_price}",
+                        task_name=task_name,
+                    )
+                    break
+                except PlaywrightTimeoutError as e:
+                    price_sort_last_stage = "response_miss"
+                    price_sort_last_detail = f"等待搜索响应超时: {e}"
+                    log_time(
+                        f"价格排序第{attempt}/{price_sort_retry}次 stage=response_miss detail={price_sort_last_detail}",
+                        task_name=task_name,
+                    )
+                except Exception as e:
+                    price_sort_last_stage = "exception"
+                    price_sort_last_detail = str(e)
+                    log_time(
+                        f"价格排序第{attempt}/{price_sort_retry}次 stage=exception detail={price_sort_last_detail}",
+                        task_name=task_name,
+                    )
+
+            if not price_sort_applied:
+                reason_message = (
+                    f"target={price_sort_order} stage={price_sort_last_stage} retries={price_sort_retry} "
+                    f"last_ui={price_sort_last_ui_text or 'n/a'} detail={price_sort_last_detail or 'n/a'}"
+                )
+                log_time(
+                    f"价格排序失败并中断任务 code=PRICE_SORT_NOT_APPLIED {reason_message}",
+                    task_name=task_name,
+                )
+                raise PriceSortApplyError("PRICE_SORT_NOT_APPLIED", reason_message)
+
             has_min_price = min_price is not None and str(min_price).strip() != ''
             has_max_price = max_price is not None and str(max_price).strip() != ''
             if has_min_price or has_max_price:
                 price_container = page.locator('div[class*="search-price-input-container"]').first
-                try:
-                    await price_container.wait_for(state="visible", timeout=5000)
-                except PlaywrightTimeoutError:
-                    print("LOG: 警告 - 价格输入容器不可见，跳过价格筛选。")
-                else:
-                    try:
-                        price_inputs = price_container.get_by_placeholder("￥")
-                        if await price_inputs.count() < 2:
-                            price_inputs = price_container.get_by_placeholder("¥")
-                        if await price_inputs.count() < 2:
-                            price_inputs = price_container.locator("input[type='number']")
-                        if await price_inputs.count() < 2:
-                            print("LOG: 警告 - 未找到价格输入框，跳过价格筛选。")
-                        else:
-                            if has_min_price:
-                                await price_inputs.first.fill(str(min_price), timeout=5000)
-                                # --- 修改: 将固定等待改为随机等待 ---
-                                await random_sleep(1, 2.5) # 原来是 asyncio.sleep(5)
-                            if has_max_price:
-                                await price_inputs.nth(1).fill(str(max_price), timeout=5000)
-                                # --- 修改: 将固定等待改为随机等待 ---
-                                await random_sleep(1, 2.5) # 原来是 asyncio.sleep(5)
+                max_price_retry = 3
+                price_filter_applied = False
 
-                            async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=20000) as response_info:
-                                await page.keyboard.press('Tab')
-                                # --- 修改: 增加确认价格后的等待时间 ---
-                                await random_sleep(4, 7) # 原来是 asyncio.sleep(5)
-                            final_response = await response_info.value
+                async def _open_price_filter_panel() -> bool:
+                    if await price_container.is_visible():
+                        return True
+
+                    # 先尝试点“价格”标签展开输入面板，降低定位到隐藏输入框的概率
+                    trigger_candidates = [
+                        page.get_by_text("价格", exact=True).first,
+                        page.locator("div[class*='sort']", has_text="价格").first,
+                        page.locator("span", has_text="价格").first,
+                    ]
+                    for trigger in trigger_candidates:
+                        try:
+                            if await trigger.count() < 1 or not await trigger.is_visible():
+                                continue
+                            await trigger.click(timeout=3000)
+                            await random_sleep(0.8, 1.5)
+                            if await price_container.is_visible():
+                                return True
+                        except Exception:
+                            continue
+
+                    try:
+                        await price_container.wait_for(state="visible", timeout=3000)
+                        return True
                     except PlaywrightTimeoutError:
-                        print("LOG: 价格筛选输入超时，跳过价格筛选。")
+                        return False
+
+                async def _resolve_price_inputs():
+                    # 优先使用语义化占位符，其次回退到可见可编辑输入框
+                    min_input = price_container.get_by_placeholder("最低价").first
+                    max_input = price_container.get_by_placeholder("最高价").first
+                    try:
+                        if (
+                            await min_input.count() > 0
+                            and await max_input.count() > 0
+                            and await min_input.is_visible()
+                            and await max_input.is_visible()
+                            and await min_input.is_editable()
+                            and await max_input.is_editable()
+                        ):
+                            return min_input, max_input
+                    except Exception:
+                        pass
+
+                    visible_editable_inputs = []
+                    input_candidates = price_container.locator("input")
+                    candidate_count = await input_candidates.count()
+                    for idx in range(min(candidate_count, 8)):
+                        candidate = input_candidates.nth(idx)
+                        try:
+                            if await candidate.is_visible() and await candidate.is_editable():
+                                visible_editable_inputs.append(candidate)
+                        except Exception:
+                            continue
+                    if len(visible_editable_inputs) >= 2:
+                        return visible_editable_inputs[0], visible_editable_inputs[1]
+                    return None, None
+
+                def _normalize_price_input_text(text: str) -> str:
+                    return re.sub(r"[^\d.]", "", str(text or "").strip())
+
+                async def _fill_price_input(input_node, expected_value, label: str) -> str:
+                    expected_text = _normalize_price_bound_value(expected_value) or ""
+                    await input_node.click(timeout=3000)
+                    # 先清空再填充，避免和历史值拼接
+                    await input_node.fill("", timeout=3000)
+                    await random_sleep(0.15, 0.35)
+                    await input_node.fill(expected_text, timeout=5000)
+                    await random_sleep(0.15, 0.35)
+
+                    actual_text = ""
+                    try:
+                        actual_text = str(await input_node.input_value()).strip()
+                    except Exception:
+                        actual_text = ""
+
+                    # 回读不一致时，回退到“全选+输入”再尝试一次
+                    if _normalize_price_input_text(actual_text) != _normalize_price_input_text(expected_text):
+                        try:
+                            await input_node.click(timeout=3000)
+                            await input_node.press("Control+A", timeout=3000)
+                            await input_node.type(expected_text, delay=25, timeout=5000)
+                            await random_sleep(0.15, 0.35)
+                            actual_text = str(await input_node.input_value()).strip()
+                        except Exception:
+                            pass
+
+                    log_time(
+                        f"价格筛选输入回读 {label}: expected={expected_text} actual={actual_text or 'n/a'}",
+                        task_name=task_name,
+                    )
+                    return actual_text
+
+                async def _submit_price_filter(min_input, max_input, attempt: int):
+                    # 首次优先“确定”按钮；无按钮时直接对输入框回车/失焦触发
+                    if attempt == 1:
+                        confirm_btn = price_container.get_by_text("确定", exact=True).first
+                        if await confirm_btn.count() > 0 and await confirm_btn.is_visible():
+                            await confirm_btn.click(timeout=3000)
+                            return
+                        target = max_input if has_max_price else min_input
+                        await target.press("Enter", timeout=3000)
+                        return
+                    if attempt == 2:
+                        target = max_input if has_max_price else min_input
+                        await target.press("Enter", timeout=3000)
+                        return
+                    await page.keyboard.press("Tab")
+                    await random_sleep(0.3, 0.8)
+                    await page.keyboard.press("Enter")
+
+                for attempt in range(1, max_price_retry + 1):
+                    min_input = None
+                    max_input = None
+                    try:
+                        panel_visible = await _open_price_filter_panel()
+                        if not panel_visible:
+                            log_time(
+                                f"价格筛选第{attempt}/{max_price_retry}次：未展开价格输入面板。",
+                                task_name=task_name,
+                            )
+                            await random_sleep(1, 2)
+                            continue
+
+                        min_input, max_input = await _resolve_price_inputs()
+                        if min_input is None or max_input is None:
+                            log_time(
+                                f"价格筛选第{attempt}/{max_price_retry}次：未找到可编辑价格输入框。",
+                                task_name=task_name,
+                            )
+                            await random_sleep(1, 2)
+                            continue
+
+                        # 关键修复：响应监听提前覆盖“填值+提交”全链路，避免漏抓fill触发的请求
+                        async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=12000) as response_info:
+                            if has_min_price:
+                                await _fill_price_input(min_input, min_price, "最低价")
+                            if has_max_price:
+                                await _fill_price_input(max_input, max_price, "最高价")
+                            await _submit_price_filter(min_input, max_input, attempt)
+                            await random_sleep(1.2, 2.5)
+                        final_response = await response_info.value
+                        if final_response and final_response.ok:
+                            price_filter_applied = True
+                            log_time(
+                                f"价格筛选提交成功（第{attempt}/{max_price_retry}次）。",
+                                task_name=task_name,
+                            )
+                            break
+                        log_time(
+                            f"价格筛选第{attempt}/{max_price_retry}次提交完成但响应异常，准备重试。",
+                            task_name=task_name,
+                        )
+                    except PlaywrightTimeoutError:
+                        try:
+                            min_actual = await min_input.input_value() if min_input is not None else "n/a"
+                        except Exception:
+                            min_actual = "n/a"
+                        try:
+                            max_actual = await max_input.input_value() if max_input is not None else "n/a"
+                        except Exception:
+                            max_actual = "n/a"
+                        log_time(
+                            f"价格筛选第{attempt}/{max_price_retry}次超时，准备重试。min_actual={min_actual} max_actual={max_actual}",
+                            task_name=task_name,
+                        )
+                    except Exception as e:
+                        log_time(
+                            f"价格筛选第{attempt}/{max_price_retry}次失败：{e}",
+                            task_name=task_name,
+                        )
+
+                if not price_filter_applied:
+                    log_time("价格筛选已达到最大重试次数，降级继续执行后续流程。", task_name=task_name)
 
             log_time(
                 "Applying filters | "
@@ -1183,6 +1958,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                 f"strict_selected={int(strict_selected)} | "
                 f"resale={int(resale)} | "
                 f"new_publish={new_publish_option or '不限'} | "
+                f"price_sort_order={price_sort_order} | "
                 f"region={region_filter or '不限'}",
                 task_name=task_name
             )
@@ -1356,6 +2132,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 "strict_selected": strict_selected,
                                 "resale": resale,
                                 "new_publish_option": new_publish_option or None,
+                                "price_sort_order": price_sort_order,
                                 "region": region_filter or None,
                                 "商品信息": item_data,
                                 "卖家信息": user_profile_data
@@ -1541,6 +2318,9 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                     print(f"--- 第 {page_num} 页处理完毕，准备翻页。执行一次页面间的长时休息... ---")
                     await random_sleep(25, 50)
 
+        except PriceSortApplyError as e:
+            print(f"\n价格排序严格校验失败: {e.code} - {e}")
+            end_reason = f"操作终止-结束原因：{e.code}:{e}"
         except PlaywrightTimeoutError as e:
             print(f"\n操作超时错误: 页面元素或网络响应未在规定时间内出现。\n{e}")
             end_reason = f"操作终止-结束原因：操作超时错误: {e}"
@@ -1561,5 +2341,6 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     cleanup_task_images(task_config.get('task_name', 'default'))
 
     return processed_item_count, recommended_item_count, end_reason
+
 
 

@@ -17,6 +17,7 @@ class Task(BaseModel):
     personal_only: bool
     min_price: Optional[str] = None
     max_price: Optional[str] = None
+    price_sort_order: Optional[str] = "desc"
     cron: Optional[str] = None
     ai_prompt_base_file: str
     ai_prompt_criteria_file: str
@@ -46,6 +47,7 @@ class TaskUpdate(BaseModel):
     personal_only: Optional[bool] = None
     min_price: Optional[str] = None
     max_price: Optional[str] = None
+    price_sort_order: Optional[str] = None
     cron: Optional[str] = None
     ai_prompt_base_file: Optional[str] = None
     ai_prompt_criteria_file: Optional[str] = None
@@ -160,6 +162,7 @@ async def get_task(task_id: int) -> Task | None:
     task_data = config_data[task_id]
     task_data.setdefault("free_shipping", False)
     task_data.setdefault("new_publish_option", None)
+    task_data.setdefault("price_sort_order", "desc")
     task_data.setdefault("region", None)
     task_data.setdefault("inspection_service", False)
     task_data.setdefault("account_assurance", False)

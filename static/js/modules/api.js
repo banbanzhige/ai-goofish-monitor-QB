@@ -170,6 +170,46 @@ async function testAISettings(settings, options = {}) {
     }
 }
 
+async function fetchAIHealthStatus(options = {}) {
+    const { silent = false } = options;
+    try {
+        const response = await fetch('/api/settings/health/ai');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || '无法获取AI可用性状态');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('无法获取AI可用性状态:', error);
+        if (!silent) {
+            Notification.error(`错误: ${error.message}`);
+        }
+        return null;
+    }
+}
+
+async function checkAIHealth(payload = {}, options = {}) {
+    const { silent = false } = options;
+    try {
+        const response = await fetch('/api/settings/health/ai/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {}),
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'AI可用性检测失败');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('AI可用性检测失败:', error);
+        if (!silent) {
+            Notification.error(`错误: ${error.message}`);
+        }
+        return null;
+    }
+}
+
 async function updateNotificationSettings(settings) {
     try {
         const response = await fetch('/api/settings/notifications', {

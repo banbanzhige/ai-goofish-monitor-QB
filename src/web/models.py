@@ -26,6 +26,18 @@ def _normalize_region_value(value: Optional[str]) -> Optional[str]:
     return normalized or None
 
 
+def _normalize_price_sort_order(
+    value: Optional[Union[str, int, float]],
+    default: Optional[str] = "desc",
+) -> Optional[str]:
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"asc", "desc"}:
+        return normalized
+    return default
+
+
 class Task(BaseModel):
     task_name: str
     order: Optional[int] = None
@@ -36,6 +48,7 @@ class Task(BaseModel):
     personal_only: bool
     min_price: Optional[Union[str, int, float]] = None
     max_price: Optional[Union[str, int, float]] = None
+    price_sort_order: str = Field("desc", pattern="^(asc|desc)$")
     cron: Optional[str] = None
     ai_prompt_base_file: str
     ai_prompt_criteria_file: str
@@ -54,10 +67,12 @@ class Task(BaseModel):
     new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
     region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
 
-    @field_validator("new_publish_option", "region", mode="before")
+    @field_validator("new_publish_option", "region", "price_sort_order", mode="before")
     def normalize_filters(cls, value, info):
         if info.field_name == "region":
             return _normalize_region_value(value)
+        if info.field_name == "price_sort_order":
+            return _normalize_price_sort_order(value, default="desc")
         return _normalize_filter_value(value)
 
 
@@ -72,6 +87,7 @@ class TaskUpdate(BaseModel):
     personal_only: Optional[bool] = None
     min_price: Optional[Union[str, int, float]] = None
     max_price: Optional[Union[str, int, float]] = None
+    price_sort_order: Optional[str] = Field(None, pattern="^(asc|desc)$")
     cron: Optional[str] = None
     ai_prompt_base_file: Optional[str] = None
     ai_prompt_criteria_file: Optional[str] = None
@@ -90,10 +106,12 @@ class TaskUpdate(BaseModel):
     new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
     region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
 
-    @field_validator("new_publish_option", "region", mode="before")
+    @field_validator("new_publish_option", "region", "price_sort_order", mode="before")
     def normalize_filters(cls, value, info):
         if info.field_name == "region":
             return _normalize_region_value(value)
+        if info.field_name == "price_sort_order":
+            return _normalize_price_sort_order(value, default=None)
         return _normalize_filter_value(value)
 
 
@@ -104,6 +122,7 @@ class TaskGenerateRequest(BaseModel):
     personal_only: bool = True
     min_price: Optional[str] = None
     max_price: Optional[str] = None
+    price_sort_order: str = Field("desc", pattern="^(asc|desc)$")
     max_pages: int = 3
     cron: Optional[str] = None
     bayes_profile: Optional[str] = "bayes_v1"
@@ -117,10 +136,12 @@ class TaskGenerateRequest(BaseModel):
     new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
     region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
 
-    @field_validator("new_publish_option", "region", mode="before")
+    @field_validator("new_publish_option", "region", "price_sort_order", mode="before")
     def normalize_filters(cls, value, info):
         if info.field_name == "region":
             return _normalize_region_value(value)
+        if info.field_name == "price_sort_order":
+            return _normalize_price_sort_order(value, default="desc")
         return _normalize_filter_value(value)
 
 
@@ -131,6 +152,7 @@ class TaskGenerateRequestWithReference(BaseModel):
     personal_only: bool = True
     min_price: Optional[str] = None
     max_price: Optional[str] = None
+    price_sort_order: str = Field("desc", pattern="^(asc|desc)$")
     max_pages: int = 3
     cron: Optional[str] = None
     reference_file: Optional[str] = None
@@ -145,10 +167,12 @@ class TaskGenerateRequestWithReference(BaseModel):
     new_publish_option: Optional[str] = Field(None, pattern="^(1天内|3天内|7天内|14天内)$")
     region: Optional[str] = Field(None, pattern="^[\u4e00-\u9fa5]+(/[\u4e00-\u9fa5]+)*$")
 
-    @field_validator("new_publish_option", "region", mode="before")
+    @field_validator("new_publish_option", "region", "price_sort_order", mode="before")
     def normalize_filters(cls, value, info):
         if info.field_name == "region":
             return _normalize_region_value(value)
+        if info.field_name == "price_sort_order":
+            return _normalize_price_sort_order(value, default="desc")
         return _normalize_filter_value(value)
 
 

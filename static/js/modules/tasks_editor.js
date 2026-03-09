@@ -582,6 +582,7 @@ function setupTaskInlineEditEvents() {
         const strictSelected = panel.querySelector('.filter-strict-selected')?.checked || false;
         const resale = panel.querySelector('.filter-resale')?.checked || false;
         const publishOption = panel.querySelector('.filter-publish-option')?.value || null;
+        const priceSortOrder = panel.querySelector('.filter-price-sort-order')?.value || 'desc';
         const province = panel.querySelector('.filter-region-province')?.value || '';
         const city = panel.querySelector('.filter-region-city')?.value || '';
         const district = panel.querySelector('.filter-region-district')?.value || '';
@@ -598,6 +599,7 @@ function setupTaskInlineEditEvents() {
                 strict_selected: strictSelected,
                 resale: resale,
                 new_publish_option: publishOption,
+                price_sort_order: priceSortOrder,
                 region: regionValue || null,
             });
             try {
@@ -627,6 +629,7 @@ function setupTaskInlineEditEvents() {
                 taskData.strict_selected = strictSelected;
                 taskData.resale = resale;
                 taskData.new_publish_option = publishOption;
+                taskData.price_sort_order = priceSortOrder;
                 taskData.region = regionValue || null;
                 if (row) {
                     row.dataset.task = JSON.stringify(taskData);

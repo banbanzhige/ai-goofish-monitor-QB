@@ -210,7 +210,7 @@ async def save_to_jsonl(data_record: dict, keyword: str, return_meta: bool = Fal
     except IOError as e:
         logger.error(
             f"写入结果文件失败: {e}",
-            extra={"event": "result_file_write_failed", "filename": filename},
+            extra={"event": "result_file_write_failed", "result_file_path": filename},
         )
         meta["backend"] = "jsonl"
         return meta if return_meta else False

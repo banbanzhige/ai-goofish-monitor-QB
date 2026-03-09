@@ -926,27 +926,51 @@ function renderSystemStatus(status) {
     const renderLevelTag = (level, text) => {
         const color = level === 'ok'
             ? '#52c41a'
-            : (level === 'error' ? '#ff4d4f' : (level === 'warning' ? '#faad14' : '#1890ff'));
+            : (level === 'error'
+                ? '#ff4d4f'
+                : (level === 'warning'
+                    ? '#faad14'
+                    : (level === 'unknown' ? '#8c8c8c' : '#1890ff')));
         return `<span style="color: ${color}; font-weight: 600;">${escapeHtmlWidget(text || '未知')}</span>`;
     };
 
     const env = status.env_file || {};
     const storageRuntime = status.storage_runtime || {};
     const database = storageRuntime.database || {};
+    const aiApi = status.ai_api || {};
+    const aiConfig = aiApi.config || {};
+    const aiWeb = aiApi.web_test || {};
+    const aiBackend = aiApi.backend_test || {};
+    const aiVision = aiApi.vision_capability || {};
+    const notificationStatus = status.notification_status || {};
     const configuredMode = storageRuntime.configured_backend_label || '未知';
     const runtimeMode = storageRuntime.runtime_backend_label || '未知';
     const isModeConsistent = storageRuntime.mode_consistent !== false;
     const modeText = `${configuredMode} / ${runtimeMode}${isModeConsistent ? '' : '（不一致）'}`;
 
-    // 检查是否配置了至少一个通知渠道
-    const hasAnyNotificationChannel = env.ntfy_topic_url_set ||
-        (env.gotify_url_set && env.gotify_token_set) ||
-        env.bark_url_set ||
-        env.wx_bot_url_set ||
-        (env.wx_corp_id_set && env.wx_agent_id_set && env.wx_secret_set) ||
-        (env.telegram_bot_token_set && env.telegram_chat_id_set) ||
-        env.webhook_url_set ||
-        env.dingtalk_webhook_set;
+    const aiOverallLevel = aiApi.overall_level || 'unknown';
+    const aiOverallLabel = aiApi.overall_label || '未知';
+    const aiSourceLabel = aiApi.source_label || '未知来源';
+    const aiCheckedAt = aiApi.checked_at || '未检测';
+    const aiConfigReady = Boolean(aiConfig.ready);
+    const aiConfigMessage = aiConfig.message || (aiConfigReady ? '配置完整' : '配置不完整');
+
+    const webProbeLevel = aiWeb.level || (aiWeb.success === true ? 'ok' : (aiWeb.success === false ? 'error' : 'unknown'));
+    const backendProbeLevel = aiBackend.level || (aiBackend.success === true ? 'ok' : (aiBackend.success === false ? 'error' : 'unknown'));
+    const webProbeText = `${aiWeb.message || '未检测'}${aiWeb.latency_ms ? `（${aiWeb.latency_ms}ms）` : ''}`;
+    const backendProbeText = `${aiBackend.message || '未检测'}${aiBackend.latency_ms ? `（${aiBackend.latency_ms}ms）` : ''}`;
+
+    const visionStatusMap = {
+        supported: '支持',
+        unsupported: '不支持',
+        unknown: '未知',
+    };
+    const visionLevel = aiVision.level || (aiVision.status === 'supported' ? 'ok' : (aiVision.status === 'unsupported' ? 'warning' : 'unknown'));
+    const visionLabel = visionStatusMap[aiVision.status] || '未知';
+    const visionText = `${visionLabel}${aiVision.message ? `：${aiVision.message}` : ''}`;
+
+    const notificationLevel = notificationStatus.ok ? 'ok' : 'warning';
+    const notificationText = `${notificationStatus.message || '未知'}（${notificationStatus.source_label || '未知来源'}）`;
 
     return `
             <ul class="status-list">
@@ -955,20 +979,36 @@ function renderSystemStatus(status) {
                     <span class="value">${renderStatusTag(env.exists)}</span>
                 </li>
                 <li class="status-item">
-                    <span class="label">OpenAI API Key</span>
-                    <span class="value">${renderStatusTag(env.openai_api_key_set)}</span>
+                    <span class="label">AI API 配置来源</span>
+                    <span class="value">${renderLevelTag('info', aiSourceLabel)}</span>
                 </li>
                 <li class="status-item">
-                    <span class="label">OpenAI Base URL</span>
-                    <span class="value">${renderStatusTag(env.openai_base_url_set)}</span>
+                    <span class="label">AI API 配置完整性</span>
+                    <span class="value">${renderLevelTag(aiConfigReady ? 'ok' : 'error', aiConfigMessage)}</span>
                 </li>
                 <li class="status-item">
-                    <span class="label">OpenAI Model Name</span>
-                    <span class="value">${renderStatusTag(env.openai_model_name_set)}</span>
+                    <span class="label">AI API 可用性</span>
+                    <span class="value">${renderLevelTag(aiOverallLevel, aiOverallLabel)}</span>
+                </li>
+                <li class="status-item">
+                    <span class="label">Web 进程连通性</span>
+                    <span class="value">${renderLevelTag(webProbeLevel, webProbeText)}</span>
+                </li>
+                <li class="status-item">
+                    <span class="label">后端进程连通性</span>
+                    <span class="value">${renderLevelTag(backendProbeLevel, backendProbeText)}</span>
+                </li>
+                <li class="status-item">
+                    <span class="label">模型图像输入能力</span>
+                    <span class="value">${renderLevelTag(visionLevel, visionText)}</span>
+                </li>
+                <li class="status-item">
+                    <span class="label">最近检测时间</span>
+                    <span class="value">${renderLevelTag('info', aiCheckedAt)}</span>
                 </li>
                 <li class="status-item">
                     <span class="label">通知渠道配置</span>
-                    <span class="value">${renderStatusTag(hasAnyNotificationChannel)}</span>
+                    <span class="value">${renderLevelTag(notificationLevel, notificationText)}</span>
                 </li>
                 <li class="status-item">
                     <span class="label">存储模式（配置 / 运行）</span>
@@ -1339,6 +1379,7 @@ function renderTasksTable(tasks) {
     const tableBody = tasks.map(task => {
         const isRunning = task.is_running === true;
         const isGeneratingAI = task.generating_ai_criteria === true;
+        const priceSortOrder = task.price_sort_order === 'asc' ? 'asc' : 'desc';
         let statusBadge;
         if (isGeneratingAI) {
             statusBadge = `<span class="status-badge status-generating" style="background-color: orange;">生成中</span>`;
@@ -1394,6 +1435,9 @@ function renderTasksTable(tasks) {
         }
         if (task.new_publish_option) {
             filterTagsList.push({ text: task.new_publish_option, active: true });
+        }
+        if (priceSortOrder === 'asc') {
+            filterTagsList.push({ text: '价格从低到高', active: true });
         }
         if (task.region) {
             filterTagsList.push({ text: task.region, active: true, title: task.region });
@@ -1501,6 +1545,13 @@ function renderTasksTable(tasks) {
                                 </div>
                             </div>
                             <div class="filter-row">
+                                <div class="filter-field inline-field">
+                                    <span class="filter-label">价格排序</span>
+                                    <select class="filter-price-sort-order">
+                                        <option value="desc" ${priceSortOrder === 'desc' ? 'selected' : ''}>价格从高到低</option>
+                                        <option value="asc" ${priceSortOrder === 'asc' ? 'selected' : ''}>价格从低到高</option>
+                                    </select>
+                                </div>
                                 <div class="filter-field inline-field">
                                     <span class="filter-label">新发布时间</span>
                                     <select class="filter-publish-option">
@@ -1637,6 +1688,13 @@ function renderTasksTable(tasks) {
                                 </div>
                             </div>
                             <div class="filter-row">
+                                <div class="filter-field inline-field">
+                                    <span class="filter-label">价格排序</span>
+                                    <select class="filter-price-sort-order">
+                                        <option value="desc" ${priceSortOrder === 'desc' ? 'selected' : ''}>价格从高到低</option>
+                                        <option value="asc" ${priceSortOrder === 'asc' ? 'selected' : ''}>价格从低到高</option>
+                                    </select>
+                                </div>
                                 <div class="filter-field inline-field">
                                     <span class="filter-label">新发布时间</span>
                                     <select class="filter-publish-option">
