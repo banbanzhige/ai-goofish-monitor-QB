@@ -21,9 +21,8 @@ else:
     with open('.env', 'r', encoding='utf-8') as env_file:
         env_content = env_file.readlines()
     
-    # 解析.env.example的参数
+    # 解析.env.example的参数（仅解析未注释的有效参数行）
     example_params = {}
-    example_lines_dict = {}  # 保存每个参数名对应的完整行
     
     for line in example_content:
         stripped_line = line.strip()
@@ -33,10 +32,10 @@ else:
             rest_part = line.split('=', 1)[1]
             example_value = rest_part.lstrip().rstrip('\n')
             example_params[param_name] = example_value
-            example_lines_dict[param_name] = line
     
     # 解析当前.env的参数
     current_env_params = {}
+    current_env_param_lines = {}  # 保留原始行格式，用于追加自定义参数
     
     for line in env_content:
         stripped_line = line.strip()
@@ -45,11 +44,11 @@ else:
             rest_part = line.split('=', 1)[1]
             current_value = rest_part.lstrip().rstrip('\n')
             current_env_params[param_name] = current_value
+            current_env_param_lines[param_name] = line if line.endswith('\n') else f"{line}\n"
     
     # 生成新的.env内容，保持与.env.example相同的格式
     new_env_content = []
     missing_params = []
-    filled_params = []
     
     for line in example_content:
         stripped_line = line.strip()
@@ -80,6 +79,13 @@ else:
         else:
             # 非参数行（不包含'='且不是空行或注释）直接保留
             new_env_content.append(line)
+
+    # 追加并保留 .env 中的自定义参数（例如 .env.example 中被注释掉的 DATABASE_URL）
+    extra_params = []
+    for param_name, original_line in current_env_param_lines.items():
+        if param_name not in example_params:
+            new_env_content.append(original_line)
+            extra_params.append(param_name)
     
     # 将结果写入.env文件
     with open('.env', 'w', encoding='utf-8') as env_file:
@@ -93,6 +99,8 @@ else:
     filled_params = [p for p in current_env_params.keys() if current_env_params[p] == '' and p in example_params and example_params[p] != '']
     if filled_params:
         fixed_content.append(f"已填充空参数值：{', '.join(filled_params)}")
+    if extra_params:
+        fixed_content.append(f"已保留自定义参数：{', '.join(extra_params)}")
     
     if fixed_content:
         for item in fixed_content:
