@@ -354,15 +354,19 @@ services:
     volumes:
       # ========== 最小必需挂载 ==========
       # 全局运行配置（数据库连接、存储后端、系统级参数）
-      - ./.env:/app/.env
+      - .env:/app/.env
       # 多用户文件资产与运行时临时文件
       - ./state:/app/state
 
-
     environment:
       STORAGE_BACKEND: postgres
-      DATABASE_URL: ${DATABASE_URL:-postgresql://goofish:${POSTGRES_PASSWORD:-changeme}@postgres:5432/goofish_monitor}  #改链接
-      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-changeme}  #改默认加密密码，注意永久保存
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-goofish_monitor}
+      DB_USER: ${DB_USER:-goofish}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DATABASE_URL: postgresql://${DB_USER:-goofish}:${DB_PASSWORD:-changeme}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-goofish_monitor}
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-changeme}
     depends_on:
       postgres:
         condition: service_healthy
@@ -372,9 +376,9 @@ services:
     image: postgres:15-alpine
     container_name: goofish-postgres
     environment:
-      POSTGRES_DB: goofish_monitor
-      POSTGRES_USER: goofish
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme} #改密码
+      POSTGRES_DB: ${DB_NAME:-goofish_monitor}
+      POSTGRES_USER: ${DB_USER:-goofish}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       # ========== 最小必需挂载 ==========
       - ./postgres_data:/var/lib/postgresql/data
