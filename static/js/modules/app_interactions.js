@@ -81,6 +81,67 @@ function initAppInteractions(mainContent) {
         }
     };
 
+    const normalizeBayesProfileName = (value) => {
+        const text = String(value || '').trim();
+        if (!text) return '';
+        return text.endsWith('.json') ? text.slice(0, -5) : text;
+    };
+
+    const buildBayesProfileList = (rawProfiles, includeDisabled = true) => {
+        const result = [];
+        const seen = new Set();
+        const append = (name) => {
+            const normalized = normalizeBayesProfileName(name);
+            if (!normalized || seen.has(normalized)) return;
+            seen.add(normalized);
+            result.push(normalized);
+        };
+
+        append('bayes_v1');
+        if (Array.isArray(rawProfiles)) {
+            rawProfiles.forEach(item => {
+                const normalized = normalizeBayesProfileName(item);
+                if (!normalized || normalized === 'disabled') return;
+                append(normalized);
+            });
+        }
+        if (includeDisabled) {
+            append('disabled');
+        }
+        return result;
+    };
+
+    const renderBayesProfileOptions = (selector, profiles, preferredProfile = '') => {
+        if (!selector) return '';
+        const options = Array.isArray(profiles) ? profiles : [];
+        selector.innerHTML = '';
+        if (options.length === 0) {
+            selector.innerHTML = '<option value="">没有找到Bayes文件</option>';
+            return '';
+        }
+
+        options.forEach(profile => {
+            const option = document.createElement('option');
+            option.value = profile;
+            if (profile === 'disabled') {
+                option.textContent = '不启用（仅AI证据链）';
+            } else if (profile === 'bayes_v1') {
+                option.textContent = 'bayes_v1（默认）';
+            } else {
+                option.textContent = profile;
+            }
+            selector.appendChild(option);
+        });
+
+        const preferred = normalizeBayesProfileName(preferredProfile || selector.dataset.preferred || '');
+        const selected = options.includes(preferred)
+            ? preferred
+            : (options.includes('bayes_v1') ? 'bayes_v1' : options[0]);
+        selector.value = selected;
+        selector.dataset.preferred = selected;
+        return selected;
+    };
+
     // --- 动态内容事件委托 ---
     mainContent.addEventListener('click', async (event) => {
         const target = event.target;
@@ -377,9 +438,16 @@ function initAppInteractions(mainContent) {
             }
         };
 
+        const saveAddTaskBayesDefault = () => {
+            const selector = document.getElementById('bayes-profile');
+            if (!selector || !selector.value) return;
+            selector.dataset.preferred = normalizeBayesProfileName(selector.value);
+        };
+
         modal.addEventListener('transitionend', () => {
             if (modal.style.display === 'flex' && modal.classList.contains('visible')) {
                 loadReferenceFiles().then(updateReferenceDefault);
+                loadAddTaskBayesProfiles();
                 loadAccountSelector(); // 加载账号选择器
             }
         });
@@ -455,11 +523,31 @@ function initAppInteractions(mainContent) {
             }
         }
 
+        async function loadAddTaskBayesProfiles(preferredProfile = '') {
+            const selector = document.getElementById('bayes-profile');
+            if (!selector) return;
+            try {
+                const rawProfiles = await fetchBayesProfiles();
+                const profiles = buildBayesProfileList(rawProfiles, true);
+                renderBayesProfileOptions(selector, profiles, preferredProfile);
+            } catch (error) {
+                console.error('无法加载Bayes文件列表:', error);
+                renderBayesProfileOptions(selector, buildBayesProfileList([], true), preferredProfile || 'bayes_v1');
+            }
+        }
+
         const referenceSelector = document.getElementById('reference-file-selector');
         if (referenceSelector && !referenceSelector.dataset.bound) {
             referenceSelector.dataset.bound = '1';
             referenceSelector.addEventListener('change', saveReferenceDefault);
             referenceSelector.addEventListener('blur', saveReferenceDefault);
+        }
+
+        const addTaskBayesSelector = document.getElementById('bayes-profile');
+        if (addTaskBayesSelector && !addTaskBayesSelector.dataset.bound) {
+            addTaskBayesSelector.dataset.bound = '1';
+            addTaskBayesSelector.addEventListener('change', saveAddTaskBayesDefault);
+            addTaskBayesSelector.addEventListener('blur', saveAddTaskBayesDefault);
         }
 
 
@@ -713,42 +801,12 @@ function initAppInteractions(mainContent) {
         const loadBayesProfiles = async (preferredProfile = '') => {
             if (!bayesSelector) return;
             try {
-                const profiles = await fetchBayesProfiles();
-                bayesSelector.innerHTML = '';
-                if (!profiles || !Array.isArray(profiles) || profiles.length === 0) {
-                    bayesSelector.innerHTML = '<option value="">没有找到Bayes文件</option>';
-                    return;
-                }
-                const preferred = (preferredProfile || '').trim();
-                const preferredWithExt = preferred && preferred.endsWith('.json') ? preferred : (preferred ? `${preferred}.json` : '');
-                let matchedPreferred = false;
-                profiles.forEach(profile => {
-                    const option = document.createElement('option');
-                    option.value = profile;
-                    option.textContent = profile;
-                    if (preferred && (profile === preferred || profile === preferredWithExt)) {
-                        option.selected = true;
-                        matchedPreferred = true;
-                    }
-                    bayesSelector.appendChild(option);
-                });
-                if (preferred && !matchedPreferred) {
-                    const fallback = bayesSelector.querySelector('option[value="bayes_v1.json"]')
-                        || bayesSelector.querySelector('option[value="bayes_v1"]');
-                    if (fallback) {
-                        fallback.selected = true;
-                    }
-                }
-                if (!preferred && !bayesSelector.querySelector('option[selected]')) {
-                    const fallback = bayesSelector.querySelector('option[value="bayes_v1.json"]')
-                        || bayesSelector.querySelector('option[value="bayes_v1"]');
-                    if (fallback) {
-                        fallback.selected = true;
-                    }
-                }
+                const rawProfiles = await fetchBayesProfiles();
+                const profiles = buildBayesProfileList(rawProfiles, true);
+                renderBayesProfileOptions(bayesSelector, profiles, preferredProfile);
             } catch (error) {
                 console.error('无法加载Bayes文件列表:', error);
-                bayesSelector.innerHTML = '<option value="">加载Bayes文件失败</option>';
+                renderBayesProfileOptions(bayesSelector, buildBayesProfileList([], true), preferredProfile || 'bayes_v1');
             }
         };
 
@@ -1368,10 +1426,6 @@ function initAppInteractions(mainContent) {
             document.getElementById('edit-strict-selected').checked = taskData.strict_selected || false;
             document.getElementById('edit-resale').checked = taskData.resale || false;
             document.getElementById('edit-new-publish-option').value = taskData.new_publish_option || '';
-            const editBayesProfile = document.getElementById('edit-bayes-profile');
-            if (editBayesProfile) {
-                editBayesProfile.value = taskData.bayes_profile || 'bayes_v1';
-            }
             await setupRegionSelectors({
                 provinceId: 'edit-region-province',
                 cityId: 'edit-region-city',
@@ -1383,7 +1437,10 @@ function initAppInteractions(mainContent) {
             await loadEditAccountSelector(taskData.bound_account || '');
 
             // 加载参考文件选择器
-            await loadEditReferenceFileSelector(taskData.ai_prompt_criteria_file || '');
+            await loadEditReferenceFileSelector(taskData.ai_prompt_base_file || '');
+
+            // 加载 Bayes 参数选择器
+            await loadEditBayesProfileSelector(taskData.bayes_profile || 'bayes_v1');
 
             // 加载当前AI标准信息
             await loadEditCriteriaInfo(taskData);
@@ -1399,6 +1456,7 @@ function initAppInteractions(mainContent) {
         async function loadEditReferenceFileSelector(currentFile = '') {
             const selector = document.getElementById('edit-reference-file-selector');
             if (!selector) return;
+            const preferredFile = String(currentFile || '').replace(/^prompts[\\/]/i, '').trim();
 
             try {
                 // 获取参考文件列表 - API返回数组格式
@@ -1407,18 +1465,42 @@ function initAppInteractions(mainContent) {
                 const files = await response.json(); // API直接返回数组
 
                 selector.innerHTML = '<option value="">保持现有模板</option>';
+                let matchedPreferred = false;
 
                 if (Array.isArray(files) && files.length > 0) {
                     files.forEach(file => {
                         const option = document.createElement('option');
                         option.value = file;
                         option.textContent = file;
+                        if (preferredFile && file === preferredFile) {
+                            option.selected = true;
+                            matchedPreferred = true;
+                        }
                         selector.appendChild(option);
                     });
+                }
+                if (!preferredFile) {
+                    selector.value = '';
+                } else if (!matchedPreferred) {
+                    const fallback = selector.querySelector('option[value="base_prompt.txt"]');
+                    selector.value = fallback ? fallback.value : '';
                 }
             } catch (error) {
                 console.error('加载参考文件列表失败:', error);
                 selector.innerHTML = '<option value="">加载失败</option>';
+            }
+        }
+
+        async function loadEditBayesProfileSelector(currentProfile = '') {
+            const selector = document.getElementById('edit-bayes-profile');
+            if (!selector) return;
+            try {
+                const rawProfiles = await fetchBayesProfiles();
+                const profiles = buildBayesProfileList(rawProfiles, true);
+                renderBayesProfileOptions(selector, profiles, currentProfile);
+            } catch (error) {
+                console.error('加载Bayes文件列表失败:', error);
+                renderBayesProfileOptions(selector, buildBayesProfileList([], true), currentProfile || 'bayes_v1');
             }
         }
 

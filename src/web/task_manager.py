@@ -74,7 +74,7 @@ def _normalize_task_dict(task: Dict[str, Any], index: int) -> Dict[str, Any]:
     normalized.setdefault("resale", False)
     normalized.setdefault("bound_account", None)
     normalized.setdefault("auto_switch_on_risk", False)
-    normalized.setdefault("bayes_profile", "bayes_v1")
+    normalized["bayes_profile"] = _normalize_bayes_profile_value(normalized.get("bayes_profile"))
     return normalized
 
 
@@ -107,6 +107,14 @@ def _parse_process_key(task_id: Union[int, str]) -> tuple[Optional[str], Optiona
 def _sanitize_task_name(task_name: str) -> str:
     safe_task_name = "".join(c for c in str(task_name or "").replace(" ", "_") if c.isalnum() or c in "_-")
     return safe_task_name or "task"
+
+
+def _normalize_bayes_profile_value(value: Any) -> str:
+    """统一 Bayes 版本格式，内部仅保存不带 .json 的版本号。"""
+    text = str(value or "").strip()
+    if text.endswith(".json"):
+        text = text[:-5]
+    return text or "bayes_v1"
 
 
 def _parse_bool_for_env(value, default: bool = False) -> bool:
@@ -543,7 +551,7 @@ def _normalize_update_data(update_data: Dict[str, Any]) -> Dict[str, Any]:
     if "region" in normalized:
         normalized["region"] = normalized["region"] or None
     if "bayes_profile" in normalized:
-        normalized["bayes_profile"] = normalized["bayes_profile"] or "bayes_v1"
+        normalized["bayes_profile"] = _normalize_bayes_profile_value(normalized.get("bayes_profile"))
     return normalized
 
 
@@ -682,7 +690,7 @@ async def generate_task(req: TaskGenerateRequestWithReference, request: Request)
         "cron": req.cron,
         "ai_prompt_base_file": reference_file,
         "ai_prompt_criteria_file": requirement_filename,
-        "bayes_profile": req.bayes_profile or "bayes_v1",
+        "bayes_profile": _normalize_bayes_profile_value(req.bayes_profile),
         "is_running": False,
         "generating_ai_criteria": False,
         "bound_account": None,

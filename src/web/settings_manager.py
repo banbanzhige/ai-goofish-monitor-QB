@@ -490,14 +490,22 @@ async def list_bayes_profiles(user: dict = Depends(_require_ai_or_tasks_access))
     """列出 Bayes 配置文件名。"""
     owner_id = _resolve_owner_for_scoped_files(user)
     if STORAGE_BACKEND() == "postgres":
-        storage = get_storage()
-        profiles = storage.list_bayes_profiles(owner_id=owner_id, include_system=True)
-        versions = {
-            str(item.get("version") or "").strip()
-            for item in profiles
-            if str(item.get("version") or "").strip()
-        }
-        return sorted(f"{version}.json" for version in versions)
+        try:
+            storage = get_storage()
+            profiles = storage.list_bayes_profiles(owner_id=owner_id, include_system=True)
+            versions = {
+                str(item.get("version") or "").strip()
+                for item in profiles
+                if str(item.get("version") or "").strip()
+            }
+            if versions:
+                return sorted(f"{version}.json" for version in versions)
+        except Exception as e:
+            logger.warning(
+                "数据库读取 Bayes 列表失败，回退文件扫描",
+                extra={"event": "settings_bayes_list_db_failed", "owner_id": owner_id},
+                exc_info=e
+            )
     return list_scoped_files("bayes", owner_id=owner_id, include_shared=True)
 
 
@@ -542,14 +550,20 @@ async def get_bayes_profile(filename: str, user: dict = Depends(_require_ai_or_t
     owner_id = _resolve_owner_for_scoped_files(user)
     if STORAGE_BACKEND() == "postgres":
         normalized_version = _normalize_bayes_version(safe_filename)
-        storage = get_storage()
-        profile = storage.get_bayes_profile(normalized_version, owner_id=owner_id)
-        if not profile:
-            raise HTTPException(status_code=404, detail="Bayes 文件未找到。")
-        return {
-            "filename": safe_filename,
-            "content": json.dumps(profile, ensure_ascii=False, indent=2),
-        }
+        try:
+            storage = get_storage()
+            profile = storage.get_bayes_profile(normalized_version, owner_id=owner_id)
+            if profile:
+                return {
+                    "filename": safe_filename,
+                    "content": json.dumps(profile, ensure_ascii=False, indent=2),
+                }
+        except Exception as e:
+            logger.warning(
+                "数据库读取 Bayes 内容失败，回退文件读取",
+                extra={"event": "settings_bayes_get_db_failed", "owner_id": owner_id, "filename": safe_filename},
+                exc_info=e
+            )
 
     filepath = resolve_scoped_path("bayes", safe_filename, owner_id=owner_id, for_write=False)
     if not filepath.exists():

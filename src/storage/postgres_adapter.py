@@ -110,6 +110,7 @@ class PostgresAdapter(StorageInterface):
             self._ensure_system_groups(session)
             self._ensure_system_prompt_templates(session)
             self._ensure_system_ai_criteria(session)
+            self._ensure_system_bayes_profiles(session)
             self._ensure_default_super_admin(session)
     
     def drop_tables(self):
@@ -294,6 +295,90 @@ class PostgresAdapter(StorageInterface):
             )
             existing_names.add(template_name)
 
+    def _iter_system_bayes_profiles(self) -> List[Dict[str, Any]]:
+        """扫描系统级 Bayes 配置（prompts/bayes/*.json）。"""
+        bayes_dir = self.project_root / "prompts" / "bayes"
+        profiles: List[Dict[str, Any]] = []
+        if not bayes_dir.exists():
+            return profiles
+
+        for file_path in sorted(bayes_dir.glob("*.json")):
+            try:
+                raw_content = file_path.read_text(encoding="utf-8")
+                payload = json.loads(raw_content)
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+
+            normalized_version = str(payload.get("version") or file_path.stem).replace(".json", "").strip()
+            if not normalized_version:
+                continue
+
+            normalized_payload = dict(payload)
+            normalized_payload["version"] = normalized_version
+            profiles.append(normalized_payload)
+
+        return profiles
+
+    def _ensure_system_bayes_profiles(self, session: DBSession):
+        """确保系统级 Bayes 模型与样本存在。"""
+        existing_profiles = session.query(BayesProfile).filter(BayesProfile.owner_id == None).all()
+        profile_by_version: Dict[str, BayesProfile] = {
+            str(item.version).strip(): item
+            for item in existing_profiles
+            if str(item.version or "").strip()
+        }
+
+        for payload in self._iter_system_bayes_profiles():
+            version = str(payload.get("version") or "").strip()
+            if not version:
+                continue
+
+            profile_row = profile_by_version.get(version)
+            if not profile_row:
+                profile_row = BayesProfile(
+                    owner_id=None,
+                    version=version,
+                    display_name=payload.get("display_name") or version,
+                    recommendation_fusion=payload.get("recommendation_fusion"),
+                    bayes_feature_rules=payload.get("bayes_feature_rules"),
+                    is_default=bool(payload.get("is_default", version == "bayes_v1")),
+                )
+                session.add(profile_row)
+                session.flush()
+                profile_by_version[version] = profile_row
+            else:
+                if not profile_row.display_name:
+                    profile_row.display_name = payload.get("display_name") or version
+                if profile_row.recommendation_fusion is None and payload.get("recommendation_fusion") is not None:
+                    profile_row.recommendation_fusion = payload.get("recommendation_fusion")
+                if profile_row.bayes_feature_rules is None and payload.get("bayes_feature_rules") is not None:
+                    profile_row.bayes_feature_rules = payload.get("bayes_feature_rules")
+
+            has_samples = session.query(BayesSample.id).filter(
+                BayesSample.owner_id == None,
+                BayesSample.profile_version == version
+            ).first()
+            if has_samples:
+                continue
+
+            sample_payloads = self._extract_bayes_samples_from_payload(payload)
+            for sample_data in sample_payloads:
+                session.add(
+                    BayesSample(
+                        owner_id=None,
+                        profile_id=profile_row.id if profile_row else None,
+                        profile_version=version,
+                        name=sample_data.get("name"),
+                        vector=sample_data.get("vector") or [],
+                        label=int(sample_data.get("label", 0)),
+                        source=str(sample_data.get("source") or "preset"),
+                        item_id=sample_data.get("item_id"),
+                        note=sample_data.get("note"),
+                    )
+                )
+
     def _ensure_default_super_admin(self, session: DBSession):
         """确保默认登录账户在数据库中具备超级管理员能力。"""
         default_username = (WEB_USERNAME() or "admin").strip() or "admin"
@@ -373,6 +458,7 @@ class PostgresAdapter(StorageInterface):
     def _bootstrap_user_base_assets(self, session: DBSession, user_id: str):
         """为新用户补齐系统级基础资源，保证开箱可用。"""
         self._ensure_system_ai_criteria(session)
+        self._ensure_system_bayes_profiles(session)
 
         system_criteria = session.query(AiCriteria).filter(AiCriteria.owner_id == None).all()
         user_criteria_names = {
