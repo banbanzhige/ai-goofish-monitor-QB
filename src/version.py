@@ -4,10 +4,23 @@
 """
 版本信息文件
 """
-VERSION = "V1.0.3-beta"
+VERSION = "V1.0.4-beta"
 
 
 VERSION_HISTORY = [
+
+    {
+        "version": "V1.0.4-beta",
+        "date": "2026-03-09",
+        "changes": [
+            "修复了bat和.env的联动体验",
+            "添加了导航栏统计计数",         
+           
+        ]
+    },
+
+
+
 
     {
         "version": "V1.0.3-beta",
