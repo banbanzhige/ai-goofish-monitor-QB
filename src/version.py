@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#https://github.com/banbanzhige/ai-goofish-monitor-QB
 """
 版本信息文件
 """
