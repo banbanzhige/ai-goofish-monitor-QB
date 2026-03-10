@@ -471,6 +471,9 @@ async function fetchTasks() {
         }
         const tasks = await response.json();
         latestTasks = Array.isArray(tasks) ? tasks.slice() : [];
+        if (typeof refreshSidebarStatsBadges === 'function') {
+            refreshSidebarStatsBadges();
+        }
         return tasks;
     } catch (error) {
         console.error("无法获取任务列表:", error);
@@ -743,7 +746,12 @@ async function fetchScheduledJobs() {
     try {
         const response = await fetch('/api/scheduled-jobs');
         if (!response.ok) throw new Error('无法获取定时任务列表');
-        return await response.json();
+        const data = await response.json();
+        latestScheduledJobs = Array.isArray(data && data.jobs) ? data.jobs.slice() : [];
+        if (typeof refreshSidebarStatsBadges === 'function') {
+            refreshSidebarStatsBadges();
+        }
+        return data;
     } catch (error) {
         console.error(error);
         return null;
@@ -821,6 +829,9 @@ async function fetchAccounts() {
         if (!response.ok) throw new Error('无法获取账号列表');
         const accounts = await response.json();
         latestAccounts = Array.isArray(accounts) ? accounts.slice() : [];
+        if (typeof refreshSidebarStatsBadges === 'function') {
+            refreshSidebarStatsBadges();
+        }
         return accounts;
     } catch (error) {
         console.error(error);
