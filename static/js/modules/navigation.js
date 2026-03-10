@@ -4,6 +4,65 @@ var navLinks = [];
 var navigationInitialized = false;
 var navPagePermissionInfo = null;
 var navPagePermissionPromise = null;
+var navStatsRefreshTimer = null;
+var navStatsLoading = false;
+const NAV_STATS_REFRESH_INTERVAL_MS = 30000;
+
+function setSidebarCountBadge(elementId, count) {
+    const badge = document.getElementById(elementId);
+    if (!badge) return;
+
+    const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+    badge.textContent = safeCount > 99 ? '99+' : String(safeCount);
+    badge.classList.toggle('nav-count-muted', safeCount === 0);
+}
+
+function countRunningTasks(tasks) {
+    if (!Array.isArray(tasks)) return 0;
+    return tasks.filter(task => Boolean(task && task.is_running === true)).length;
+}
+
+function countValidAccounts(accounts) {
+    if (!Array.isArray(accounts)) return 0;
+    return accounts.filter(account => account && account.cookie_status === 'valid').length;
+}
+
+function countQueuedSchedules(scheduledJobs) {
+    if (!Array.isArray(scheduledJobs)) return 0;
+    return scheduledJobs.filter(job => !Boolean(job && job.is_running === true)).length;
+}
+
+function refreshSidebarStatsBadges() {
+    setSidebarCountBadge('nav-count-tasks', countRunningTasks(latestTasks));
+    setSidebarCountBadge('nav-count-accounts', countValidAccounts(latestAccounts));
+    setSidebarCountBadge('nav-count-scheduled', countQueuedSchedules(latestScheduledJobs));
+}
+
+async function refreshSidebarStatsData() {
+    if (navStatsLoading) return;
+    navStatsLoading = true;
+    try {
+        const requests = [];
+        if (canAccessSection('tasks')) {
+            requests.push(fetchTasks());
+        }
+        if (canAccessSection('accounts')) {
+            requests.push(fetchAccounts());
+        }
+        if (canAccessSection('scheduled')) {
+            requests.push(fetchScheduledJobs());
+        }
+        if (requests.length > 0) {
+            // 并行刷新三类统计数据，避免阻塞导航交互
+            await Promise.all(requests);
+        }
+    } catch (_) {
+        // 统计拉取失败时保持静默，避免打断页面使用
+    } finally {
+        navStatsLoading = false;
+        refreshSidebarStatsBadges();
+    }
+}
 
 function getSectionIdFromLink(link) {
     if (!link) return '';
@@ -277,6 +336,13 @@ function initNavigation(mainContent) {
     window.addEventListener('hashchange', () => {
         navigateTo(window.location.hash);
     });
+
+    refreshSidebarStatsBadges();
+    refreshSidebarStatsData();
+    if (navStatsRefreshTimer) {
+        clearInterval(navStatsRefreshTimer);
+    }
+    navStatsRefreshTimer = setInterval(refreshSidebarStatsData, NAV_STATS_REFRESH_INTERVAL_MS);
 
     navigateTo(window.location.hash || '#tasks');
 }
