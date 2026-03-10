@@ -466,9 +466,11 @@ def get_scheduled_jobs(scheduler):
 
         cron_str = ""
         order_value = None
+        is_running = False
         if task_id < len(config_tasks):
             cron_str = config_tasks[task_id].get("cron", "")
             order_value = config_tasks[task_id].get("order")
+            is_running = bool(config_tasks[task_id].get("is_running", False))
 
         next_run = None
         if hasattr(job, "next_run_time") and job.next_run_time:
@@ -484,6 +486,7 @@ def get_scheduled_jobs(scheduler):
                 "task_name": task_name,
                 "cron": cron_str,
                 "next_run_time": next_run.isoformat() if next_run else None,
+                "is_running": is_running,
                 "order": order_value,
                 "_next_run_dt": next_run,
             }
