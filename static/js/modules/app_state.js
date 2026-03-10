@@ -5,4 +5,5 @@ var resultsRefreshInterval = null;
 var lastResultsSignature = null;
 var latestTasks = [];
 var latestAccounts = [];
+var latestScheduledJobs = [];
 var isTaskReordering = false;
