@@ -1002,9 +1002,18 @@ async def get_scheduled_jobs_api(request: Request):
         storage = get_storage()
         tasks = storage.get_tasks(owner_id=owner_id)
         jobs = []
+        now = datetime.now(timezone.utc)
         for idx, task in enumerate(tasks):
-            cron = task.get("cron")
-            if not cron:
+            cron = str(task.get("cron") or "").strip()
+            is_enabled = bool(task.get("enabled", False))
+            criteria_file = str(task.get("ai_prompt_criteria_file") or "")
+            has_generated_criteria = bool(criteria_file) and not criteria_file.startswith("requirement/")
+            if not cron or not is_enabled or not has_generated_criteria:
+                continue
+            try:
+                trigger = CronTrigger.from_crontab(cron)
+                next_run_time = trigger.get_next_fire_time(None, now)
+            except ValueError:
                 continue
             jobs.append(
                 {
@@ -1012,7 +1021,8 @@ async def get_scheduled_jobs_api(request: Request):
                     "task_id": idx,
                     "task_name": task.get("task_name"),
                     "cron": cron,
-                    "next_run_time": None,
+                    "next_run_time": next_run_time.isoformat() if next_run_time else None,
+                    "is_running": bool(task.get("is_running", False)),
                     "order": task.get("order", idx),
                 }
             )
