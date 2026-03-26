@@ -1,0 +1,88 @@
+name: 🚀 部署问题
+description: 报告部署或环境配置相关的问题
+title: "[Deploy] "
+labels: ["deployment"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        报告部署或环境配置问题前，请先确认已阅读 [README 部署文档](https://github.com/banbanzhige/ai-goofish-monitor-QB/blob/master/README.md#-%E5%BF%AB%E9%80%9F%E9%83%A8%E7%BD%B2)。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 简明描述你在部署过程中遇到的问题
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deploy-method
+    attributes:
+      label: 部署方式
+      options:
+        - Docker Compose（数据库模式）
+        - Docker Compose（本地模式）
+        - Docker 命令行
+        - Windows 本地部署（start_web_server.bat）
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统
+      placeholder: 例如 Windows 11 / Ubuntu 22.04 / macOS 14
+    validations:
+      required: true
+
+  - type: input
+    id: docker-version
+    attributes:
+      label: Docker 版本（Docker 部署时填写）
+      placeholder: 例如 Docker 24.0.7 / Docker Compose v2.23.0
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python 版本（本地部署时填写）
+      placeholder: 例如 3.10.12
+
+  - type: input
+    id: version
+    attributes:
+      label: 项目版本
+      placeholder: 例如 v1.0.4-beta
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已尝试的排查步骤
+      description: 你已经尝试了哪些操作来解决该问题
+      placeholder: |
+        1. 重新拉取镜像
+        2. 检查端口占用
+        3. ……
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 相关配置
+      description: 如适用，请粘贴你的 docker-compose.yaml 或 .env 的相关配置（注意隐藏 API Key 等敏感信息）
+      render: yaml
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志输出
+      description: 请粘贴相关的终端日志或容器日志
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 其他有助于排查的上下文
