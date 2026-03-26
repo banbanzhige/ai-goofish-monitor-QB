@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 README 文档
+    url: https://github.com/banbanzhige/ai-goofish-monitor-QB/blob/master/README.md
+    about: 提交 Issue 前请先阅读项目文档，大部分使用问题可以在文档中找到答案

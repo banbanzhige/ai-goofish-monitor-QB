@@ -1,27 +1,39 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
+name: 🐛 Bug 报告
+about: 提交 Bug 报告以帮助我们改进项目
+title: '[Bug] '
+labels: 'bug'
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Bug 描述
+<!-- 简明扼要地描述该 Bug -->
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## 复现步骤
+1. 
+2. 
+3. 
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+## 期望行为
+<!-- 描述你期望看到的正确行为 -->
 
-**Additional context**
-Add any other context about the problem here.
+
+## 实际行为
+<!-- 描述实际发生了什么 -->
+
+
+## 环境信息
+- **部署方式**：[ ] Docker / [ ] Windows 本地 / [ ] 其他
+- **系统版本**：
+- **项目版本**：
+- **Python 版本**（本地部署时填写）：
+- **浏览器**：
+
+## 日志 / 截图
+<!-- 如有相关日志（logs/ 目录）或截图，请粘贴在此处 -->
+
+
+## 补充信息
+<!-- 其他你认为有助于排查问题的上下文 -->
