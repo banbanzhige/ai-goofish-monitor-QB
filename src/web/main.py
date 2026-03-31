@@ -226,9 +226,9 @@ async def login_page(request: Request):
     db_status = _get_database_status()
     security_notice = _get_super_admin_security_notice()
     return templates.TemplateResponse(
+        request,
         "login.html",
         {
-            "request": request,
             "version": VERSION,
             "storage_mode_label": storage_mode_label,
             "storage_mode_desc": storage_mode_desc,
@@ -303,7 +303,7 @@ async def read_root(request: Request):
         if not user:
             return RedirectResponse(url="/login", status_code=302)
     
-    return templates.TemplateResponse("index.html", {"request": request, "version": VERSION})
+    return templates.TemplateResponse(request, "index.html", {"version": VERSION})
 
 
 @app.get("/auth/status")

@@ -16,10 +16,10 @@ from src.storage import get_storage
 
 logger = get_logger(__name__, service="web")
 
-# 1x1 PNG（透明像素），用于多模态能力探测时避免依赖外部图片服务。
+# 16x16 PNG（透明像素），用于多模态能力探测时避免依赖外部图片服务。
 _VISION_TEST_IMAGE_DATA_URL = (
     "data:image/png;base64,"
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg=="
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAEklEQVR42mNgGAWjYBSMAggAAAQQAAGvRYgsAAAAAElFTkSuQmCC"
 )
 
 _AI_HEALTH_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -345,6 +345,13 @@ def _classify_vision_error(message: str) -> str:
     for marker in unsupported_markers:
         if marker in lowered:
             return "unsupported"
+    small_image_markers = [
+        "image dimensions are too small",
+        "minimum allowed dimension",
+    ]
+    for marker in small_image_markers:
+        if marker in lowered:
+            return "supported"
     return "unknown"
 
 
@@ -385,6 +392,14 @@ async def _run_vision_probe_async(config: Dict[str, Any]) -> Dict[str, Any]:
                 status="unsupported",
                 level="warning",
                 message=f"模型不支持图像输入：{exc}",
+                latency_ms=latency_ms,
+                checked_at=_now_text(),
+            )
+        if status == "supported":
+            return _build_vision_result(
+                status="supported",
+                level="warning",
+                message=f"模型支持图像输入，但本次探测图片参数不合规：{exc}",
                 latency_ms=latency_ms,
                 checked_at=_now_text(),
             )
