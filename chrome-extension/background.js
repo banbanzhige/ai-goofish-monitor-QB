@@ -192,6 +192,55 @@ function filterHeaders(rawHeaders = {}) {
   return normalized;
 }
 
+function buildAutoLikeHeaders(env = {}, page = {}) {
+  const navigator = env.navigator || {};
+  const language = String(navigator.language || "zh-CN").trim() || "zh-CN";
+  const userAgent = String(navigator.userAgent || "").trim();
+  const referer = String(page.pageUrl || page.referrer || "https://www.goofish.com/").trim();
+
+  const headers = {
+    "User-Agent": userAgent,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": language,
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": referer || "https://www.goofish.com/",
+    "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    "Sec-Ch-Ua-Mobile": "?1",
+    "Sec-Ch-Ua-Platform": '"Android"',
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Dest": "document",
+    "Upgrade-Insecure-Requests": "1",
+    "Cache-Control": "max-age=0",
+  };
+  return Object.fromEntries(Object.entries(headers).filter(([, value]) => value));
+}
+
+function looksLikeProbeHeaders(headers = {}) {
+  const lowered = {};
+  Object.entries(headers).forEach(([key, value]) => {
+    lowered[String(key).toLowerCase()] = String(value || "").trim().toLowerCase();
+  });
+  return lowered["sec-fetch-mode"] === "cors" || lowered["sec-fetch-dest"] === "empty" || lowered.accept === "*/*";
+}
+
+function normalizeSnapshotHeaders(rawHeaders = {}, env = {}, page = {}) {
+  const filtered = filterHeaders(rawHeaders);
+  const fallback = buildAutoLikeHeaders(env, page);
+  if (!Object.keys(filtered).length || looksLikeProbeHeaders(filtered)) {
+    return fallback;
+  }
+
+  const merged = { ...filtered };
+  const existingLower = new Set(Object.keys(merged).map((key) => key.toLowerCase()));
+  Object.entries(fallback).forEach(([key, value]) => {
+    if (!existingLower.has(key.toLowerCase())) {
+      merged[key] = value;
+    }
+  });
+  return merged;
+}
+
 async function captureHeaders(tabId) {
   return new Promise((resolve) => {
     let resolved = false;
@@ -260,7 +309,7 @@ async function captureCookies(url) {
 async function buildSnapshot() {
   const tab = await getActiveGoofishTab();
   const pageData = await capturePageData(tab.id);
-  const headers = await captureHeaders(tab.id);
+  const capturedHeaders = await captureHeaders(tab.id);
   const cookies = await captureCookies(new URL(tab.url).origin);
 
   const filteredEnv = filterEnvData(pageData.env);
@@ -270,12 +319,14 @@ async function buildSnapshot() {
     local: localPruned.data,
     session: sessionPruned.data,
   };
+  const normalizedEnv = { ...filteredEnv, storage: filteredStorage };
+  const normalizedHeaders = normalizeSnapshotHeaders(capturedHeaders, normalizedEnv, pageData.page || {});
 
   return {
     capturedAt: new Date().toISOString(),
     pageUrl: tab.url,
     page: pageData.page,
-    env: filteredEnv,
+    env: normalizedEnv,
     storage: filteredStorage,
     meta: {
       droppedStorageKeys: {
@@ -283,7 +334,7 @@ async function buildSnapshot() {
         session: sessionPruned.dropped,
       },
     },
-    headers: filterHeaders(headers),
+    headers: normalizedHeaders,
     cookies,
   };
 }

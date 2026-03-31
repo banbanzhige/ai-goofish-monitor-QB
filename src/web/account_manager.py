@@ -103,24 +103,133 @@ def _merge_state_payload(target: dict, state_data):
         target["cookies"] = state_data
 
 
+def _build_default_snapshot_headers(env: Optional[Dict[str, Any]], page: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    navigator = (env or {}).get("navigator") or {}
+    language = str(navigator.get("language") or "zh-CN").strip() or "zh-CN"
+    user_agent = str(navigator.get("userAgent") or "").strip()
+
+    page_url = ""
+    if isinstance(page, dict):
+        page_url = str(page.get("pageUrl") or page.get("referrer") or "").strip()
+    referer = page_url or "https://www.goofish.com/"
+
+    headers = {
+        "User-Agent": user_agent,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": language,
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": referer,
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?1",
+        "Sec-Ch-Ua-Platform": '"Android"',
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Dest": "document",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "max-age=0",
+    }
+    return {key: value for key, value in headers.items() if value}
+
+
+def _normalize_storage_payload(raw_storage: Any) -> Dict[str, Dict[str, Any]]:
+    if not isinstance(raw_storage, dict):
+        return {"local": {}, "session": {}}
+    local = raw_storage.get("local")
+    session = raw_storage.get("session")
+    return {
+        "local": local if isinstance(local, dict) else {},
+        "session": session if isinstance(session, dict) else {},
+    }
+
+
+def _looks_like_probe_headers(headers: Dict[str, Any]) -> bool:
+    lowered = {str(k).lower(): str(v or "").strip().lower() for k, v in headers.items() if isinstance(k, str)}
+    fetch_mode = lowered.get("sec-fetch-mode", "")
+    fetch_dest = lowered.get("sec-fetch-dest", "")
+    accept = lowered.get("accept", "")
+    return fetch_mode == "cors" or fetch_dest == "empty" or accept == "*/*"
+
+
+def _normalize_headers_payload(
+    raw_headers: Any,
+    env: Optional[Dict[str, Any]],
+    page: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    headers = raw_headers if isinstance(raw_headers, dict) else {}
+    fallback = _build_default_snapshot_headers(env, page)
+    if not headers or _looks_like_probe_headers(headers):
+        return fallback
+
+    normalized = dict(headers)
+    existing_lower = {str(key).lower() for key in normalized.keys()}
+    for key, value in fallback.items():
+        if key.lower() not in existing_lower:
+            normalized[key] = value
+    return normalized
+
+
+def _normalize_page_payload(raw_page: Any, state_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    if isinstance(raw_page, dict):
+        page = dict(raw_page)
+    else:
+        page = {}
+    if (not page.get("pageUrl")) and isinstance(state_data, dict):
+        page_url = state_data.get("pageUrl")
+        if isinstance(page_url, str) and page_url.strip():
+            page["pageUrl"] = page_url.strip()
+    if not page:
+        return None
+    if "referrer" not in page and isinstance(page.get("pageUrl"), str):
+        page["referrer"] = page.get("pageUrl")
+    if "visibilityState" not in page:
+        page["visibilityState"] = "visible"
+    return page
+
+
+def _normalize_state_payload(raw_payload: Dict[str, Any], state_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    cookies = _parse_cookies(raw_payload.get("cookies"))
+    env = raw_payload.get("env")
+    env = dict(env) if isinstance(env, dict) else None
+
+    storage_candidate = raw_payload.get("storage")
+    if storage_candidate is None and isinstance(env, dict):
+        storage_candidate = env.get("storage")
+    storage = _normalize_storage_payload(storage_candidate)
+
+    if isinstance(env, dict):
+        env.setdefault("storage", storage)
+
+    page = _normalize_page_payload(raw_payload.get("page"), state_data=state_data)
+    headers = _normalize_headers_payload(raw_payload.get("headers"), env, page)
+
+    return {
+        "cookies": cookies,
+        "env": env,
+        "headers": headers,
+        "page": page,
+        "storage": storage,
+    }
+
+
 def _extract_state_payload_from_state_content(state_content: str) -> Tuple[Dict[str, Any], str]:
     try:
         state_data = json.loads(state_content)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Cookie内容不是有效的JSON格式")
 
-    payload: Dict[str, Any] = {"cookies": []}
+    raw_payload: Dict[str, Any] = {"cookies": []}
     if isinstance(state_data, list):
-        payload["cookies"] = state_data
+        raw_payload["cookies"] = state_data
     elif isinstance(state_data, dict):
         cookies = state_data.get("cookies", [])
-        payload["cookies"] = cookies if isinstance(cookies, list) else []
+        raw_payload["cookies"] = cookies if isinstance(cookies, list) else []
         for key in ("env", "headers", "page", "storage"):
             if key in state_data:
-                payload[key] = state_data.get(key)
+                raw_payload[key] = state_data.get(key)
     else:
         raise HTTPException(status_code=400, detail="Cookie内容必须是JSON对象或数组")
 
+    payload = _normalize_state_payload(raw_payload, state_data=state_data if isinstance(state_data, dict) else None)
     payload_json = json.dumps(payload, ensure_ascii=False)
     return payload, payload_json
 
@@ -146,7 +255,7 @@ def _parse_cookies(raw_cookies: Any) -> List[Dict[str, Any]]:
 
 
 def _extract_state_payload_from_storage_account(account: Dict[str, Any]) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {"cookies": _parse_cookies(account.get("cookies"))}
+    raw_payload: Dict[str, Any] = {"cookies": _parse_cookies(account.get("cookies"))}
 
     raw_cookies = account.get("cookies")
     parsed_state: Optional[Any] = None
@@ -161,16 +270,16 @@ def _extract_state_payload_from_storage_account(account: Dict[str, Any]) -> Dict
     if isinstance(parsed_state, dict):
         cookies = parsed_state.get("cookies", [])
         if isinstance(cookies, list):
-            payload["cookies"] = cookies
+            raw_payload["cookies"] = cookies
         for key in ("env", "headers", "page", "storage"):
             if key in parsed_state:
-                payload[key] = parsed_state.get(key)
+                raw_payload[key] = parsed_state.get(key)
 
     for key in ("env", "headers", "page", "storage"):
-        if key not in payload and account.get(key) is not None:
-            payload[key] = account.get(key)
+        if key not in raw_payload and account.get(key) is not None:
+            raw_payload[key] = account.get(key)
 
-    return payload
+    return _normalize_state_payload(raw_payload, state_data=parsed_state if isinstance(parsed_state, dict) else None)
 
 
 def _detect_cookie_status(cookies: List[Dict[str, Any]]) -> str:
@@ -669,8 +778,8 @@ async def update_account(name: str, update: AccountUpdate, request: Request):
         data["display_name"] = update.display_name
 
     if update.state_content is not None:
-        state_data = json.loads(update.state_content)
-        _merge_state_payload(data, state_data)
+        state_payload, _ = _extract_state_payload_from_state_content(update.state_content)
+        _merge_state_payload(data, state_payload)
 
     await write_account_file(name, data)
     return {"message": f"账号 '{name}' 更新成功"}
