@@ -1889,10 +1889,32 @@ class PostgresAdapter(StorageInterface):
                     del account_dict['cookies_encrypted']
                 result.append(account_dict)
             return result
+
+    @staticmethod
+    def _coerce_account_datetime_fields(account_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Coerce ISO datetime strings before writing timestamp fields."""
+        normalized = dict(account_data or {})
+        for field_name in ("created_at", "last_used_at", "updated_at"):
+            value = normalized.get(field_name)
+            if not isinstance(value, str):
+                continue
+            text = value.strip()
+            if not text:
+                normalized[field_name] = None
+                continue
+            try:
+                normalized[field_name] = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                # Keep original value so DB layer can raise a clear validation error.
+                pass
+        return normalized
+
+
     
     def save_user_platform_account(self, user_id: str, account_data: Dict[str, Any]) -> Dict[str, Any]:
         """保存用户平台账号"""
         with self.get_session() as session:
+            account_data = self._coerce_account_datetime_fields(account_data)
             account_data['user_id'] = user_id
             
             # 加密Cookie

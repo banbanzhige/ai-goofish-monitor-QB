@@ -34,7 +34,9 @@ document.addEventListener("DOMContentLoaded", function () {
   function setLoading(isLoading) {
     extractBtn.disabled = isLoading;
     copyAccountBtn.disabled = isLoading;
-    copySnapshotBtn.disabled = isLoading;
+    if (copySnapshotBtn) {
+      copySnapshotBtn.disabled = isLoading;
+    }
     extractBtn.textContent = isLoading ? "采集中，请稍候..." : "1) 采集完整快照";
   }
 
@@ -119,12 +121,14 @@ document.addEventListener("DOMContentLoaded", function () {
     await copyText(stringify(latestAccountPayload));
   });
 
-  copySnapshotBtn.addEventListener("click", async () => {
-    if (!latestSnapshot) {
-      updateStatus("请先采集完整快照");
-      return;
-    }
-    stateOutput.value = stringify(latestSnapshot);
-    await copyText(stringify(latestSnapshot));
-  });
+  if (copySnapshotBtn) {
+    copySnapshotBtn.addEventListener("click", async () => {
+      if (!latestSnapshot) {
+        updateStatus("请先采集完整快照");
+        return;
+      }
+      stateOutput.value = stringify(latestSnapshot);
+      await copyText(stringify(latestSnapshot));
+    });
+  }
 });

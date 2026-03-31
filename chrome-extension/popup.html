@@ -99,17 +99,16 @@
 </head>
 <body>
   <div class="container">
-    <h1>Xianyu 登录态提取器</h1>
-    <p class="hint">推荐复制“账号文件 JSON（自动获取同款）”，可直接作为 state/*.json 使用。</p>
+    <h1>咸鱼登录态提取器</h1>
+
+    
 
     <div class="row">
       <label for="displayNameInput">账号显示名（可选）</label>
       <input id="displayNameInput" type="text" placeholder="例如：手动获取账号_0401" />
     </div>
-
     <button id="extractBtn" class="btn btn-primary">1) 采集完整快照</button>
-    <button id="copyAccountBtn" class="btn btn-green">2) 复制账号文件 JSON（推荐）</button>
-    <button id="copySnapshotBtn" class="btn btn-gray">2') 复制原始快照 JSON</button>
+    <button id="copyAccountBtn" class="btn btn-green">2) 复制账号文件 JSON</button>
 
     <textarea id="stateOutput" readonly placeholder="点击“采集完整快照”后会显示 JSON"></textarea>
     <div id="status" class="status"></div>
