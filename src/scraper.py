@@ -205,6 +205,22 @@ def _default_context_options() -> dict:
     }
 
 
+def _default_desktop_context_options() -> dict:
+    """桌面上下文兜底：当移动端命中完整登录页时使用。"""
+    return {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "viewport": {"width": 1366, "height": 768},
+        "device_scale_factor": 1,
+        "is_mobile": False,
+        "has_touch": False,
+        "locale": "zh-CN",
+        "timezone_id": "Asia/Shanghai",
+        "permissions": ["geolocation"],
+        "geolocation": {"longitude": 121.4737, "latitude": 31.2304},
+        "color_scheme": "light",
+    }
+
+
 def _clean_kwargs(options: dict) -> dict:
     return {k: v for k, v in options.items() if v is not None}
 
@@ -723,23 +739,52 @@ async def fetch_user_profile(context, user_id: str) -> dict:
     return profile_data
 
 
-async def _try_passport_quick_entry(page, task_name: str) -> bool:
-    """检测登录确认页并尝试点击“快速进入”，避免卡在passport页面导致后续超时。"""
-    try:
-        current_url = page.url or ""
-        quick_entry_btn = page.locator("text=快速进入").first
-        needs_handle = "passport.goofish.com" in current_url
+async def _detect_passport_page_state(page) -> str:
+    """识别 passport 页面状态：quick_entry/full_login/none/passport_unknown。"""
+    current_url = page.url or ""
+    quick_entry_btn = page.locator("text=快速进入").first
 
-        # 未跳转到passport域时，也短暂探测一次按钮是否出现
-        if not needs_handle:
-            try:
-                await quick_entry_btn.wait_for(state="visible", timeout=2000)
-                needs_handle = True
-            except PlaywrightTimeoutError:
-                return False
+    try:
+        if await quick_entry_btn.count():
+            await quick_entry_btn.wait_for(state="visible", timeout=1200)
+            return "quick_entry"
+    except PlaywrightTimeoutError:
+        pass
+    except Exception:
+        pass
+
+    if "passport.goofish.com" not in current_url:
+        return "none"
+
+    # mini_login 是完整登录页入口；同时兼容页面文案判断。
+    if "mini_login" in current_url:
+        return "full_login"
+
+    full_login_locators = [
+        page.locator("text=请输入手机号").first,
+        page.locator("text=获取验证码").first,
+        page.locator("text=账号密码登录").first,
+        page.locator("input[placeholder*='手机号']").first,
+    ]
+    for locator in full_login_locators:
+        try:
+            if await locator.count():
+                return "full_login"
+        except Exception:
+            continue
+    return "passport_unknown"
+
+
+async def _try_passport_quick_entry(page, task_name: str) -> str:
+    """仅在“快速进入”确认页执行点击，返回 handled/full_login/none/passport_unknown。"""
+    try:
+        page_state = await _detect_passport_page_state(page)
+        if page_state != "quick_entry":
+            return page_state
 
         log_time("检测到登录确认页，准备点击“快速进入”...", task_name=task_name)
         await random_sleep(1, 3)
+        quick_entry_btn = page.locator("text=快速进入").first
         try:
             await quick_entry_btn.click(timeout=5000)
         except PlaywrightTimeoutError:
@@ -750,10 +795,46 @@ async def _try_passport_quick_entry(page, task_name: str) -> bool:
         await page.wait_for_load_state("domcontentloaded", timeout=20000)
         await random_sleep(1, 2)
         log_time("已尝试通过“快速进入”返回站点，继续原流程...", task_name=task_name)
-        return True
+        return "handled"
     except Exception as e:
         print(f"LOG: 处理登录确认页时出错（忽略继续）：{e}")
-        return False
+        return "passport_unknown"
+
+
+def _build_cookie_only_storage_state(snapshot_data: Optional[dict], state_file_path: Optional[str]):
+    """构造仅含 Cookie 的 storage_state，避免把移动端环境参数带入桌面重试。"""
+    if isinstance(snapshot_data, dict):
+        snapshot_cookies = _filter_cookies_for_state(snapshot_data.get("cookies", []))
+        return {"cookies": snapshot_cookies}
+    if state_file_path:
+        return state_file_path
+    return {"cookies": []}
+
+
+async def _switch_to_desktop_context_once(
+    browser,
+    context,
+    page,
+    snapshot_data: Optional[dict],
+    state_file_path: Optional[str],
+    task_name: str,
+):
+    """关闭当前上下文并切到桌面上下文，供登录页兜底重试使用。"""
+    log_time("检测到完整登录页，切换桌面上下文重试一次...", task_name=task_name)
+    try:
+        await page.close()
+    except Exception:
+        pass
+    try:
+        await context.close()
+    except Exception:
+        pass
+
+    desktop_kwargs = _clean_kwargs(_default_desktop_context_options())
+    desktop_state = _build_cookie_only_storage_state(snapshot_data, state_file_path)
+    new_context = await browser.new_context(storage_state=desktop_state, **desktop_kwargs)
+    new_page = await new_context.new_page()
+    return new_context, new_page
 
 
 async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: str = None):
@@ -1038,13 +1119,29 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
         init_script = _build_mobile_init_script(snapshot_data if isinstance(snapshot_data, dict) else None)
         await context.add_init_script(init_script)
         page = await context.new_page()
+        desktop_context_retry_used = False
 
         try:
             # 步骤 0 - 模拟真实用户：先访问首页（重要的访问策略适配措施）
             log_time("步骤 0 - 模拟真实用户访问首页...", task_name=task_name)
             await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=30000)
-            # 手动导入Cookie更容易被引导到登录确认页，先做一次兜底处理
-            await _try_passport_quick_entry(page, task_name)
+            # 手动导入Cookie可能进入passport，区分“快速进入确认页”和“完整登录页”
+            passport_result = await _try_passport_quick_entry(page, task_name)
+            if passport_result == "full_login" and not desktop_context_retry_used:
+                context, page = await _switch_to_desktop_context_once(
+                    browser,
+                    context,
+                    page,
+                    snapshot_data,
+                    state_file_path,
+                    task_name,
+                )
+                desktop_context_retry_used = True
+                await page.goto("https://www.goofish.com/", wait_until="domcontentloaded", timeout=30000)
+                passport_result = await _try_passport_quick_entry(page, task_name)
+            if passport_result == "full_login":
+                log_time("当前页面为完整登录页，后续将按现有流程继续并等待导航结果。", task_name=task_name)
+
             log_time("[请求间隔优化] 在首页停留，模拟浏览...", task_name=task_name)
             await random_sleep(3, 6)
 
@@ -1072,11 +1169,25 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                         f"搜索页导航等待响应超时（第{attempt}次），尝试处理登录确认页...",
                         task_name=task_name,
                     )
-                    handled = await _try_passport_quick_entry(page, task_name)
-                    if attempt == 1 and handled:
-                        log_time("已处理登录确认页，准备重试搜索页导航...", task_name=task_name)
-                        await random_sleep(2, 4)
-                        continue
+                    passport_result = await _try_passport_quick_entry(page, task_name)
+                    if attempt == 1:
+                        if passport_result == "handled":
+                            log_time("已处理登录确认页，准备重试搜索页导航...", task_name=task_name)
+                            await random_sleep(2, 4)
+                            continue
+                        if passport_result == "full_login" and not desktop_context_retry_used:
+                            context, page = await _switch_to_desktop_context_once(
+                                browser,
+                                context,
+                                page,
+                                snapshot_data,
+                                state_file_path,
+                                task_name,
+                            )
+                            desktop_context_retry_used = True
+                            log_time("已切换桌面上下文，准备重试搜索页导航...", task_name=task_name)
+                            await random_sleep(2, 4)
+                            continue
                     raise e
 
             # 等待页面加载出关键筛选元素，以确认已成功进入搜索结果页

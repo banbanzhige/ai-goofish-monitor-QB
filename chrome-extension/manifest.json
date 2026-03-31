@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Xianyu Login State Extractor",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Extract login state and browser environment for Xianyu monitoring robot",
   "permissions": [
     "activeTab",
@@ -22,3 +22,4 @@
     "default_title": "Extract Xianyu Login State"
   }
 }
+

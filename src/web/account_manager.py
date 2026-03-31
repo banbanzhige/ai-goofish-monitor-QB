@@ -103,19 +103,26 @@ def _merge_state_payload(target: dict, state_data):
         target["cookies"] = state_data
 
 
-def _extract_cookies_from_state_content(state_content: str) -> Tuple[List[Dict[str, Any]], str]:
+def _extract_state_payload_from_state_content(state_content: str) -> Tuple[Dict[str, Any], str]:
     try:
         state_data = json.loads(state_content)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Cookie内容不是有效的JSON格式")
 
-    cookies: List[Dict[str, Any]] = []
+    payload: Dict[str, Any] = {"cookies": []}
     if isinstance(state_data, list):
-        cookies = state_data
+        payload["cookies"] = state_data
     elif isinstance(state_data, dict):
-        cookies = state_data.get("cookies", []) if isinstance(state_data.get("cookies", []), list) else []
-    cookies_json = json.dumps(cookies, ensure_ascii=False)
-    return cookies, cookies_json
+        cookies = state_data.get("cookies", [])
+        payload["cookies"] = cookies if isinstance(cookies, list) else []
+        for key in ("env", "headers", "page", "storage"):
+            if key in state_data:
+                payload[key] = state_data.get(key)
+    else:
+        raise HTTPException(status_code=400, detail="Cookie内容必须是JSON对象或数组")
+
+    payload_json = json.dumps(payload, ensure_ascii=False)
+    return payload, payload_json
 
 
 def _parse_cookies(raw_cookies: Any) -> List[Dict[str, Any]]:
@@ -136,6 +143,34 @@ def _parse_cookies(raw_cookies: Any) -> List[Dict[str, Any]]:
         value = raw_cookies.get("cookies", [])
         return value if isinstance(value, list) else []
     return []
+
+
+def _extract_state_payload_from_storage_account(account: Dict[str, Any]) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {"cookies": _parse_cookies(account.get("cookies"))}
+
+    raw_cookies = account.get("cookies")
+    parsed_state: Optional[Any] = None
+    if isinstance(raw_cookies, str):
+        try:
+            parsed_state = json.loads(raw_cookies)
+        except Exception:
+            parsed_state = None
+    elif isinstance(raw_cookies, dict):
+        parsed_state = raw_cookies
+
+    if isinstance(parsed_state, dict):
+        cookies = parsed_state.get("cookies", [])
+        if isinstance(cookies, list):
+            payload["cookies"] = cookies
+        for key in ("env", "headers", "page", "storage"):
+            if key in parsed_state:
+                payload[key] = parsed_state.get(key)
+
+    for key in ("env", "headers", "page", "storage"):
+        if key not in payload and account.get(key) is not None:
+            payload[key] = account.get(key)
+
+    return payload
 
 
 def _detect_cookie_status(cookies: List[Dict[str, Any]]) -> str:
@@ -392,14 +427,18 @@ async def cleanup_expired_accounts(request: Request):
 async def create_account(account: AccountCreate, request: Request):
     """创建新账号"""
     user_id = _get_current_user_id(request)
-    cookies, cookies_json = _extract_cookies_from_state_content(account.state_content)
+    state_payload, state_payload_json = _extract_state_payload_from_state_content(account.state_content)
 
     if user_id:
         storage = get_storage()
         created = storage.save_user_platform_account(user_id, {
             "platform": "goofish",
             "display_name": account.display_name or account.name,
-            "cookies": cookies_json,
+            "cookies": state_payload_json,
+            "env": state_payload.get("env"),
+            "headers": state_payload.get("headers"),
+            "page": state_payload.get("page"),
+            "storage": state_payload.get("storage"),
             "risk_control_count": 0,
             "risk_control_history": [],
             "is_active": False,
@@ -422,7 +461,7 @@ async def create_account(account: AccountCreate, request: Request):
         "risk_control_history": [],
     }
 
-    _merge_state_payload(account_data, cookies)
+    _merge_state_payload(account_data, state_payload)
 
     existing_orders = []
     for filename in os.listdir(STATE_DIR):
@@ -457,8 +496,8 @@ async def get_account(name: str, request: Request):
         if not account:
             raise HTTPException(status_code=404, detail="账号不存在")
 
-        cookies = _parse_cookies(account.get("cookies"))
-        state_content = json.dumps({"cookies": cookies}, ensure_ascii=False, indent=2)
+        state_payload = _extract_state_payload_from_storage_account(account)
+        state_content = json.dumps(state_payload, ensure_ascii=False, indent=2)
         return {
             "name": str(account.get("id")),
             "display_name": account.get("display_name") or str(account.get("id")),
@@ -613,8 +652,11 @@ async def update_account(name: str, update: AccountUpdate, request: Request):
         if update.display_name is not None:
             payload["display_name"] = update.display_name
         if update.state_content is not None:
-            _, cookies_json = _extract_cookies_from_state_content(update.state_content)
-            payload["cookies"] = cookies_json
+            state_payload, state_payload_json = _extract_state_payload_from_state_content(update.state_content)
+            payload["cookies"] = state_payload_json
+            for key in ("env", "headers", "page", "storage"):
+                if key in state_payload:
+                    payload[key] = state_payload.get(key)
 
         merged = dict(account)
         merged.update(payload)
@@ -746,7 +788,14 @@ async def get_account_state_for_scraper(name: str, user_id: Optional[str] = None
 
         account["last_used_at"] = datetime.now().isoformat()
         storage.save_user_platform_account(user_id, account)
-        return {"cookies": _parse_cookies(account.get("cookies")), "env": None, "headers": None, "page": None, "storage": None}
+        state_payload = _extract_state_payload_from_storage_account(account)
+        return {
+            "cookies": state_payload.get("cookies", []),
+            "env": state_payload.get("env"),
+            "headers": state_payload.get("headers"),
+            "page": state_payload.get("page"),
+            "storage": state_payload.get("storage"),
+        }
 
     data = await read_account_file(name)
     data["last_used_at"] = datetime.now().isoformat()

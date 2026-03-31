@@ -1,30 +1,31 @@
 # Xianyu Login State Extractor Chrome Extension
 
-This Chrome extension helps extract complete login state information from Xianyu (Goofish) for use with the monitoring robot.
+This Chrome extension extracts complete login state information from Xianyu (Goofish): cookies + browser environment + headers + storage snapshot.
 
 ## Installation
 
 1. Open Chrome and navigate to `chrome://extensions`
-2. Enable "Developer mode" in the top right corner
-3. Click "Load unpacked" and select the `chrome-extension` directory
-4. The extension icon should now appear in your toolbar
+2. Enable **Developer mode**
+3. Click **Load unpacked** and select the `chrome-extension` directory
+4. Confirm extension appears in toolbar
 
 ## Usage
 
-1. Navigate to [https://www.goofish.com](https://www.goofish.com)
-2. Log in to your account
-3. Click the extension icon in the toolbar
-4. Click "Extract Login State"
-5. The complete login state will be displayed - click "Copy to Clipboard" to copy it
-6. Save the copied JSON as `xianyu_state.json` in your project directory
+1. Open [https://www.goofish.com](https://www.goofish.com) and make sure you are logged in
+2. Open extension popup
+3. Click **1) 采集完整快照**
+4. Click **2) 复制账号文件 JSON（推荐）**
+5. Save copied JSON into a file like `state/your_account.json`
 
-## Features
+## Output Types
 
-- Extracts all cookies including HttpOnly cookies that are not accessible via JavaScript
-- Formats output as JSON compatible with the monitoring robot
-- One-click copy to clipboard functionality
-- Real-time status feedback
+- Account file JSON (recommended):
+  - `display_name`, `created_at`, `cookies`, `env`, `headers`, `page`, `storage`
+  - Compatible with auto-login generated account file structure
+- Raw snapshot JSON:
+  - Direct extracted snapshot from current tab
 
-## How It Works
+## Notes
 
-The extension uses the `chrome.cookies` API to access all cookies for the `.goofish.com` domain, including those with the HttpOnly flag set. This bypasses the normal JavaScript security restrictions that prevent access to these cookies.
+- This extension uses `chrome.cookies` to include HttpOnly cookies.
+- If your backend import flow only stores `cookies`, prefer writing this JSON directly into `state/*.json` to keep full snapshot fields.
