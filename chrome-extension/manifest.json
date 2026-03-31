@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Xianyu Login State Extractor",
+  "name": "咸鱼手动更新登录态插件",
   "version": "1.2",
-  "description": "Extract login state and browser environment for Xianyu monitoring robot",
+  "description": "提取咸鱼监控机器人所需的登录态和浏览器环境信息",
   "permissions": [
     "activeTab",
     "cookies",
@@ -17,9 +17,18 @@
   "background": {
     "service_worker": "background.js"
   },
+  "icons": {
+    "16": "images/logo/favicon 32x32.png",
+    "32": "images/logo/favicon 32x32.png",
+    "48": "images/logo/favicon 32x32.png",
+    "128": "images/logo/favicon 32x32.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Extract Xianyu Login State"
+    "default_title": "Extract Xianyu Login State",
+    "default_icon": {
+      "16": "images/logo/favicon 32x32.png",
+      "32": "images/logo/favicon 32x32.png"
+    }
   }
 }
-
