@@ -4,10 +4,21 @@
 """
 版本信息文件
 """
-VERSION = "V1.0.4-beta"
+VERSION = "V1.0.4.2-beta"
 
 
 VERSION_HISTORY = [
+
+    {
+        "version": "V1.0.4.2-beta",
+        "date": "2026-04-03",
+        "changes": [
+            "修复了登录超时问题",
+            "修复了价格筛选无法应用问题",         
+           
+        ]
+    },
+
 
     {
         "version": "V1.0.4-beta",

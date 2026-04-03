@@ -1880,13 +1880,109 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
             has_min_price = min_price is not None and str(min_price).strip() != ''
             has_max_price = max_price is not None and str(max_price).strip() != ''
             if has_min_price or has_max_price:
-                price_container = page.locator('div[class*="search-price-input-container"]').first
+                price_container_candidates = page.locator(
+                    "div[class*='search-price-input-container'],div[class*='price-input-container']"
+                )
+                price_container = price_container_candidates.first
                 max_price_retry = 3
                 price_filter_applied = False
 
-                async def _open_price_filter_panel() -> bool:
-                    if await price_container.is_visible():
+                async def _refresh_price_container(prefer_visible: bool = True) -> bool:
+                    nonlocal price_container
+                    best_container = None
+                    best_score = None
+                    candidate_sources = []
+                    try:
+                        sort_bar = await _find_sort_bar()
+                    except Exception:
+                        sort_bar = None
+                    if sort_bar is not None:
+                        candidate_sources.append(
+                            (
+                                sort_bar.locator(
+                                    "div[class*='search-price-input-container'],div[class*='price-input-container']"
+                                ),
+                                80.0,
+                            )
+                        )
+                    candidate_sources.append((price_container_candidates, 0.0))
+
+                    for source_locator, source_bonus in candidate_sources:
+                        try:
+                            candidate_count = await source_locator.count()
+                        except Exception:
+                            candidate_count = 0
+
+                        for idx in range(min(candidate_count, 12)):
+                            candidate = source_locator.nth(idx)
+                            try:
+                                input_nodes = candidate.locator("input")
+                                input_count = await input_nodes.count()
+                                if input_count < 2:
+                                    continue
+
+                                visible_inputs = 0
+                                editable_inputs = 0
+                                for input_idx in range(min(input_count, 4)):
+                                    input_node = input_nodes.nth(input_idx)
+                                    try:
+                                        if await input_node.is_visible():
+                                            visible_inputs += 1
+                                        if await input_node.is_editable():
+                                            editable_inputs += 1
+                                    except Exception:
+                                        continue
+
+                                container_visible = await candidate.is_visible()
+                                box = await candidate.bounding_box()
+                            except Exception:
+                                continue
+
+                            score = source_bonus
+                            if container_visible:
+                                score += 100
+                            if prefer_visible and not container_visible:
+                                score -= 80
+                            score += min(visible_inputs, 2) * 15
+                            score += min(editable_inputs, 2) * 20
+                            if box:
+                                y = float(box.get("y", 0))
+                                h = float(box.get("height", 0))
+                                if h >= 20:
+                                    score += 5
+                                # 过滤明显离屏/隐藏布局容器，避免命中错误的同类节点
+                                if y < -150 or y > 1800:
+                                    score -= 30
+
+                            if best_container is None or (best_score is not None and score > best_score):
+                                best_container = candidate
+                                best_score = score
+
+                    if best_container is not None:
+                        price_container = best_container
                         return True
+
+                    # 兜底：当容器类名变化时，尝试从价格输入框反推父容器
+                    fallback_inputs = page.locator("input[class*='search-price-input'], input[placeholder='¥']")
+                    try:
+                        if await fallback_inputs.count() >= 2:
+                            fallback_container = fallback_inputs.first.locator(
+                                "xpath=ancestor::div[contains(@class,'search-price-input-container') or contains(@class,'price-input-container')]"
+                            ).first
+                            if await fallback_container.count() > 0:
+                                price_container = fallback_container
+                                return True
+                    except Exception:
+                        pass
+                    return False
+
+                async def _open_price_filter_panel() -> bool:
+                    await _refresh_price_container(prefer_visible=True)
+                    try:
+                        if await price_container.is_visible():
+                            return True
+                    except Exception:
+                        pass
 
                     # 先尝试点“价格”标签展开输入面板，降低定位到隐藏输入框的概率
                     trigger_candidates = [
@@ -1900,18 +1996,25 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 continue
                             await trigger.click(timeout=3000)
                             await random_sleep(0.8, 1.5)
-                            if await price_container.is_visible():
-                                return True
+                            await _refresh_price_container(prefer_visible=True)
+                            try:
+                                if await price_container.is_visible():
+                                    return True
+                            except Exception:
+                                continue
                         except Exception:
                             continue
 
                     try:
+                        await _refresh_price_container(prefer_visible=False)
                         await price_container.wait_for(state="visible", timeout=3000)
+                        await _refresh_price_container(prefer_visible=True)
                         return True
                     except PlaywrightTimeoutError:
                         return False
 
                 async def _resolve_price_inputs():
+                    await _refresh_price_container(prefer_visible=True)
                     # 优先使用语义化占位符，其次回退到可见可编辑输入框
                     min_input = price_container.get_by_placeholder("最低价").first
                     max_input = price_container.get_by_placeholder("最高价").first
@@ -1931,6 +2034,11 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                     visible_editable_inputs = []
                     input_candidates = price_container.locator("input")
                     candidate_count = await input_candidates.count()
+                    if candidate_count < 2:
+                        input_candidates = page.locator(
+                            "input[class*='search-price-input'], div[class*='search-price-input-container'] input, div[class*='price-input-container'] input"
+                        )
+                        candidate_count = await input_candidates.count()
                     for idx in range(min(candidate_count, 8)):
                         candidate = input_candidates.nth(idx)
                         try:
@@ -1978,6 +2086,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                     return actual_text
 
                 async def _submit_price_filter(min_input, max_input, attempt: int):
+                    await _refresh_price_container(prefer_visible=True)
                     # 首次优先“确定”按钮；无按钮时直接对输入框回车/失焦触发
                     if attempt == 1:
                         confirm_btn = price_container.get_by_text("确定", exact=True).first
