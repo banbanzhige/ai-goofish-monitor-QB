@@ -540,14 +540,11 @@ async def create_account(account: AccountCreate, request: Request):
 
     if user_id:
         storage = get_storage()
+        # 数据库模式没有 env/headers/page/storage 独立列，完整快照统一存入加密的 cookies 字段。
         created = storage.save_user_platform_account(user_id, {
             "platform": "goofish",
             "display_name": account.display_name or account.name,
             "cookies": state_payload_json,
-            "env": state_payload.get("env"),
-            "headers": state_payload.get("headers"),
-            "page": state_payload.get("page"),
-            "storage": state_payload.get("storage"),
             "risk_control_count": 0,
             "risk_control_history": [],
             "is_active": False,
@@ -761,11 +758,8 @@ async def update_account(name: str, update: AccountUpdate, request: Request):
         if update.display_name is not None:
             payload["display_name"] = update.display_name
         if update.state_content is not None:
-            state_payload, state_payload_json = _extract_state_payload_from_state_content(update.state_content)
+            _, state_payload_json = _extract_state_payload_from_state_content(update.state_content)
             payload["cookies"] = state_payload_json
-            for key in ("env", "headers", "page", "storage"):
-                if key in state_payload:
-                    payload[key] = state_payload.get(key)
 
         merged = dict(account)
         merged.update(payload)

@@ -1,4 +1,5 @@
 import os
+import re
 
 print("正在检查.env文件的完整性...")
 
@@ -21,11 +22,16 @@ else:
     with open('.env', 'r', encoding='utf-8') as env_file:
         env_content = env_file.readlines()
     
-    # 解析.env.example的参数（仅解析未注释的有效参数行）
+    # 解析.env.example的参数，同时识别 #KEY=VALUE 形式的可选配置项
     example_params = {}
+    example_param_names = set()
     
     for line in example_content:
         stripped_line = line.strip()
+        param_match = re.match(r'^\s*#?\s*([A-Za-z_][A-Za-z0-9_]*)\s*=', line)
+        if stripped_line and param_match:
+            param_name = param_match.group(1)
+            example_param_names.add(param_name)
         if stripped_line and not stripped_line.startswith('#') and '=' in stripped_line:
             param_name = line.split('=', 1)[0].strip()
             # 提取示例值
@@ -53,8 +59,14 @@ else:
     for line in example_content:
         stripped_line = line.strip()
         
-        # 保留注释和空行
-        if not stripped_line or stripped_line.startswith('#'):
+        commented_param_match = re.match(r'^(\s*)#\s*([A-Za-z_][A-Za-z0-9_]*)(\s*)=(.*)$', line.rstrip('\n'))
+
+        if commented_param_match and commented_param_match.group(2) in current_env_params and current_env_params[commented_param_match.group(2)]:
+            indent, param_name, ws_before_equal, rest_part = commented_param_match.groups()
+            leading_ws = rest_part[:len(rest_part) - len(rest_part.lstrip())]
+            new_env_content.append(f"{indent}{param_name}{ws_before_equal}={leading_ws}{current_env_params[param_name]}\n")
+        # 保留普通注释和空行
+        elif not stripped_line or stripped_line.startswith('#'):
             new_env_content.append(line)
         elif '=' in line:  # 参数行
             param_name = line.split('=', 1)[0].strip()
@@ -83,7 +95,7 @@ else:
     # 追加并保留 .env 中的自定义参数（例如 .env.example 中被注释掉的 DATABASE_URL）
     extra_params = []
     for param_name, original_line in current_env_param_lines.items():
-        if param_name not in example_params:
+        if param_name not in example_param_names:
             new_env_content.append(original_line)
             extra_params.append(param_name)
     

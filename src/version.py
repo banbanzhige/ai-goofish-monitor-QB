@@ -4,10 +4,22 @@
 """
 版本信息文件
 """
-VERSION = "V1.0.4.2-beta"
+VERSION = "V1.0.4.5"
 
 
 VERSION_HISTORY = [
+
+    {
+        "version": "V1.0.4.5",
+        "date": "2026-05-06",
+        "changes": [
+            "修复数据库模式手工添加闲鱼账号失败的问题",
+            "数据库模式账号运行时保留并应用完整浏览器快照",
+            "修复 .env 完整性检查导致数据库配置位置复原的问题",
+            "优化启动脚本对 STORAGE_BACKEND 注释配置的同步逻辑",
+            "本地账号迁移到 PostgreSQL 时保留 env、headers、page、storage 快照字段",
+        ]
+    },
 
     {
         "version": "V1.0.4.2-beta",

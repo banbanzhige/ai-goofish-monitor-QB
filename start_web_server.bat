@@ -256,8 +256,12 @@ set "_found=0"
 (
     for /f "usebackq delims=" %%L in (".env") do (
         set "_line=%%L"
-        echo !_line! | findstr /b /i "STORAGE_BACKEND=" >nul
-        if !errorlevel! equ 0 (
+        set "_trimmed=!_line!"
+        for /f "tokens=* delims= " %%S in ("!_trimmed!") do set "_trimmed=%%S"
+        set "_is_storage_backend=0"
+        if /i "!_trimmed:~0,16!"=="STORAGE_BACKEND=" set "_is_storage_backend=1"
+        if /i "!_trimmed:~0,17!"=="#STORAGE_BACKEND=" set "_is_storage_backend=1"
+        if !_is_storage_backend! equ 1 (
             echo STORAGE_BACKEND=!STORAGE_BACKEND!
             set "_found=1"
         ) else (

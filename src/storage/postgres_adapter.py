@@ -1909,6 +1909,16 @@ class PostgresAdapter(StorageInterface):
                 pass
         return normalized
 
+    @staticmethod
+    def _filter_platform_account_fields(account_data: Dict[str, Any]) -> Dict[str, Any]:
+        """仅保留平台账号表支持的字段，避免扩展快照键进入 ORM 构造函数。"""
+        allowed_keys = {column.name for column in UserPlatformAccount.__table__.columns}
+        return {
+            key: value
+            for key, value in (account_data or {}).items()
+            if key in allowed_keys
+        }
+
 
     
     def save_user_platform_account(self, user_id: str, account_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -1920,6 +1930,8 @@ class PostgresAdapter(StorageInterface):
             # 加密Cookie
             if 'cookies' in account_data:
                 account_data['cookies_encrypted'] = encrypt_sensitive(str(user_id), account_data.pop('cookies'))
+
+            account_data = self._filter_platform_account_fields(account_data)
             
             account_id = account_data.get('id')
             if account_id:

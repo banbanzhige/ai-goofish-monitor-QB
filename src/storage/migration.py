@@ -586,11 +586,18 @@ class DataMigrator:
             
             try:
                 if not self.dry_run:
+                    account_snapshot = {
+                        "cookies": account.get("cookies", []),
+                    }
+                    for key in ("env", "headers", "page", "storage"):
+                        if account.get(key) is not None:
+                            account_snapshot[key] = account.get(key)
+
                     # 转换格式
                     db_account = {
                         "platform": "goofish",
                         "display_name": account.get("display_name", account_id),
-                        "cookies": json.dumps(account.get("cookies", {})),
+                        "cookies": json.dumps(account_snapshot, ensure_ascii=False),
                         "is_active": True
                     }
                     self.postgres.save_user_platform_account(owner_id, db_account)

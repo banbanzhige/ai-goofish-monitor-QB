@@ -534,6 +534,38 @@ def _parse_storage_cookies(raw_cookies: Any) -> list:
     return []
 
 
+def _parse_storage_account_snapshot(account_data: Dict[str, Any]) -> dict:
+    """从数据库账号记录还原完整浏览器快照，兼容旧版仅 cookies 的存储。"""
+    if not isinstance(account_data, dict):
+        return {"cookies": []}
+
+    raw_cookies = account_data.get("cookies")
+    snapshot: Dict[str, Any] = {}
+
+    if isinstance(raw_cookies, str):
+        try:
+            loaded = json.loads(raw_cookies)
+            if isinstance(loaded, dict):
+                snapshot.update(loaded)
+            elif isinstance(loaded, list):
+                snapshot["cookies"] = loaded
+        except Exception:
+            snapshot["cookies"] = []
+    elif isinstance(raw_cookies, dict):
+        snapshot.update(raw_cookies)
+    elif isinstance(raw_cookies, list):
+        snapshot["cookies"] = raw_cookies
+
+    if not isinstance(snapshot.get("cookies"), list):
+        snapshot["cookies"] = _parse_storage_cookies(raw_cookies)
+
+    for key in ("env", "headers", "page", "storage"):
+        if key not in snapshot and account_data.get(key) is not None:
+            snapshot[key] = account_data.get(key)
+
+    return snapshot
+
+
 def _is_cookie_valid_for_task(cookies: list, current_time: float) -> bool:
     """按采集任务口径判断 Cookie 是否可用。"""
     if not cookies:
@@ -953,7 +985,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                     await browser.close()
                     return 0, 0, f"NO_ACCOUNT:绑定账号不存在({bound_account})"
 
-                selected_cookies = _parse_storage_cookies(selected_account_data.get("cookies"))
+                selected_snapshot = _parse_storage_account_snapshot(selected_account_data)
+                selected_cookies = _parse_storage_cookies(selected_snapshot.get("cookies"))
                 if not _is_cookie_valid_for_task(selected_cookies, current_time):
                     print("\n==================== 绑定账号Cookie无效 ====================")
                     print(f"绑定账号 '{bound_account}' 的Cookie已过期或缺失，任务无法执行。")
@@ -962,7 +995,7 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                     await browser.close()
                     return 0, 0, f"NO_VALID_COOKIE:绑定账号Cookie无效({bound_account})"
 
-                snapshot_data = {"cookies": _filter_cookies_for_state(selected_cookies)}
+                snapshot_data = selected_snapshot
                 current_account_name = str(
                     selected_account_data.get("display_name")
                     or selected_account_data.get("id")
@@ -989,8 +1022,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
 
                 if valid_accounts:
                     selected_account_data = random.choice(valid_accounts)
-                    selected_cookies = _parse_storage_cookies(selected_account_data.get("cookies"))
-                    snapshot_data = {"cookies": _filter_cookies_for_state(selected_cookies)}
+                    selected_snapshot = _parse_storage_account_snapshot(selected_account_data)
+                    snapshot_data = selected_snapshot
                     current_account_name = str(
                         selected_account_data.get("display_name")
                         or selected_account_data.get("id")
