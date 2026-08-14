@@ -25,7 +25,7 @@ logger = get_logger(__name__, service="web")
 
 router = APIRouter()
 REQUIRED_POSTGRES_TABLES = ("users", "user_groups", "user_group_members", "group_permissions")
-_NOTIFICATION_SECRET_KEYS = {"GOTIFY_TOKEN", "WX_SECRET", "TELEGRAM_BOT_TOKEN", "DINGTALK_SECRET"}
+_NOTIFICATION_SECRET_KEYS = {"GOTIFY_TOKEN", "WX_SECRET", "TELEGRAM_BOT_TOKEN", "DINGTALK_SECRET", "NTFY_TOKEN"}
 _GENERIC_SECRET_KEYS = {"WEB_PASSWORD"}
 _AI_SECRET_KEYS = {"OPENAI_API_KEY"}
 _PROXY_SETTING_KEYS = [
@@ -56,7 +56,7 @@ _NOTIFICATION_REQUIRED_CONFIG_KEYS = {
     "wx_bot": ["bot_url"],
     "dingtalk": ["webhook"],
     "telegram": ["bot_token", "chat_id"],
-    "ntfy": ["topic_url"],
+    "ntfy": ["topic"],
     "gotify": ["url", "token"],
     "bark": ["url"],
     "webhook": ["url"],
@@ -303,7 +303,7 @@ def _build_notification_status(user: dict) -> dict:
             }
 
     has_any_channel = bool(
-        get_env_value("NTFY_TOPIC_URL", "")
+        get_env_value("NTFY_TOPIC", "")
         or (get_env_value("GOTIFY_URL", "") and get_env_value("GOTIFY_TOKEN", ""))
         or get_env_value("BARK_URL", "")
         or get_env_value("WX_BOT_URL", "")
@@ -332,7 +332,7 @@ async def get_system_status(user: dict = Depends(_require_settings_admin)):
     """检查系统关键文件和配置的状态。"""
     from src.web.main import fetcher_processes
     from src.config import (
-        API_KEY, BASE_URL, MODEL_NAME, NTFY_TOPIC_URL, GOTIFY_URL,
+        API_KEY, BASE_URL, MODEL_NAME, NTFY_TOPIC, GOTIFY_URL,
         GOTIFY_TOKEN, BARK_URL, WX_BOT_URL, WX_CORP_ID, WX_AGENT_ID,
         WX_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WEBHOOK_URL
     )
@@ -381,7 +381,7 @@ async def get_system_status(user: dict = Depends(_require_settings_admin)):
             "openai_api_key_set": openai_api_key_set,
             "openai_base_url_set": openai_base_url_set,
             "openai_model_name_set": openai_model_name_set,
-            "ntfy_topic_url_set": bool(NTFY_TOPIC_URL()),
+            "ntfy_topic_set": bool(NTFY_TOPIC()),
             "gotify_url_set": bool(GOTIFY_URL()),
             "gotify_token_set": bool(GOTIFY_TOKEN()),
             "bark_url_set": bool(BARK_URL()),
@@ -894,7 +894,7 @@ async def get_notification_settings(_user: dict = Depends(_require_notify_access
         )
 
     notification_keys = [
-        "NTFY_TOPIC_URL", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
+        "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
         "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
         "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
         "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS",
@@ -930,7 +930,7 @@ async def update_notification_settings(settings: NotificationSettings, _user: di
         settings_dict = settings.model_dump(exclude_none=True)
         settings_dict = _preserve_secret_on_empty(settings_dict, _NOTIFICATION_SECRET_KEYS)
         notification_keys = [
-            "NTFY_TOPIC_URL", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
+            "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
             "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
             "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
             "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS",

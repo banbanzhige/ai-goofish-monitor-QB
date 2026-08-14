@@ -193,7 +193,9 @@ class BayesUpdate(BaseModel):
 
 
 class NotificationSettings(BaseModel):
-    NTFY_TOPIC_URL: Optional[str] = None
+    NTFY_TOPIC: Optional[str] = None
+    NTFY_SERVER_URL: Optional[str] = None
+    NTFY_TOKEN: Optional[str] = None
     NTFY_ENABLED: Optional[bool] = False
     GOTIFY_URL: Optional[str] = None
     GOTIFY_TOKEN: Optional[str] = None

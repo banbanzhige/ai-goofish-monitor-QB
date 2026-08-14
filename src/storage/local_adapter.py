@@ -914,7 +914,7 @@ class LocalStorageAdapter(StorageInterface):
                 "channel_type": "ntfy",
                 "name": "NTFY",
                 "enabled_key": "NTFY_ENABLED",
-                "required_keys": ["NTFY_TOPIC_URL"],
+                "required_keys": ["NTFY_TOPIC"],
             },
             {
                 "id": "gotify",

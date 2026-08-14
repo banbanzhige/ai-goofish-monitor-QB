@@ -463,7 +463,7 @@ class Notifier:
         
         return {
             "ntfy": {
-                "configured": bool(config["NTFY_TOPIC_URL"]),
+                "configured": bool(config.get("NTFY_TOPIC", "").strip() or config.get("NTFY_TOPIC_URL", "").strip()),
                 "name": "Ntfy"
             },
             "gotify": {
@@ -598,7 +598,10 @@ def _notifier_build_overrides(channel: str, raw_config: Dict[str, Any]) -> Dict[
         overrides.update(
             {
                 "NTFY_ENABLED": True,
-                "NTFY_TOPIC_URL": _notifier_normalize_text(
+                "NTFY_TOPIC": _notifier_normalize_text(cfg.get("topic") or cfg.get("ntfy_topic")),
+                "NTFY_SERVER_URL": _notifier_normalize_text(cfg.get("server_url") or cfg.get("ntfy_server_url")),
+                "NTFY_TOKEN": _notifier_normalize_text(cfg.get("token") or cfg.get("ntfy_token")),
+                "NTFY_TOPIC_URL": _notifier_normalize_text(  # 旧版兼容兜底
                     cfg.get("topic_url") or cfg.get("ntfy_topic_url") or cfg.get("url")
                 ),
             }
