@@ -412,7 +412,17 @@ def _build_mobile_init_script(snapshot: Optional[dict]) -> str:
 def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
     if not raw_headers:
         return {}
-    excluded = {"cookie", "content-length"}
+    # Chromium 禁止覆盖浏览器自管的请求头，强制覆盖会让所有子资源请求
+    # 直接以 net::ERR_INVALID_ARGUMENT 失败，导致页面 SPA 无法加载、API 不触发。
+    # Sec-Fetch-* 是 Fetch Metadata 头，必须排除（快照里可能是旧扩展/登录流程带进来的）。
+    excluded = {
+        "cookie",
+        "content-length",
+        "sec-fetch-site",
+        "sec-fetch-mode",
+        "sec-fetch-dest",
+        "sec-fetch-user",
+    }
     headers = {}
     for key, value in raw_headers.items():
         if not key or key.lower() in excluded or value is None:

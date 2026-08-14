@@ -207,13 +207,19 @@ function buildAutoLikeHeaders(env = {}, page = {}) {
     "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
     "Sec-Ch-Ua-Mobile": "?1",
     "Sec-Ch-Ua-Platform": '"Android"',
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Dest": "document",
+    // 注意：不写入 Sec-Fetch-*（浏览器自管头，注入 extra_http_headers 会让子资源请求失败）
     "Upgrade-Insecure-Requests": "1",
     "Cache-Control": "max-age=0",
   };
   return Object.fromEntries(Object.entries(headers).filter(([, value]) => value));
+}
+
+// 浏览器自管的 Fetch Metadata 头：注入 extra_http_headers 会导致子资源 net::ERR_INVALID_ARGUMENT
+function stripBrowserManagedHeaders(headers = {}) {
+  const drop = new Set(["sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user"]);
+  return Object.fromEntries(
+    Object.entries(headers).filter(([key]) => !drop.has(String(key).toLowerCase()))
+  );
 }
 
 function looksLikeProbeHeaders(headers = {}) {
@@ -226,12 +232,12 @@ function looksLikeProbeHeaders(headers = {}) {
 
 function normalizeSnapshotHeaders(rawHeaders = {}, env = {}, page = {}) {
   const filtered = filterHeaders(rawHeaders);
-  const fallback = buildAutoLikeHeaders(env, page);
+  const fallback = stripBrowserManagedHeaders(buildAutoLikeHeaders(env, page));
   if (!Object.keys(filtered).length || looksLikeProbeHeaders(filtered)) {
     return fallback;
   }
 
-  const merged = { ...filtered };
+  const merged = stripBrowserManagedHeaders({ ...filtered });
   const existingLower = new Set(Object.keys(merged).map((key) => key.toLowerCase()));
   Object.entries(fallback).forEach(([key, value]) => {
     if (!existingLower.has(key.toLowerCase())) {

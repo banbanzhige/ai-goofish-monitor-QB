@@ -311,9 +311,7 @@ def _build_snapshot_headers(browser_env: dict) -> dict:
         "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
         "Sec-Ch-Ua-Mobile": "?1",
         "Sec-Ch-Ua-Platform": '"Android"',
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Dest": "document",
+        # 注意：不要写入 Sec-Fetch-*（浏览器自管头，覆盖会导致子资源 ERR_INVALID_ARGUMENT）
         "Upgrade-Insecure-Requests": "1",
         "Cache-Control": "max-age=0"
     }
