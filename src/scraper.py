@@ -2169,12 +2169,17 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                             await random_sleep(1, 2)
                             continue
 
-                        # 关键修复：响应监听提前覆盖“填值+提交”全链路，避免漏抓fill触发的请求
+                        # 先填值。注意：清空输入框(fill "") 会触发一次“未过滤”的搜索请求，
+                        # 若把填值放进 expect_response 监听，会捕获到该未过滤响应并被当作最终结果，
+                        # 导致价格区间失效（采集到区间外商品）。
+                        if has_min_price:
+                            await _fill_price_input(min_input, min_price, "最低价")
+                        if has_max_price:
+                            await _fill_price_input(max_input, max_price, "最高价")
+
+                        # 等填值触发的请求落定后，再只监听“提交”动作触发的过滤请求
+                        await random_sleep(0.4, 0.8)
                         async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=12000) as response_info:
-                            if has_min_price:
-                                await _fill_price_input(min_input, min_price, "最低价")
-                            if has_max_price:
-                                await _fill_price_input(max_input, max_price, "最高价")
                             await _submit_price_filter(min_input, max_input, attempt)
                             await random_sleep(1.2, 2.5)
                         final_response = await response_info.value
