@@ -111,6 +111,25 @@ def _apply_ntfy_legacy_settings(settings_dict: dict) -> dict:
     return merged
 
 
+def _prepare_notification_settings_update(settings_dict: dict) -> dict:
+    """规范化通知更新，并在 ntfy 服务器变化时阻止复用旧 token。"""
+    merged = _apply_ntfy_legacy_settings(settings_dict)
+    clear_ntfy_token = bool(merged.pop("NTFY_TOKEN_CLEAR", False))
+    if clear_ntfy_token:
+        merged["NTFY_TOKEN"] = ""
+        return _preserve_secret_on_empty(merged, _NOTIFICATION_SECRET_KEYS - {"NTFY_TOKEN"})
+
+    requested_server = merged.get("NTFY_SERVER_URL")
+    server_changed = (
+        requested_server is not None
+        and _normalize_ntfy_server_url(requested_server) != _current_ntfy_server_url()
+    )
+    return _preserve_secret_on_empty(
+        merged,
+        _NOTIFICATION_SECRET_KEYS if not server_changed else _NOTIFICATION_SECRET_KEYS - {"NTFY_TOKEN"},
+    )
+
+
 def _reset_storage_runtime_caches():
     """重置存储相关运行时缓存，确保后端切换后立即生效。"""
     try:
@@ -393,7 +412,7 @@ async def get_system_status(user: dict = Depends(_require_settings_admin)):
     """检查系统关键文件和配置的状态。"""
     from src.web.main import fetcher_processes
     from src.config import (
-        API_KEY, BASE_URL, MODEL_NAME, NTFY_TOPIC, GOTIFY_URL,
+        API_KEY, BASE_URL, MODEL_NAME, NTFY_TOPIC, NTFY_TOPIC_URL, GOTIFY_URL,
         GOTIFY_TOKEN, BARK_URL, WX_BOT_URL, WX_CORP_ID, WX_AGENT_ID,
         WX_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WEBHOOK_URL
     )
@@ -442,7 +461,8 @@ async def get_system_status(user: dict = Depends(_require_settings_admin)):
             "openai_api_key_set": openai_api_key_set,
             "openai_base_url_set": openai_base_url_set,
             "openai_model_name_set": openai_model_name_set,
-            "ntfy_topic_set": bool(NTFY_TOPIC()),
+            "ntfy_topic_set": bool(NTFY_TOPIC() or NTFY_TOPIC_URL()),
+            "ntfy_topic_url_set": bool(NTFY_TOPIC() or NTFY_TOPIC_URL()),
             "gotify_url_set": bool(GOTIFY_URL()),
             "gotify_token_set": bool(GOTIFY_TOKEN()),
             "bark_url_set": bool(BARK_URL()),
@@ -995,20 +1015,7 @@ async def update_notification_settings(settings: NotificationSettings, _user: di
         )
 
     try:
-        settings_dict = _apply_ntfy_legacy_settings(settings.model_dump(exclude_none=True))
-        clear_ntfy_token = bool(settings_dict.pop("NTFY_TOKEN_CLEAR", False))
-        if clear_ntfy_token:
-            settings_dict["NTFY_TOKEN"] = ""
-        else:
-            requested_server = settings_dict.get("NTFY_SERVER_URL")
-            server_changed = (
-                requested_server is not None
-                and _normalize_ntfy_server_url(requested_server) != _current_ntfy_server_url()
-            )
-            settings_dict = _preserve_secret_on_empty(
-                settings_dict,
-                _NOTIFICATION_SECRET_KEYS if not server_changed else _NOTIFICATION_SECRET_KEYS - {"NTFY_TOKEN"},
-            )
+        settings_dict = _prepare_notification_settings_update(settings.model_dump(exclude_none=True))
         notification_keys = [
             "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_TOPIC_URL", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
             "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
