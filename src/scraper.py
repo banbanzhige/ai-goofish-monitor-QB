@@ -418,6 +418,7 @@ def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
     excluded = {
         "cookie",
         "content-length",
+        "host",
         "sec-fetch-site",
         "sec-fetch-mode",
         "sec-fetch-dest",
@@ -429,6 +430,17 @@ def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
             continue
         headers[key] = value
     return headers
+
+
+async def _capture_new_request_response(page, url_pattern: str, action, timeout_ms: int = 12000):
+    """只绑定 action 之后新发出的请求，避免被此前在途响应抢占。"""
+    async with page.expect_request(
+        lambda request: url_pattern in request.url,
+        timeout=timeout_ms,
+    ) as request_info:
+        await action()
+    submitted_request = await request_info.value
+    return await submitted_request.response()
 
 
 COOKIE_ALLOWED_DOMAINS = ("goofish.com",)
@@ -2177,12 +2189,18 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                         if has_max_price:
                             await _fill_price_input(max_input, max_price, "最高价")
 
-                        # 等填值触发的请求落定后，再只监听“提交”动作触发的过滤请求
-                        await random_sleep(0.4, 0.8)
-                        async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=12000) as response_info:
+                        # 绑定提交动作之后新发出的 request，再取该 request 对应的 response。
+                        # 这样此前 fill 触发但仍在途的未过滤响应不会抢占最终结果。
+                        async def _submit_and_wait():
                             await _submit_price_filter(min_input, max_input, attempt)
                             await random_sleep(1.2, 2.5)
-                        final_response = await response_info.value
+
+                        final_response = await _capture_new_request_response(
+                            page,
+                            API_URL_PATTERN,
+                            _submit_and_wait,
+                            timeout_ms=12000,
+                        )
                         if final_response and final_response.ok:
                             price_filter_applied = True
                             log_time(
