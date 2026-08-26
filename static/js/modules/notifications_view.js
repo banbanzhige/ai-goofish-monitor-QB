@@ -767,7 +767,7 @@ async function initializeLocalNotificationsView(notificationContainer) {
         const settings = {};
 
         for (let [key, value] of formData.entries()) {
-            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key.endsWith('_ENABLED')) {
+            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key === 'NTFY_TOKEN_CLEAR' || key.endsWith('_ENABLED')) {
                 settings[key] = value === 'on';
             } else {
                 settings[key] = value || '';
@@ -776,7 +776,7 @@ async function initializeLocalNotificationsView(notificationContainer) {
 
         notificationForm.querySelectorAll('input[type="checkbox"][name]').forEach((checkbox) => {
             const key = checkbox.name;
-            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key.endsWith('_ENABLED')) {
+            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key === 'NTFY_TOKEN_CLEAR' || key.endsWith('_ENABLED')) {
                 settings[key] = checkbox.checked;
             }
         });

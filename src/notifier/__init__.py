@@ -15,7 +15,7 @@ from src.notifier.channels import (
     WebhookNotifier,
     DingTalkNotifier
 )
-from src.notifier.config import config
+from src.notifier.config import config, parse_legacy_ntfy_url
 from src.storage import get_storage
 
 
@@ -595,15 +595,25 @@ def _notifier_build_overrides(channel: str, raw_config: Dict[str, Any]) -> Dict[
         overrides["NOTIFY_AFTER_TASK_COMPLETE"] = _notifier_to_bool(cfg.get("notify_after_task_complete"), default=True)
 
     if channel == "ntfy":
+        topic = _notifier_normalize_text(cfg.get("topic") or cfg.get("ntfy_topic"))
+        server_url = _notifier_normalize_text(cfg.get("server_url") or cfg.get("ntfy_server_url"))
+        token = _notifier_normalize_text(cfg.get("token") or cfg.get("ntfy_token"))
+        legacy_topic_url = _notifier_normalize_text(
+            cfg.get("topic_url") or cfg.get("ntfy_topic_url") or cfg.get("url")
+        )
+        if not topic and legacy_topic_url:
+            parsed_legacy = parse_legacy_ntfy_url(legacy_topic_url)
+            if parsed_legacy:
+                server_url = server_url or parsed_legacy[0]
+                topic = parsed_legacy[1]
+                token = token or parsed_legacy[2]
         overrides.update(
             {
                 "NTFY_ENABLED": True,
-                "NTFY_TOPIC": _notifier_normalize_text(cfg.get("topic") or cfg.get("ntfy_topic")),
-                "NTFY_SERVER_URL": _notifier_normalize_text(cfg.get("server_url") or cfg.get("ntfy_server_url")),
-                "NTFY_TOKEN": _notifier_normalize_text(cfg.get("token") or cfg.get("ntfy_token")),
-                "NTFY_TOPIC_URL": _notifier_normalize_text(  # 旧版兼容兜底
-                    cfg.get("topic_url") or cfg.get("ntfy_topic_url") or cfg.get("url")
-                ),
+                "NTFY_TOPIC": topic,
+                "NTFY_SERVER_URL": server_url,
+                "NTFY_TOKEN": token,
+                "NTFY_TOPIC_URL": legacy_topic_url,  # 兼容无法解析的旧值
             }
         )
     elif channel == "gotify":

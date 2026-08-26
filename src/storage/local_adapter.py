@@ -914,7 +914,8 @@ class LocalStorageAdapter(StorageInterface):
                 "channel_type": "ntfy",
                 "name": "NTFY",
                 "enabled_key": "NTFY_ENABLED",
-                "required_keys": ["NTFY_TOPIC"],
+                "required_keys": [],
+                "required_any_keys": ["NTFY_TOPIC", "NTFY_TOPIC_URL"],
             },
             {
                 "id": "gotify",
@@ -942,6 +943,9 @@ class LocalStorageAdapter(StorageInterface):
         for rule in channel_rules:
             enabled = _enabled(rule["enabled_key"])
             if not all(_has_value(key) for key in rule["required_keys"]):
+                continue
+            required_any_keys = rule.get("required_any_keys", [])
+            if required_any_keys and not any(_has_value(key) for key in required_any_keys):
                 continue
             configs.append(
                 {

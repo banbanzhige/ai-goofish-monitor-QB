@@ -196,6 +196,8 @@ class NotificationSettings(BaseModel):
     NTFY_TOPIC: Optional[str] = None
     NTFY_SERVER_URL: Optional[str] = None
     NTFY_TOKEN: Optional[str] = None
+    NTFY_TOKEN_CLEAR: Optional[bool] = False
+    NTFY_TOPIC_URL: Optional[str] = None  # 旧客户端兼容，服务端会转换为新字段
     NTFY_ENABLED: Optional[bool] = False
     GOTIFY_URL: Optional[str] = None
     GOTIFY_TOKEN: Optional[str] = None

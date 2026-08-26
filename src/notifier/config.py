@@ -157,15 +157,24 @@ def parse_legacy_ntfy_url(url: str):
     解析失败或缺少 topic 时返回 None。
     """
     try:
-        parts = urlparse(str(url or "").strip())
+        raw_url = str(url or "").strip().strip('"').strip("'")
+        parts = urlparse(raw_url)
     except Exception:
         return None
     if not parts.scheme or not parts.hostname:
         return None
-    server = f"{parts.scheme}://{parts.hostname}"
+    hostname = parts.hostname
+    host = f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+    server = f"{parts.scheme}://{host}"
     if parts.port:
         server += f":{parts.port}"
-    topic = parts.path.strip("/").split("/")[0] if parts.path else ""
+    path = parts.path.rstrip("/") if parts.path else ""
+    path_parts = [part for part in path.split("/") if part]
+    if not path_parts:
+        return None
+    topic = path_parts[-1]
+    if len(path_parts) > 1:
+        server += "/" + "/".join(path_parts[:-1])
     token = (parts.password or parts.username or "").strip()
     if not topic:
         return None

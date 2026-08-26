@@ -485,6 +485,7 @@ function renderNotificationSettings(settings) {
                         <label for="ntfy-token">访问令牌（可选）</label>
                         <input type="password" id="ntfy-token" name="NTFY_TOKEN" value="${settings.NTFY_TOKEN || ''}" placeholder="${settings.NTFY_TOKEN_SET ? '已设置，留空不修改' : '例如: tk_xxxxx'}">
                         <p class="form-hint">自部署服务器开启认证时填写</p>
+                        ${settings.NTFY_TOKEN_SET ? '<label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" name="NTFY_TOKEN_CLEAR" value="on"> 清除已保存令牌</label>' : ''}
                     </div>
                     <div class="form-group">
                         <button type="button" class="test-notification-btn" data-channel="ntfy" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>

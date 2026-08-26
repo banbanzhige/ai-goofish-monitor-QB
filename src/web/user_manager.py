@@ -44,6 +44,72 @@ SYSTEM_GROUP_LEVEL_MAP = {
 SYSTEM_GROUP_CODES = set(SYSTEM_GROUP_LEVEL_MAP.keys())
 
 
+def _normalize_legacy_ntfy_config_item(item: dict) -> dict:
+    """将数据库中旧版 ntfy topic_url 规范化为新字段，避免 UI 保存时丢失目标。"""
+    if not isinstance(item, dict) or str(item.get("channel_type") or "").strip().lower() != "ntfy":
+        return item
+    raw_config = item.get("config") if isinstance(item.get("config"), dict) else {}
+    if str(raw_config.get("topic") or "").strip() or not str(raw_config.get("topic_url") or "").strip():
+        return item
+    try:
+        from src.notifier.config import parse_legacy_ntfy_url
+        parsed = parse_legacy_ntfy_url(raw_config.get("topic_url"))
+    except Exception as exc:
+        logger.warning(
+            "规范化旧 ntfy 通知配置失败",
+            extra={"event": "ntfy_legacy_config_normalize_failed", "config_id": item.get("id")},
+            exc_info=exc,
+        )
+        return item
+    if not parsed:
+        return item
+    normalized = dict(item)
+    config = dict(raw_config)
+    config["topic"] = parsed[1]
+    config.setdefault("server_url", parsed[0])
+    if parsed[2]:
+        config.setdefault("token", parsed[2])
+    normalized["config"] = config
+    return normalized
+
+
+def _ntfy_config_server_url(config: dict) -> str:
+    server = str((config or {}).get("server_url") or "").strip().rstrip("/")
+    if not server and str((config or {}).get("topic_url") or "").strip():
+        try:
+            from src.notifier.config import parse_legacy_ntfy_url
+            parsed = parse_legacy_ntfy_url(config.get("topic_url"))
+            if parsed:
+                server = parsed[0]
+        except Exception as exc:
+            logger.warning(
+                "解析用户旧 ntfy 服务器失败",
+                extra={"event": "user_ntfy_legacy_server_parse_failed"},
+                exc_info=exc,
+            )
+    return (server or "https://ntfy.sh").lower()
+
+
+def _clear_reused_ntfy_token_on_server_change(existing_item: dict, update_payload: dict) -> dict:
+    """服务器发生变化时拒绝静默复用旧 token，避免将凭据发送到另一域。"""
+    if str(existing_item.get("channel_type") or "").strip().lower() != "ntfy":
+        return update_payload
+    if not isinstance(update_payload.get("config"), dict):
+        return update_payload
+    normalized_existing = _normalize_legacy_ntfy_config_item(existing_item)
+    old_config = normalized_existing.get("config") if isinstance(normalized_existing.get("config"), dict) else {}
+    new_config = dict(update_payload["config"])
+    if _ntfy_config_server_url(old_config) == _ntfy_config_server_url(new_config):
+        return update_payload
+    old_token = str(old_config.get("token") or "").strip()
+    new_token = str(new_config.get("token") or "").strip()
+    if not new_token or new_token == old_token:
+        new_config.pop("token", None)
+    sanitized = dict(update_payload)
+    sanitized["config"] = new_config
+    return sanitized
+
+
 # ============== Pydantic 模型 ==============
 
 class UserCreate(BaseModel):
@@ -804,6 +870,7 @@ async def get_my_notification_configs(user: dict = Depends(get_current_user_requ
     
     storage = get_storage()
     configs = storage.get_user_notification_configs(user.get("user_id"))
+    configs = [_normalize_legacy_ntfy_config_item(item) for item in configs]
     
     return {"configs": configs}
 
@@ -851,11 +918,13 @@ async def update_my_notification_config(
     update_payload["id"] = config_id
     storage = get_storage()
     existing_configs = storage.get_user_notification_configs(user.get("user_id"))
-    if not any(str(item.get("id")) == str(config_id) for item in existing_configs):
+    existing_item = next((item for item in existing_configs if str(item.get("id")) == str(config_id)), None)
+    if not existing_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="配置不存在"
         )
+    update_payload = _clear_reused_ntfy_token_on_server_change(existing_item, update_payload)
     config = storage.save_user_notification_config(user.get("user_id"), update_payload)
 
     log_audit_action(

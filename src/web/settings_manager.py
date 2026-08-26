@@ -62,6 +62,54 @@ _NOTIFICATION_REQUIRED_CONFIG_KEYS = {
     "webhook": ["url"],
 }
 
+_NTFY_DEFAULT_SERVER = "https://ntfy.sh"
+
+
+def _normalize_ntfy_server_url(value: str) -> str:
+    return str(value or "").strip().rstrip("/").lower() or _NTFY_DEFAULT_SERVER
+
+
+def _current_ntfy_server_url() -> str:
+    server = get_env_value("NTFY_SERVER_URL", "")
+    if server:
+        return _normalize_ntfy_server_url(server)
+    legacy = get_env_value("NTFY_TOPIC_URL", "")
+    if legacy:
+        try:
+            from src.notifier.config import parse_legacy_ntfy_url
+            parsed = parse_legacy_ntfy_url(legacy)
+            if parsed:
+                return _normalize_ntfy_server_url(parsed[0])
+        except Exception as exc:
+            logger.warning(
+                "解析旧 ntfy 服务器地址失败",
+                extra={"event": "ntfy_legacy_url_parse_failed"},
+                exc_info=exc,
+            )
+    return _NTFY_DEFAULT_SERVER
+
+
+def _apply_ntfy_legacy_settings(settings_dict: dict) -> dict:
+    """把旧 NTFY_TOPIC_URL 请求转换为新字段，保留旧客户端可用性。"""
+    merged = dict(settings_dict)
+    legacy = str(merged.get("NTFY_TOPIC_URL") or "").strip()
+    if legacy and not str(merged.get("NTFY_TOPIC") or "").strip():
+        try:
+            from src.notifier.config import parse_legacy_ntfy_url
+            parsed = parse_legacy_ntfy_url(legacy)
+            if parsed:
+                merged.setdefault("NTFY_SERVER_URL", parsed[0])
+                merged["NTFY_TOPIC"] = parsed[1]
+                if not str(merged.get("NTFY_TOKEN") or "").strip() and parsed[2]:
+                    merged["NTFY_TOKEN"] = parsed[2]
+        except Exception as exc:
+            logger.warning(
+                "转换旧 ntfy 配置失败",
+                extra={"event": "ntfy_legacy_settings_convert_failed"},
+                exc_info=exc,
+            )
+    return merged
+
 
 def _reset_storage_runtime_caches():
     """重置存储相关运行时缓存，确保后端切换后立即生效。"""
@@ -259,6 +307,19 @@ def _is_notification_config_complete(config_item: dict) -> bool:
     required_keys = _NOTIFICATION_REQUIRED_CONFIG_KEYS.get(channel_type, [])
     if not required_keys:
         return bool(config_data)
+    if channel_type == "ntfy" and not str(config_data.get("topic") or "").strip():
+        legacy_url = str(config_data.get("topic_url") or "").strip()
+        if legacy_url:
+            try:
+                from src.notifier.config import parse_legacy_ntfy_url
+                if parse_legacy_ntfy_url(legacy_url):
+                    return True
+            except Exception as exc:
+                logger.warning(
+                    "检查旧 ntfy 配置失败",
+                    extra={"event": "ntfy_legacy_completeness_check_failed"},
+                    exc_info=exc,
+                )
     return all(bool(str(config_data.get(key) or "").strip()) for key in required_keys)
 
 
@@ -894,7 +955,7 @@ async def get_notification_settings(_user: dict = Depends(_require_notify_access
         )
 
     notification_keys = [
-        "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
+        "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_TOPIC_URL", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
         "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
         "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
         "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS",
@@ -914,6 +975,13 @@ async def get_notification_settings(_user: dict = Depends(_require_notify_access
         else:
             settings[key] = get_env_value(key)
     
+    # 保留旧客户端读取字段，但不回显 token 到组合 URL。
+    topic = str(settings.get("NTFY_TOPIC") or "").strip()
+    server = str(settings.get("NTFY_SERVER_URL") or "").strip().rstrip("/") or _NTFY_DEFAULT_SERVER
+    settings["NTFY_TOPIC_URL"] = (
+        f"{server}/{topic}" if topic else str(settings.get("NTFY_TOPIC_URL") or "")
+    )
+    settings["NTFY_TOKEN_CLEAR"] = False
     return settings
 
 
@@ -927,10 +995,22 @@ async def update_notification_settings(settings: NotificationSettings, _user: di
         )
 
     try:
-        settings_dict = settings.model_dump(exclude_none=True)
-        settings_dict = _preserve_secret_on_empty(settings_dict, _NOTIFICATION_SECRET_KEYS)
+        settings_dict = _apply_ntfy_legacy_settings(settings.model_dump(exclude_none=True))
+        clear_ntfy_token = bool(settings_dict.pop("NTFY_TOKEN_CLEAR", False))
+        if clear_ntfy_token:
+            settings_dict["NTFY_TOKEN"] = ""
+        else:
+            requested_server = settings_dict.get("NTFY_SERVER_URL")
+            server_changed = (
+                requested_server is not None
+                and _normalize_ntfy_server_url(requested_server) != _current_ntfy_server_url()
+            )
+            settings_dict = _preserve_secret_on_empty(
+                settings_dict,
+                _NOTIFICATION_SECRET_KEYS if not server_changed else _NOTIFICATION_SECRET_KEYS - {"NTFY_TOKEN"},
+            )
         notification_keys = [
-            "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
+            "NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN", "NTFY_TOPIC_URL", "NTFY_ENABLED", "GOTIFY_URL", "GOTIFY_TOKEN", "GOTIFY_ENABLED",
             "BARK_URL", "BARK_ENABLED", "WX_BOT_URL", "WX_BOT_ENABLED", "WX_CORP_ID", "WX_AGENT_ID",
             "WX_SECRET", "WX_TO_USER", "WX_APP_ENABLED", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
             "TELEGRAM_ENABLED", "WEBHOOK_URL", "WEBHOOK_ENABLED", "WEBHOOK_METHOD", "WEBHOOK_HEADERS",
