@@ -412,13 +412,35 @@ def _build_mobile_init_script(snapshot: Optional[dict]) -> str:
 def _build_extra_headers(raw_headers: Optional[dict]) -> dict:
     if not raw_headers:
         return {}
-    excluded = {"cookie", "content-length"}
+    # Chromium 禁止覆盖浏览器自管的请求头，强制覆盖会让所有子资源请求
+    # 直接以 net::ERR_INVALID_ARGUMENT 失败，导致页面 SPA 无法加载、API 不触发。
+    # Sec-Fetch-* 是 Fetch Metadata 头，必须排除（快照里可能是旧扩展/登录流程带进来的）。
+    excluded = {
+        "cookie",
+        "content-length",
+        "host",
+        "sec-fetch-site",
+        "sec-fetch-mode",
+        "sec-fetch-dest",
+        "sec-fetch-user",
+    }
     headers = {}
     for key, value in raw_headers.items():
         if not key or key.lower() in excluded or value is None:
             continue
         headers[key] = value
     return headers
+
+
+async def _capture_new_request_response(page, url_pattern: str, action, timeout_ms: int = 12000):
+    """只绑定 action 之后新发出的请求，避免被此前在途响应抢占。"""
+    async with page.expect_request(
+        lambda request: url_pattern in request.url,
+        timeout=timeout_ms,
+    ) as request_info:
+        await action()
+    submitted_request = await request_info.value
+    return await submitted_request.response()
 
 
 COOKIE_ALLOWED_DOMAINS = ("goofish.com",)
@@ -2159,15 +2181,26 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                             await random_sleep(1, 2)
                             continue
 
-                        # 关键修复：响应监听提前覆盖“填值+提交”全链路，避免漏抓fill触发的请求
-                        async with page.expect_response(lambda r: API_URL_PATTERN in r.url, timeout=12000) as response_info:
-                            if has_min_price:
-                                await _fill_price_input(min_input, min_price, "最低价")
-                            if has_max_price:
-                                await _fill_price_input(max_input, max_price, "最高价")
+                        # 先填值。注意：清空输入框(fill "") 会触发一次“未过滤”的搜索请求，
+                        # 若把填值放进 expect_response 监听，会捕获到该未过滤响应并被当作最终结果，
+                        # 导致价格区间失效（采集到区间外商品）。
+                        if has_min_price:
+                            await _fill_price_input(min_input, min_price, "最低价")
+                        if has_max_price:
+                            await _fill_price_input(max_input, max_price, "最高价")
+
+                        # 绑定提交动作之后新发出的 request，再取该 request 对应的 response。
+                        # 这样此前 fill 触发但仍在途的未过滤响应不会抢占最终结果。
+                        async def _submit_and_wait():
                             await _submit_price_filter(min_input, max_input, attempt)
                             await random_sleep(1.2, 2.5)
-                        final_response = await response_info.value
+
+                        final_response = await _capture_new_request_response(
+                            page,
+                            API_URL_PATTERN,
+                            _submit_and_wait,
+                            timeout_ms=12000,
+                        )
                         if final_response and final_response.ok:
                             price_filter_applied = True
                             log_time(

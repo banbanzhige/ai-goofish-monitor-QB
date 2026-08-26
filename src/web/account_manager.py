@@ -122,13 +122,21 @@ def _build_default_snapshot_headers(env: Optional[Dict[str, Any]], page: Optiona
         "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
         "Sec-Ch-Ua-Mobile": "?1",
         "Sec-Ch-Ua-Platform": '"Android"',
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Dest": "document",
+        # 注意：不要写入 Sec-Fetch-*（浏览器自管头，覆盖会导致子资源 ERR_INVALID_ARGUMENT）
         "Upgrade-Insecure-Requests": "1",
         "Cache-Control": "max-age=0",
     }
     return {key: value for key, value in headers.items() if value}
+
+
+_BROWSER_MANAGED_HEADERS = {
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-dest",
+    "sec-fetch-user",
+    "content-length",
+    "host",
+}
 
 
 def _normalize_storage_payload(raw_storage: Any) -> Dict[str, Dict[str, Any]]:
@@ -161,6 +169,12 @@ def _normalize_headers_payload(
         return fallback
 
     normalized = dict(headers)
+    # 剔除浏览器自管头（Sec-Fetch-* 等），避免后续以 extra_http_headers 注入导致请求失败
+    normalized = {
+        key: value
+        for key, value in normalized.items()
+        if isinstance(key, str) and key.lower() not in _BROWSER_MANAGED_HEADERS
+    }
     existing_lower = {str(key).lower() for key in normalized.keys()}
     for key, value in fallback.items():
         if key.lower() not in existing_lower:
