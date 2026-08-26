@@ -10,16 +10,16 @@ if not os.path.exists('.env.example'):
 
 # 步骤1: 如果没有.env文件，将.env.example复制为.env
 if not os.path.exists('.env'):
-    with open('.env.example', 'r', encoding='utf-8') as example_file, \
+    with open('.env.example', 'r', encoding='utf-8-sig') as example_file, \
          open('.env', 'w', encoding='utf-8') as new_env_file:
         new_env_file.write(example_file.read())
     print("已创建.env文件")
 else:
     # 步骤2-4: 比较.env和.env.example
-    with open('.env.example', 'r', encoding='utf-8') as example_file:
+    with open('.env.example', 'r', encoding='utf-8-sig') as example_file:
         example_content = example_file.readlines()
-    
-    with open('.env', 'r', encoding='utf-8') as env_file:
+
+    with open('.env', 'r', encoding='utf-8-sig') as env_file:
         env_content = env_file.readlines()
     
     # 解析.env.example的参数，同时识别 #KEY=VALUE 形式的可选配置项

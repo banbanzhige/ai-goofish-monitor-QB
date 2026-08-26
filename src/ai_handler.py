@@ -36,7 +36,9 @@ MAX_PRODUCT_IMAGE_COUNT = 9
 def get_dynamic_config():
     """动态加载配置，支持实时更新"""
     from src.config import (
-        NTFY_TOPIC_URL,
+        NTFY_TOPIC,
+        NTFY_SERVER_URL,
+        NTFY_TOKEN,
         GOTIFY_URL,
         GOTIFY_TOKEN,
         BARK_URL,
@@ -57,7 +59,9 @@ def get_dynamic_config():
     )
 
     return {
-        "NTFY_TOPIC_URL": NTFY_TOPIC_URL(),
+        "NTFY_TOPIC": NTFY_TOPIC(),
+        "NTFY_SERVER_URL": NTFY_SERVER_URL(),
+        "NTFY_TOKEN": NTFY_TOKEN(),
         "GOTIFY_URL": GOTIFY_URL(),
         "GOTIFY_TOKEN": GOTIFY_TOKEN(),
         "BARK_URL": BARK_URL(),

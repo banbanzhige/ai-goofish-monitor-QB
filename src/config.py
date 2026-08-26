@@ -141,6 +141,15 @@ def PROXY_WEBHOOK_ENABLED():
 def PROXY_DINGTALK_ENABLED():
     return get_bool_env_value("PROXY_DINGTALK_ENABLED", False)
 
+def NTFY_TOPIC():
+    return os.getenv("NTFY_TOPIC")
+
+def NTFY_SERVER_URL():
+    return os.getenv("NTFY_SERVER_URL")
+
+def NTFY_TOKEN():
+    return os.getenv("NTFY_TOKEN")
+
 def NTFY_TOPIC_URL():
     return os.getenv("NTFY_TOPIC_URL")
 

@@ -1,7 +1,9 @@
 import json
+import os
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Dict
+from urllib.parse import urlparse
 
 from src.config import get_env_value, get_bool_env_value
 
@@ -31,7 +33,10 @@ class NotificationConfig:
             "PROXY_WEBHOOK_ENABLED": get_bool_env_value("PROXY_WEBHOOK_ENABLED", False),
             "PROXY_DINGTALK_ENABLED": get_bool_env_value("PROXY_DINGTALK_ENABLED", False),
             # 通知渠道配置
-            "NTFY_TOPIC_URL": get_env_value("NTFY_TOPIC_URL", ""),
+            "NTFY_TOPIC": get_env_value("NTFY_TOPIC", ""),
+            "NTFY_SERVER_URL": get_env_value("NTFY_SERVER_URL", ""),
+            "NTFY_TOKEN": get_env_value("NTFY_TOKEN", ""),
+            "NTFY_TOPIC_URL": get_env_value("NTFY_TOPIC_URL", ""),  # 旧版兼容兜底（组合URL）
             "NTFY_ENABLED": get_bool_env_value("NTFY_ENABLED", False),
             "GOTIFY_URL": get_env_value("GOTIFY_URL", ""),
             "GOTIFY_TOKEN": get_env_value("GOTIFY_TOKEN", ""),
@@ -143,3 +148,108 @@ NotificationConfig.__getitem__ = _notification_getitem
 NotificationConfig.__contains__ = _notification_contains
 
 config = NotificationConfig()
+
+
+def parse_legacy_ntfy_url(url: str):
+    """解析旧版 NTFY_TOPIC_URL 组合URL，返回 (server, topic, token)。
+
+    支持 https://[:token@]server[:port]/topic 形式。
+    解析失败或缺少 topic 时返回 None。
+    """
+    try:
+        raw_url = str(url or "").strip().strip('"').strip("'")
+        parts = urlparse(raw_url)
+    except Exception:
+        return None
+    if not parts.scheme or not parts.hostname:
+        return None
+    hostname = parts.hostname
+    host = f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+    server = f"{parts.scheme}://{host}"
+    if parts.port:
+        server += f":{parts.port}"
+    path = parts.path.rstrip("/") if parts.path else ""
+    path_parts = [part for part in path.split("/") if part]
+    if not path_parts:
+        return None
+    topic = path_parts[-1]
+    if len(path_parts) > 1:
+        server += "/" + "/".join(path_parts[:-1])
+    token = (parts.password or parts.username or "").strip()
+    if not topic:
+        return None
+    return server, topic, token
+
+
+def migrate_legacy_ntfy_config() -> bool:
+    """启动时把旧版 NTFY_TOPIC_URL 迁移为新字段，返回是否发生了迁移。
+
+    读取 .env（自动剥离 UTF-8 BOM，兼容 check_env.py 重写后带 BOM 的旧行）。
+    若存在旧版组合变量 NTFY_TOPIC_URL 且新字段 NTFY_TOPIC / NTFY_SERVER_URL /
+    NTFY_TOKEN 均为空，则解析旧 URL，移除旧变量与可能存在的重复键，在 NTFY_ENABLED
+    行后写入新字段，并同步到当前进程环境变量，实现平滑升级。
+    """
+    env_file = ".env"
+    if not os.path.exists(env_file):
+        return False
+    try:
+        with open(env_file, "r", encoding="utf-8-sig") as f:
+            lines = f.readlines()
+    except OSError:
+        return False
+
+    # 解析当前 .env（键名去除 BOM/空白），保留每个键最后出现的行号
+    current = {}
+    for i, raw in enumerate(lines):
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        current[key.strip().lstrip("﻿")] = (i, val.strip())
+
+    legacy = current.get("NTFY_TOPIC_URL")
+    if not legacy or not legacy[1]:
+        return False
+    # 新字段已有值则无需迁移
+    if any(k in current and current[k][1] for k in ("NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN")):
+        return False
+
+    parsed = parse_legacy_ntfy_url(legacy[1])
+    if not parsed:
+        return False
+    server, topic, token = parsed
+
+    key_values = {"NTFY_TOPIC": topic, "NTFY_SERVER_URL": server, "NTFY_TOKEN": token}
+    ntfy_keys = set(key_values) | {"NTFY_TOPIC_URL"}
+
+    # 移除旧变量与可能存在的重复键，再在 NTFY_ENABLED 行后插入新字段
+    new_lines = []
+    inserted = False
+    for i, raw in enumerate(lines):
+        line = raw.strip()
+        key = None
+        if line and not line.startswith("#") and "=" in line:
+            k = line.split("=", 1)[0].strip().lstrip("﻿")
+            key = k if k in ntfy_keys else None
+        if key is not None:
+            continue
+        new_lines.append(raw)
+        if not inserted and line.startswith("NTFY_ENABLED="):
+            for k in ("NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN"):
+                new_lines.append(f"{k}={key_values[k]}\n")
+            inserted = True
+    if not inserted:
+        for k in ("NTFY_TOPIC", "NTFY_SERVER_URL", "NTFY_TOKEN"):
+            new_lines.append(f"{k}={key_values[k]}\n")
+
+    try:
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+    except OSError:
+        return False
+
+    os.environ["NTFY_TOPIC"] = topic
+    os.environ["NTFY_SERVER_URL"] = server
+    os.environ["NTFY_TOKEN"] = token
+    print("[配置迁移] 已将旧版 NTFY_TOPIC_URL 迁移为 NTFY_TOPIC / NTFY_SERVER_URL / NTFY_TOKEN")
+    return True

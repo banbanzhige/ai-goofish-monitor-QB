@@ -474,9 +474,18 @@ function renderNotificationSettings(settings) {
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="ntfy-topic-url">Topic URL</label>
-                        <input type="text" id="ntfy-topic-url" name="NTFY_TOPIC_URL" value="${settings.NTFY_TOPIC_URL || ''}" placeholder="例如: https://ntfy.sh/your_topic">
-                        <p class="form-hint">用于发送通知到 ntfy.sh 服务</p>
+                        <label for="ntfy-topic">Topic 主题</label>
+                        <input type="text" id="ntfy-topic" name="NTFY_TOPIC" value="${settings.NTFY_TOPIC || ''}" placeholder="例如: goofishmonitor">
+                    </div>
+                    <div class="form-group">
+                        <label for="ntfy-server-url">自部署服务器 URL（可选）</label>
+                        <input type="text" id="ntfy-server-url" name="NTFY_SERVER_URL" value="${settings.NTFY_SERVER_URL || ''}" placeholder="例如: https://ntfy.example.com（留空使用公共 ntfy.sh）">
+                    </div>
+                    <div class="form-group">
+                        <label for="ntfy-token">访问令牌（可选）</label>
+                        <input type="password" id="ntfy-token" name="NTFY_TOKEN" value="${settings.NTFY_TOKEN || ''}" placeholder="${settings.NTFY_TOKEN_SET ? '已设置，留空不修改' : '例如: tk_xxxxx'}">
+                        <p class="form-hint">自部署服务器开启认证时填写</p>
+                        ${settings.NTFY_TOKEN_SET ? '<label style="display: inline-flex; align-items: center; gap: 6px;"><input type="checkbox" name="NTFY_TOKEN_CLEAR" value="on"> 清除已保存令牌</label>' : ''}
                     </div>
                     <div class="form-group">
                         <button type="button" class="test-notification-btn" data-channel="ntfy" style="background-color: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">测试通知</button>

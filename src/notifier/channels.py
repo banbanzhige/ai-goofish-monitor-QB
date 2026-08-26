@@ -4,7 +4,7 @@ import requests
 from typing import Dict, Any, Optional
 
 from src.notifier.base import BaseNotifier
-from src.notifier.config import config
+from src.notifier.config import config, parse_legacy_ntfy_url
 
 
 def _get_channel_proxies(enabled_key: str) -> Optional[Dict[str, str]]:
@@ -13,6 +13,43 @@ def _get_channel_proxies(enabled_key: str) -> Optional[Dict[str, str]]:
     if proxy_url and config.get(enabled_key, False):
         return {"http": proxy_url, "https": proxy_url}
     return None
+
+
+_NTFY_DEFAULT_SERVER = "https://ntfy.sh"
+# ntfy 优先级 ID，遵循 https://docs.ntfy.sh/publish/#message-priority
+# min=1 / low=2 / default=3 / high=4 / urgent=5
+_NTFY_PRIORITY_URGENT = "5"    # 商品/测试通知
+_NTFY_PRIORITY_DEFAULT = "3"   # 任务开始/完成通知
+
+
+def _ntfy_publish_target():
+    """构建 ntfy 发布目标 (url, token)。
+
+    优先使用 NTFY_TOPIC / NTFY_SERVER_URL / NTFY_TOKEN；
+    NTFY_TOPIC 为空时兼容旧版 NTFY_TOPIC_URL 组合URL（https://[:token@]server/topic）。
+    未配置时返回 None。
+    """
+    topic = str(config.get("NTFY_TOPIC", "") or "").strip()
+    server = str(config.get("NTFY_SERVER_URL", "") or "").strip().rstrip("/")
+    token = str(config.get("NTFY_TOKEN", "") or "").strip()
+
+    if not topic:  # 旧版兼容兜底
+        legacy = str(config.get("NTFY_TOPIC_URL", "") or "").strip()
+        if not legacy:
+            return None
+        parsed = parse_legacy_ntfy_url(legacy)
+        if not parsed:
+            return None
+        legacy_server, legacy_topic, legacy_token = parsed
+        server = server or legacy_server
+        topic = legacy_topic
+        token = token or legacy_token
+
+    if not topic:
+        return None
+    if not server:
+        server = _NTFY_DEFAULT_SERVER
+    return f"{server}/{topic}", token or None
 
 
 _RECOMMENDATION_LEVEL_TEXT = {
@@ -73,24 +110,30 @@ class NtfyNotifier(BaseNotifier):
         super().__init__("ntfy")
     
     async def send_test_notification(self) -> bool:
-        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
+        target = _ntfy_publish_target()
+        if not target or not config["NTFY_ENABLED"]:
             return False
-            
+
         try:
             proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
+            url, token = target
             test_title = "测试通知 - 闲鱼公开内容查看智能处理程序"
             test_message = "这是一个测试通知，用于验证ntfy配置是否正确。\n\n如果您收到这条消息，说明ntfy配置已经生效！"
-            
+
+            headers = {
+                "Title": test_title.encode('utf-8'),
+                "Priority": _NTFY_PRIORITY_URGENT,
+                "Tags": "bell,vibration"
+            }
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
             await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["NTFY_TOPIC_URL"],
+                    url,
                     data=test_message.encode('utf-8'),
-                    headers={
-                        "Title": test_title.encode('utf-8'),
-                        "Priority": "urgent",
-                        "Tags": "bell,vibration"
-                    },
+                    headers=headers,
                     timeout=10,
                     proxies=proxies
                 )
@@ -101,41 +144,45 @@ class NtfyNotifier(BaseNotifier):
             return False
     
     async def send_product_notification(self, product: Dict[str, Any], reason: str) -> bool:
-        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
+        target = _ntfy_publish_target()
+        if not target or not config["NTFY_ENABLED"]:
             return False
-            
+
         try:
             proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
+            url, token = target
             product_info = self._get_product_info(product)
             actual_product = product_info['actual_product']
             main_image = product_info['main_image']
             product_link = product_info['mobile_link'] if config["PCURL_TO_MOBILE"] else product_info['pc_link']
-            
+
             title = actual_product.get('商品标题', 'N/A')
             price = actual_product.get('当前售价', 'N/A')
             publish_time = actual_product.get('发布时间', 'N/A')
             rec_extra = _format_recommendation_extra(product_info.get('ai_analysis'))
-            
+
             # 构建和Telegram一样的文案逻辑
             notification_title = f"🚨 新推荐!"
             message = f"{title}\n\n💰 价格: {price}\n⏰ 发布时间: {publish_time}{rec_extra}\n📝 推荐理由: {reason}\n"
-            
+
             # 构建请求头
             headers = {
                 "Title": notification_title.encode('utf-8'),
-                "Priority": "urgent",
+                "Priority": _NTFY_PRIORITY_URGENT,
                 "Tags": "bell,vibration",
                 "Click": product_link.encode('utf-8')  # 添加点击跳转链接
             }
-            
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
             # 如果有商品图片，添加图片头
             if main_image:
                 headers["Attach"] = main_image.encode('utf-8')
-            
+
             await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["NTFY_TOPIC_URL"],
+                    url,
                     data=message.encode('utf-8'),
                     headers=headers,
                     timeout=10,
@@ -148,24 +195,30 @@ class NtfyNotifier(BaseNotifier):
             return False
     
     async def send_task_start_notification(self, task_name: str, reason: str) -> bool:
-        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
+        target = _ntfy_publish_target()
+        if not target or not config["NTFY_ENABLED"]:
             return False
-            
+
         try:
             proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
+            url, token = target
             notification_title = "🚀 任务开始"
             message = f"🤖咸鱼AI监控机器人启动 - 我开始了 '{task_name}' 任务 - {reason}"
-            
+
+            headers = {
+                "Title": notification_title.encode('utf-8'),
+                "Priority": _NTFY_PRIORITY_DEFAULT,
+                "Tags": "rocket"
+            }
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
             await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["NTFY_TOPIC_URL"],
+                    url,
                     data=message.encode('utf-8'),
-                    headers={
-                        "Title": notification_title.encode('utf-8'),
-                        "Priority": "normal",
-                        "Tags": "rocket"
-                    },
+                    headers=headers,
                     timeout=10,
                     proxies=proxies
                 )
@@ -176,26 +229,32 @@ class NtfyNotifier(BaseNotifier):
             return False
     
     async def send_task_completion_notification(self, task_name: str, reason: str, processed_count: int = 0, recommended_count: int = 0) -> bool:
-        if not config["NTFY_TOPIC_URL"] or not config["NTFY_ENABLED"]:
+        target = _ntfy_publish_target()
+        if not target or not config["NTFY_ENABLED"]:
             return False
-            
+
         try:
             proxies = _get_channel_proxies("PROXY_NTFY_ENABLED")
+            url, token = target
             notification_title = "✅ 任务完成"
             message = f"🤖咸鱼AI监控机器人运行结束 - 我结束了 '{task_name}' 任务 - {reason}"
             if processed_count > 0 or recommended_count > 0:
                 message += f"\n\n本次运行共处理了 {processed_count} 个新商品，其中 {recommended_count} 个被AI推荐。"
-            
+
+            headers = {
+                "Title": notification_title.encode('utf-8'),
+                "Priority": _NTFY_PRIORITY_DEFAULT,
+                "Tags": "check-circle,white_check_mark"
+            }
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
             await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: requests.post(
-                    config["NTFY_TOPIC_URL"],
+                    url,
                     data=message.encode('utf-8'),
-                    headers={
-                        "Title": notification_title.encode('utf-8'),
-                        "Priority": "normal",
-                        "Tags": "check-circle,white_check_mark"
-                    },
+                    headers=headers,
                     timeout=10,
                     proxies=proxies
                 )

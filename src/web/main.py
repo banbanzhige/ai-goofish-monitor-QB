@@ -84,6 +84,13 @@ async def _ensure_scheduler_started(reason: str, username: str = "") -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """管理应用的生命周期事件。"""
+    # 启动时迁移旧版 ntfy 配置（NTFY_TOPIC_URL -> 新字段），保证升级不中断
+    try:
+        from src.notifier.config import migrate_legacy_ntfy_config
+        migrate_legacy_ntfy_config()
+    except Exception as exc:
+        logger.warning(f"[配置迁移] ntfy 旧配置迁移失败: {exc}")
+
     await _set_all_tasks_stopped_in_config()
     if _defer_scheduler_start_until_login():
         logger.info(

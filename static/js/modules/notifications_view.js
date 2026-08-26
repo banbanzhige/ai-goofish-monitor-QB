@@ -33,7 +33,9 @@ const NOTIFICATION_CHANNEL_META = {
     ntfy: {
         label: 'Ntfy 通知',
         fields: [
-            { key: 'topic_url', label: 'Topic URL', type: 'text', placeholder: '例如: https://ntfy.sh/your_topic' }
+            { key: 'topic', label: 'Topic 主题', type: 'text', placeholder: '例如: goofishmonitor' },
+            { key: 'server_url', label: '自部署服务器 URL（可选）', type: 'text', placeholder: '例如: https://ntfy.example.com' },
+            { key: 'token', label: '访问令牌（可选）', type: 'password', placeholder: '例如: tk_xxxxx' }
         ]
     },
     gotify: {
@@ -765,7 +767,7 @@ async function initializeLocalNotificationsView(notificationContainer) {
         const settings = {};
 
         for (let [key, value] of formData.entries()) {
-            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key.endsWith('_ENABLED')) {
+            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key === 'NTFY_TOKEN_CLEAR' || key.endsWith('_ENABLED')) {
                 settings[key] = value === 'on';
             } else {
                 settings[key] = value || '';
@@ -774,7 +776,7 @@ async function initializeLocalNotificationsView(notificationContainer) {
 
         notificationForm.querySelectorAll('input[type="checkbox"][name]').forEach((checkbox) => {
             const key = checkbox.name;
-            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key.endsWith('_ENABLED')) {
+            if (key === 'PCURL_TO_MOBILE' || key === 'NOTIFY_AFTER_TASK_COMPLETE' || key === 'NTFY_TOKEN_CLEAR' || key.endsWith('_ENABLED')) {
                 settings[key] = checkbox.checked;
             }
         });
