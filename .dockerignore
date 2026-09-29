@@ -51,6 +51,7 @@ criteria/
 archive/
 jsonl/
 state/
+postgres_data/
 example/
 task_stats/
 .pytest_cache/

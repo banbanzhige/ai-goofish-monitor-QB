@@ -61,6 +61,7 @@ docs/
 !/docs/LAUNCHER_REFACTOR_EXECUTION.md
 !/docs/RELEASE_1.1.0.0-beta.md
 !/docs/UPSTREAM_UPGRADE_PLAN.md
+!/docs/SERVER_PG15_SCHEMA_V2.md
 
 
 # 忽略gitignore和dockerignore文件本身

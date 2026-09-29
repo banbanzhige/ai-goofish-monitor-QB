@@ -12,6 +12,6 @@ services:
      - ./criteria:/app/criteria
      - ./requirement:/app/requirement
    # - ./prompts:/app/prompts 
-   # - ./state:/app/state 
+     - ./state:/app/state
    restart: unless-stopped
 

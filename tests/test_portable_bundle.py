@@ -327,6 +327,7 @@ class PortableBundleTests(unittest.TestCase):
         paths = {item.destination for item in files}
         self.assertIn("scripts/portable/python-bootstrap.py", paths)
         self.assertIn("src/log_retention.py", paths)
+        self.assertNotIn("src/storage/server_migration.py", paths)
         for path in ("src/account_policy.py", "src/web/account_models.py", "static/js/account_policy.js"):
             self.assertIn(path, paths)
         self.assertIn("License", paths)

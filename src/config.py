@@ -24,6 +24,9 @@ _PORTABLE_CONTROLLED_ENVIRONMENT = {
     for key, value in os.environ.items()
     if key.startswith("GOOFISH_PORTABLE_")
 }
+# A migrated server may pass its restricted runtime DSN explicitly.  Capture it
+# before the legacy .env loader (which intentionally uses override=True) runs.
+_SERVER_APP_DATABASE_URL = os.environ.get("QB_SERVER_APP_DATABASE_URL", "")
 
 # Only non-sensitive, non-instance preferences may persist in portable app.env.
 # Database, credentials, roots, listener settings, and all service endpoints are
@@ -285,6 +288,8 @@ def DATABASE_URL():
         return normalize_database_url(
             _PORTABLE_CONTROLLED_ENVIRONMENT.get(PORTABLE_DATABASE_URL_ENVIRONMENT_VARIABLE, "")
         )
+    if _SERVER_APP_DATABASE_URL:
+        return normalize_database_url(_SERVER_APP_DATABASE_URL)
     return normalize_database_url(get_env_value("DATABASE_URL", ""))
 
 def ENCRYPTION_MASTER_KEY():

@@ -290,57 +290,11 @@ Docker 提供标准化部署环境，实现开箱即用。
 > - 复制 `.env.example` 为 `.env`并且放到docker的挂载目录
 > - 在docker的挂载目录下新建一个空的`config.json`.用来持久化任务，避免容器更新后任务丢失
 > - 确认端口未占用（8001/5432），占用则修改compose内端口配置
+> - 已有 PG15 服务器库若要升至 schema v2，先按 [服务器显式升级与回退说明](docs/SERVER_PG15_SCHEMA_V2.md) 停写、备份、隔离恢复和切换低权限应用账号；普通 Compose 启动不会自动迁移。
+> - 本地 Docker 模式现持久挂载 `./state:/app/state`，用于登录态和人工测试通知去重等状态。已有容器若曾把 `state/` 只存于容器内，切换挂载前先停写并备份/迁出该目录；新挂载会遮蔽容器内旧目录，不会自动合并。
 
 
-```yaml
-services:
-  # 服务器模式参考（PostgreSQL 多用户存储）
-  app:
-    image: banbanzhige/ai-goofish-monitor-qb:latest
-    container_name: ai-goofish-monitor-qb-server
-    pull_policy: always
-    ports:
-      - "8001:8000"
-    volumes:
-      # ========== 最小必需挂载 ==========
-      # 全局运行配置（数据库连接、存储后端、系统级参数）
-      - .env:/app/.env
-      # 多用户文件资产与运行时临时文件
-      - ./state:/app/state
-
-    environment:
-      STORAGE_BACKEND: postgres
-      DB_HOST: ${DB_HOST:-postgres}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME:-goofish_monitor}
-      DB_USER: ${DB_USER:-goofish}
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
-      DATABASE_URL: postgresql://${DB_USER:-goofish}:${DB_PASSWORD:-changeme}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-goofish_monitor}
-      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-changeme}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: goofish-postgres
-    environment:
-      POSTGRES_DB: ${DB_NAME:-goofish_monitor}
-      POSTGRES_USER: ${DB_USER:-goofish}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
-    volumes:
-      # ========== 最小必需挂载 ==========
-      - ./postgres_data:/var/lib/postgresql/data
-
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U goofish -d goofish_monitor"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-```
+服务器 Compose 配置以仓库根目录的 [`docker-compose.server.yaml`](docker-compose.server.yaml) 为准，不在 README 复制一份易过期的 YAML。
 
 启动命令：
 ```bash

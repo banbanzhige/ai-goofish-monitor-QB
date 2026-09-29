@@ -266,7 +266,9 @@ def _source_files(source_root: Path) -> list[PlannedFile]:
             if tree == "src" and candidate.suffix != ".py":
                 continue
             parts = Path(relative).parts
-            if "__pycache__" in parts or "tests" in parts or relative.startswith("static/avatars/"):
+            if ("__pycache__" in parts or "tests" in parts or relative.startswith("static/avatars/")
+                or relative == "src/storage/server_migration.py"):
+                # PG15 server administration is not a Launcher runtime asset.
                 continue
             if relative not in tracked and not (
                 relative.startswith("src/portable/") and candidate.suffix == ".py"

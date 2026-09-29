@@ -113,8 +113,30 @@ class PostgresAdapter(StorageInterface):
         self.project_root = Path(__file__).resolve().parent.parent.parent
     
     def create_tables(self):
-        """创建所有数据库表"""
-        Base.metadata.create_all(bind=self.engine)
+        """旧部署保持原初始化；版本化 v2 只核验，不在 Web 启动时建表。"""
+        from sqlalchemy import text
+        with self.engine.connect() as connection:
+            version_table = connection.execute(
+                text("SELECT to_regclass('public.app_schema_version')")
+            ).scalar_one()
+            if version_table is not None:
+                rows = connection.execute(
+                    text("SELECT version FROM public.app_schema_version LIMIT 2")
+                ).fetchall()
+                if rows != [(2,)]:
+                    raise RuntimeError("PostgreSQL schema version is unsupported")
+                role = connection.execute(text(
+                    "SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls "
+                    "FROM pg_roles WHERE rolname = current_user"
+                )).one()
+                if any(role) or connection.execute(text(
+                    "SELECT has_schema_privilege(current_user, 'public', 'CREATE')"
+                )).scalar_one() or connection.execute(text(
+                    "SELECT has_database_privilege(current_user, current_database(), 'CREATE')"
+                )).scalar_one():
+                    raise RuntimeError("versioned PostgreSQL runtime role has DDL privileges")
+            else:
+                Base.metadata.create_all(bind=self.engine)
         with self.get_session() as session:
             self._ensure_system_groups(session)
             self._ensure_system_prompt_templates(session)

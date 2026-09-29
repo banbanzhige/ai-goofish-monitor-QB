@@ -1,9 +1,9 @@
 services:
   # 服务器模式参考（PostgreSQL 多用户存储）
   app:
-    image: banbanzhige/ai-goofish-monitor-qb:latest
+    image: ${QB_SERVER_IMAGE:-banbanzhige/ai-goofish-monitor-qb:latest}
     container_name: ai-goofish-monitor-qb-server
-    pull_policy: always
+    pull_policy: ${QB_SERVER_PULL_POLICY:-always}
     ports:
       - "8001:8000"
     volumes:
@@ -21,6 +21,8 @@ services:
       DB_USER: ${DB_USER:-goofish}
       DB_PASSWORD: ${DB_PASSWORD:-changeme}
       DATABASE_URL: postgresql://${DB_USER:-goofish}:${DB_PASSWORD:-changeme}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-goofish_monitor}
+      # Set only after the explicit PG15 v2 migration. Captured before .env loading.
+      QB_SERVER_APP_DATABASE_URL: ${QB_SERVER_APP_DATABASE_URL:-}
       ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:-changeme}
     depends_on:
       postgres:
@@ -32,8 +34,10 @@ services:
     container_name: goofish-postgres
     environment:
       POSTGRES_DB: ${DB_NAME:-goofish_monitor}
-      POSTGRES_USER: ${DB_USER:-goofish}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      # Legacy defaults remain unchanged; v2 can retain the old DB admin while
+      # DB_USER/DB_PASSWORD become the restricted Web role.
+      POSTGRES_USER: ${DB_ADMIN_USER:-${DB_USER:-goofish}}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:-${DB_PASSWORD:-changeme}}
     volumes:
       # ========== 最小必需挂载 ==========
       - ./postgres_data:/var/lib/postgresql/data
@@ -41,7 +45,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U goofish -d goofish_monitor"]
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 5
