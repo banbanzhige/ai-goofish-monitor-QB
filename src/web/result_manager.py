@@ -1,15 +1,20 @@
 import os
 import re
 import json
+import csv
+import io
 import aiofiles
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from src.web.models import DeleteResultItemRequest, DeleteResultsBatchRequest
 from src.storage import get_storage
-from src.web.auth import get_current_user, is_multi_user_mode
+from src.web.auth import get_current_user, is_multi_user_mode, require_category
 from src.logging_config import get_logger
+from src.storage.result_management import ResultManagementError, ResultManagementRepository
+from src.web.result_filters import InvalidRule, ResultViewHttpError, apply_view_rules, validate_rule
 
 
 router = APIRouter()
@@ -68,6 +73,7 @@ def _decorate_record(record: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, 
     normalized.setdefault(TASK_NAME_KEY, task.get("task_name"))
     normalized.setdefault(KEYWORD_KEY, task.get("keyword"))
     normalized.setdefault(CRITERIA_KEY, task.get("ai_prompt_criteria_file", "N/A"))
+    normalized.setdefault(CRAWL_TIME_KEY, normalized.get("crawled_at", ""))
     if "ai_analysis" not in normalized and "AI分析" in normalized:
         normalized["ai_analysis"] = normalized.get("AI分析")
     if "AI分析" not in normalized and "ai_analysis" in normalized:
@@ -116,12 +122,14 @@ def _matches_filters(record: Dict[str, Any], filters) -> bool:
     return True
 
 
-async def _load_records(filepath: str) -> List[Dict[str, Any]]:
+async def _load_records(filepath: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     records: List[Dict[str, Any]] = []
     async with aiofiles.open(filepath, "r", encoding="utf-8") as f:
         async for line in f:
             try:
                 records.append(json.loads(line))
+                if limit is not None and len(records) >= limit:
+                    break
             except json.JSONDecodeError:
                 continue
     return records
@@ -466,27 +474,14 @@ async def delete_results_batch(payload: DeleteResultsBatchRequest, request: Requ
     }
 
 
-@router.get("/api/results/{filename}")
-async def get_result_file_content(
-    filename: str,
-    request: Request,
-    page: int = 1,
-    limit: int = 20,
-    recommended_only: bool = False,
-    task_name: str = None,
-    keyword: str = None,
-    ai_criteria: str = None,
-    sort_by: str = "crawl_time",
-    sort_order: str = "desc",
-    manual_keyword: str = None,
-):
-    """读取结果内容，支持分页、筛选和排序"""
-    owner_id = _get_owner_id(request)
+async def _load_results_for_view(filename: str, owner_id: Optional[str], storage=None,
+                                 *, preview: bool = False):
+    """只读装载；超过上限明确拒绝，不静默截断总数。"""
     results: List[Dict[str, Any]] = []
     tasks: List[Dict[str, Any]] = []
-
+    cap = 101 if preview else 50001
     if owner_id:
-        storage = get_storage()
+        storage = storage or get_storage()
         tasks = storage.get_tasks(owner_id=owner_id)
         target_tasks = tasks if filename == "all" else []
         if filename != "all":
@@ -496,21 +491,32 @@ async def get_result_file_content(
             target_tasks = [matched_task]
 
         for task in target_tasks:
-            task_records = storage.get_results(task.get("task_name"), owner_id=owner_id, limit=50000, offset=0)
-            results.extend([_decorate_record(record, task) for record in task_records])
+            offset = 0
+            while len(results) < cap:
+                chunk = min(1000, cap - len(results))
+                task_records = storage.get_results(task.get("task_name"), owner_id=owner_id,
+                                                   limit=chunk, offset=offset)
+                results.extend(_decorate_record(record, task) for record in task_records)
+                if len(task_records) < chunk:
+                    break
+                offset += len(task_records)
+            if len(results) >= cap:
+                break
     else:
         if filename == "all":
             jsonl_dir = "jsonl"
             if not os.path.isdir(jsonl_dir):
                 raise HTTPException(status_code=404, detail="结果文件目录未找到。")
 
-            files = [f for f in os.listdir(jsonl_dir) if f.endswith(".jsonl")]
+            files = sorted(f for f in os.listdir(jsonl_dir) if f.endswith(".jsonl"))
             for file in files:
                 filepath = os.path.join(jsonl_dir, file)
                 try:
-                    results.extend(await _load_records(filepath))
+                    results.extend(await _load_records(filepath, limit=cap - len(results)))
                 except Exception as e:
                     logger.warning(f"读取文件失败: {file}, 错误: {e}", extra={"event": "result_file_load_failed"})
+                if len(results) >= cap:
+                    break
         else:
             if not filename.endswith(".jsonl") or "/" in filename or ".." in filename:
                 raise HTTPException(status_code=400, detail="无效的文件名。")
@@ -518,7 +524,7 @@ async def get_result_file_content(
             if not os.path.exists(filepath):
                 raise HTTPException(status_code=404, detail="结果文件未找到。")
             try:
-                results = await _load_records(filepath)
+                results = await _load_records(filepath, limit=cap)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"读取结果文件时出错: {e}")
 
@@ -527,6 +533,20 @@ async def get_result_file_content(
                 tasks = json.loads(await f.read())
         except Exception:
             tasks = []
+    if not preview and len(results) > 50000:
+        raise ResultViewHttpError(429, "RESULT_LIMIT", "结果超过 50,000 条，请缩小任务范围。")
+    return (results[:100] if preview else results), tasks
+
+
+async def _query_result_view(filename: str, request: Request, *, recommended_only: bool,
+                             task_name: str | None, keyword: str | None,
+                             ai_criteria: str | None, sort_by: str, sort_order: str,
+                             manual_keyword: str | None, include_hidden: bool):
+    if sort_by not in ("crawl_time", "publish_time", "price") or sort_order not in ("asc", "desc"):
+        raise ResultViewHttpError(400, "INVALID_SORT", "排序参数无效。")
+    owner_id = _get_owner_id(request)
+    storage = get_storage()
+    results, tasks = await _load_results_for_view(filename, owner_id, storage)
 
     class _Filters:
         def __init__(self):
@@ -536,22 +556,117 @@ async def get_result_file_content(
             self.ai_criteria = ai_criteria
             self.manual_keyword = manual_keyword
 
-    filtered_results = [record for record in results if _matches_filters(record, _Filters())]
-    _sort_results(filtered_results, sort_by, sort_order)
+    user = get_current_user(request)
+    if not user:
+        raise ResultViewHttpError(401, "UNAUTHORIZED", "请先登录。")
+    try:
+        repo = ResultManagementRepository(storage, str(user.get("user_id")))
+        hidden_ids, rules = repo.view_state()
+        for rule in rules:
+            if (not isinstance(rule, dict) or not isinstance(rule.get("id"), str)
+                or rule.get("scope") not in ("task", "global")
+                or type(rule.get("enabled")) is not bool):
+                raise InvalidRule("saved rule structure differs")
+            validate_rule(rule.get("kind"), rule.get("pattern"))
+    except ResultManagementError as exc:
+        raise ResultViewHttpError(exc.status, exc.code, str(exc)) from None
+    except InvalidRule:
+        raise ResultViewHttpError(503, "INVALID_SAVED_RULE", "已保存的规则无效，请检查规则状态。") from None
+    task_refs = {str(task.get("task_name")): str(task.get("id") if owner_id else task.get("stable_task_id"))
+                 for task in tasks}
+    view_filter = lambda record: task_refs.get(str(record.get(TASK_NAME_KEY)))
+    visible_all, _ = apply_view_rules(results, hidden_ids, rules, _extract_item_id,
+                                      view_filter, include_hidden=include_hidden)
+    filter_options = {
+        "task_names": sorted({str(record.get(TASK_NAME_KEY) or "unknown") for record in visible_all}),
+        "keywords": sorted({str(record.get(KEYWORD_KEY) or "unknown") for record in visible_all}),
+        "ai_criteria": sorted({str(record.get(CRITERIA_KEY) or "N/A") for record in visible_all}),
+    }
+    filtered_input = [record for record in results if _matches_filters(record, _Filters())]
+    filtered, stats = apply_view_rules(filtered_input, hidden_ids, rules, _extract_item_id,
+                                      view_filter, include_hidden=include_hidden)
+    _sort_results(filtered, sort_by, sort_order)
+    return filtered, stats, tasks, owner_id, filter_options
 
-    total_items = len(filtered_results)
+
+@router.get("/api/results/{filename}")
+@require_category("results")
+async def get_result_file_content(
+    request: Request,
+    filename: str,
+    page: int = 1,
+    limit: int = 20,
+    recommended_only: bool = False,
+    task_name: str = None,
+    keyword: str = None,
+    ai_criteria: str = None,
+    sort_by: str = "crawl_time",
+    sort_order: str = "desc",
+    manual_keyword: str = None,
+    include_hidden: bool = False,
+):
+    """读取结果内容；视图屏蔽在分页前统一应用。"""
+    if page < 1 or not 1 <= limit <= 100:
+        raise ResultViewHttpError(400, "INVALID_PAGE", "分页参数无效。")
+    visible, stats, tasks, owner_id, filter_options = await _query_result_view(
+        filename, request, recommended_only=recommended_only, task_name=task_name,
+        keyword=keyword, ai_criteria=ai_criteria, sort_by=sort_by, sort_order=sort_order,
+        manual_keyword=manual_keyword, include_hidden=include_hidden)
+
     start = max(0, (page - 1) * limit)
     end = start + max(1, limit)
-    paginated_results = filtered_results[start:end]
+    paginated_results = visible[start:end]
     feedback_status_map = _build_feedback_status_map(owner_id=owner_id)
     _attach_feedback_status(paginated_results, feedback_status_map)
 
     return {
-        "total_items": total_items,
+        "total_items": stats["total_items"],
+        "view_stats": stats,
+        "filter_options": filter_options,
         "page": page,
         "limit": limit,
         "items": paginated_results,
         "tasks": tasks,
     }
+
+
+@router.get("/api/result-management/export.csv")
+@require_category("results")
+async def export_result_view(request: Request, filename: str = "all",
+                             recommended_only: bool = False, task_name: str = None,
+                             keyword: str = None, ai_criteria: str = None,
+                             sort_by: str = "crawl_time", sort_order: str = "desc",
+                             manual_keyword: str = None, include_hidden: bool = False):
+    """与列表使用同一过滤/排序路径；CSV 字段做公式注入保护。"""
+    visible, _, _, _, _ = await _query_result_view(
+        filename, request, recommended_only=recommended_only, task_name=task_name,
+        keyword=keyword, ai_criteria=ai_criteria, sort_by=sort_by, sort_order=sort_order,
+        manual_keyword=manual_keyword, include_hidden=include_hidden)
+
+    def safe_cell(value):
+        raw = str(value or "")
+        return "'" + raw if raw.lstrip().startswith(("=", "+", "-", "@")) else raw
+
+    def rows():
+        yield "\ufeff"
+        columns = ("商品ID", "任务名称", "商品标题", "商品描述", "当前售价", "商品链接",
+                   "公开信息浏览时间", "是否屏蔽", "黑名单原因")
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(columns)
+        yield buffer.getvalue()
+        for record in visible:
+            buffer = io.StringIO()
+            writer = csv.writer(buffer)
+            product = record.get(PRODUCT_KEY) or {}
+            writer.writerow([safe_cell(value) for value in (
+                _extract_item_id(record), record.get(TASK_NAME_KEY), product.get(TITLE_KEY),
+                product.get(DESC_KEY), product.get(PRICE_KEY), product.get(LINK_KEY),
+                record.get(CRAWL_TIME_KEY), "是" if record.get("view_hidden") else "否",
+                "；".join(reason["pattern"] for reason in record.get("blacklist_reasons", [])))])
+            yield buffer.getvalue()
+
+    return StreamingResponse(rows(), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename=results-view.csv"})
 
 

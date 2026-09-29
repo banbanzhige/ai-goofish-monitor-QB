@@ -641,25 +641,45 @@ async function submitBayesBatchFeedback(payload, options = {}) {
     }
 }
 
-async function fetchResultContent(filename, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword) {
+function resultViewParams(filename, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword, includeHidden = false) {
+    return new URLSearchParams({
+        filename, recommended_only: recommendedOnly, task_name: taskName,
+        keyword, ai_criteria: aiCriteria, sort_by: sortBy, sort_order: sortOrder,
+        manual_keyword: manualKeyword || '', include_hidden: includeHidden
+    });
+}
+
+async function resultManagementRequest(path, options = {}) {
+    const response = await fetch(`/api/result-management/${path}`, options);
+    let data;
     try {
-        const params = new URLSearchParams({
-            page: 1,
-            limit: 100, // 获取足够数量的条目
-            recommended_only: recommendedOnly,
-            task_name: taskName,
-            keyword: keyword,
-            ai_criteria: aiCriteria,
-            sort_by: sortBy,
-            sort_order: sortOrder,
-            manual_keyword: manualKeyword || ''
-        });
+        data = await response.json();
+    } catch (error) {
+        console.error('结果管理响应解析失败:', error);
+        throw new Error('结果管理响应无效');
+    }
+    if (!response.ok) {
+        const detail = data.detail || data;
+        throw new Error(detail.message || detail.detail || '结果管理操作失败');
+    }
+    return data;
+}
+
+async function fetchResultContent(filename, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword, page = 1, includeHidden = false) {
+    try {
+        const params = resultViewParams(filename, recommendedOnly, taskName, keyword, aiCriteria,
+            sortBy, sortOrder, manualKeyword, includeHidden);
+        params.set('page', page);
+        params.set('limit', 20);
         const response = await fetch(`/api/results/${filename}?${params}`);
-        if (!response.ok) throw new Error(`无法获取文件 ${filename} 的内容`);
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data?.message || data?.detail?.message || data?.detail || `无法获取文件 ${filename} 的内容`);
+        }
         return await response.json();
     } catch (error) {
-        console.error(error);
-        return null;
+        console.error('结果读取失败:', error);
+        throw error;
     }
 }
 

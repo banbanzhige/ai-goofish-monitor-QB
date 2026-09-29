@@ -6,6 +6,8 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -26,6 +28,8 @@ from src.web.scheduler import _set_all_tasks_stopped_in_config, reload_scheduler
 from src.web.task_manager import router as task_router, update_task_running_status
 from src.web.log_manager import router as log_router
 from src.web.result_manager import router as result_router
+from src.web.result_management import router as result_management_router
+from src.web.result_filters import ResultViewHttpError
 from src.web.settings_manager import router as settings_router
 from src.web.notification_manager_v2 import router as notification_router
 from src.web.ai_manager import router as ai_router
@@ -218,6 +222,19 @@ async def stop_task_process(task_id: int):
 
 
 app = FastAPI(title="咸鱼公开内容查看智能处理程序", lifespan=lifespan)
+
+
+@app.exception_handler(ResultViewHttpError)
+async def result_view_error_handler(_request: Request, exc: ResultViewHttpError):
+    return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+
+@app.exception_handler(RequestValidationError)
+async def result_management_validation_handler(request: Request, exc: RequestValidationError):
+    if request.url.path.startswith("/api/result-management/"):
+        return JSONResponse(status_code=400, content={
+            "code": "INVALID_INPUT", "message": "请求参数或格式无效。"})
+    return await request_validation_exception_handler(request, exc)
 
 # 挂载静态文件（无需认证，因为登录页面和主页都需要访问）
 _portable_paths = get_portable_runtime_paths()
@@ -494,6 +511,7 @@ async def auth_middleware(request: Request, call_next):
 app.include_router(task_router)
 app.include_router(log_router)
 app.include_router(result_router)
+app.include_router(result_management_router)
 app.include_router(settings_router)
 app.include_router(notification_router)
 app.include_router(ai_router)

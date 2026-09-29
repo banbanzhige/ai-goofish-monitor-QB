@@ -1136,7 +1136,8 @@ function renderResultsGrid(data) {
         // 在文本中高亮显示关键词
         const highlightKeyword = (text, keyword) => {
             if (!keyword || !text) return text;
-            const regex = new RegExp(`(${escapeHtml(keyword)})`, 'gi');
+            const escapedKeyword = escapeHtml(keyword).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`(${escapedKeyword})`, 'gi');
             return text.replace(regex, '<span style="background-color: #fff3cd; color: #856404; padding: 2px 4px; border-radius: 3px; font-weight: bold;">$1</span>');
         };
 
@@ -1289,6 +1290,8 @@ function renderResultsGrid(data) {
                 <span></span>
             </label>
             <button class="delete-card-btn" title="删除此商品"></button>
+            <button type="button" class="result-hide-btn control-button" data-item-id="${escapeHtml(itemId)}">${item.view_hidden ? '恢复屏蔽' : '屏蔽'}</button>
+            ${item.blacklist_reasons?.length ? `<div class="hint-text">黑名单命中：${item.blacklist_reasons.map(reason => escapeHtml(reason.pattern)).join('、')}</div>` : ''}
                 <div class="card-image">
                     <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(info.商品标题) || '商品图片'}" loading="lazy" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPuWbvueJhzwvdGV4dD48L3N2Zz4=';"></a>
                     <div class="card-image-overlay">

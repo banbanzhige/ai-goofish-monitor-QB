@@ -1546,6 +1546,40 @@ input:checked+.slider:before {
     /* Visible when hovering the card */
 }
 
+.result-hide-btn {
+    position: absolute;
+    top: 8px;
+    right: 48px;
+    z-index: 10;
+    min-height: 32px;
+    padding: 4px 8px;
+    background: #fff;
+}
+
+#blacklist-panel.hidden {
+    display: none;
+}
+
+#blacklist-panel {
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+}
+
+#blacklist-rules-list .filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+#results-pagination {
+    align-items: center;
+    margin: 12px 0;
+}
+
 .delete-card-btn::after {
     content: '×';
     /* Cross symbol */

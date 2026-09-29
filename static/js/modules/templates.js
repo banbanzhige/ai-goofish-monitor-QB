@@ -31,6 +31,11 @@ var templates = {
                             <div class="filter-label">刷新</div>
                             <button id="refresh-results-btn" class="control-button results-refresh-btn">🔄 刷新</button>
                         </div>
+                        <div class="filter-group">
+                            <div class="filter-label">当前视图</div>
+                            <button id="export-results-btn" class="control-button">⬇️ 导出 CSV</button>
+                            <button id="manage-blacklist-btn" class="control-button">🚫 黑名单</button>
+                        </div>
                         <div class="filter-group results-select-group">
                             <div class="filter-label">操作模式</div>
                             <button id="enter-selection-mode-btn" class="control-button results-select-btn">☑ 选择</button>
@@ -55,6 +60,13 @@ var templates = {
                                 <div class="filter-label">仅看AI推荐</div>
                                 <label class="switch">
                                     <input type="checkbox" id="recommended-only-checkbox">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="filter-group compact">
+                                <div class="filter-label">显示屏蔽项</div>
+                                <label class="switch">
+                                    <input type="checkbox" id="include-hidden-checkbox">
                                     <span class="slider round"></span>
                                 </label>
                             </div>
@@ -102,6 +114,25 @@ var templates = {
                             </select>
                         </div>
                     </div>
+                </div>
+                <p class="hint-text">屏蔽与黑名单只影响当前结果视图、统计和导出；不改变抓取、AI、训练或通知。屏蔽商品 ID 后，本人所有任务中的同商品都会隐藏；永久删除仍是独立操作。</p>
+                <div id="blacklist-panel" class="hidden">
+                    <h3>黑名单规则</h3>
+                    <div class="results-filter-bar">
+                        <select id="blacklist-kind"><option value="keyword">关键词</option><option value="word">英数字边界</option><option value="regex_alias">正则别名</option></select>
+                        <input id="blacklist-pattern" type="text" maxlength="128" placeholder="例如 Xbox|XSX（别名用 | 分隔）">
+                        <label><input id="blacklist-global" type="checkbox">本人所有任务（默认仅当前任务）</label>
+                        <button id="preview-blacklist-btn" class="control-button">预览命中</button>
+                        <button id="add-blacklist-btn" class="control-button">新增规则</button>
+                    </div>
+                    <p id="blacklist-preview"></p>
+                    <div id="blacklist-rules-list"></div>
+                </div>
+                <div id="results-view-stats" aria-live="polite"></div>
+                <div id="results-pagination" class="results-filter-bar">
+                    <button id="results-prev-page" class="control-button">上一页</button>
+                    <span id="results-page-label"></span>
+                    <button id="results-next-page" class="control-button">下一页</button>
                 </div>
                 <div id="results-grid-container">
                     <p>请先选择一个结果文件。</p>

@@ -1,4 +1,119 @@
 // 结果视图
+var resultViewPage = 1;
+var resultViewPreference = null;
+var resultViewTasks = [];
+var pendingResultFilters = null;
+var resultPreferenceTimer = null;
+var editingResultRule = null;
+
+async function loadResultBlacklistRules() {
+    const list = document.getElementById('blacklist-rules-list');
+    if (!list) return;
+    try {
+        const data = await resultManagementRequest('blacklist-rules?limit=50');
+        list.replaceChildren();
+        for (const rule of data.items || []) {
+            const row = document.createElement('div');
+            row.className = 'filter-group';
+            const label = document.createElement('span');
+            label.textContent = `${rule.enabled ? '启用' : '停用'} · ${rule.scope === 'global' ? '本人所有任务' : (rule.task_name_snapshot || '当前任务')} · ${rule.kind} · ${rule.pattern}`;
+            row.appendChild(label);
+            for (const [text, action] of [['编辑', 'edit'], [rule.enabled ? '停用' : '启用', 'toggle'], ['删除', 'delete']]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'control-button';
+                button.textContent = text;
+                button.addEventListener('click', async () => {
+                    if (action === 'edit') {
+                        editingResultRule = rule;
+                        document.getElementById('blacklist-kind').value = rule.kind;
+                        document.getElementById('blacklist-pattern').value = rule.pattern;
+                        document.getElementById('blacklist-global').checked = rule.scope === 'global';
+                        document.getElementById('add-blacklist-btn').textContent = '保存修改';
+                        return;
+                    }
+                    try {
+                        if (action === 'delete') {
+                            const confirmed = await Notification.confirm('确定删除这条黑名单规则吗？');
+                            if (!confirmed.isConfirmed) return;
+                            await resultManagementRequest(`blacklist-rules/${encodeURIComponent(rule.id)}?expected_revision=${rule.revision}`, { method: 'DELETE' });
+                        } else {
+                            await resultManagementRequest(`blacklist-rules/${encodeURIComponent(rule.id)}`, {
+                                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ expected_revision: rule.revision, enabled: !rule.enabled })
+                            });
+                        }
+                        await loadResultBlacklistRules();
+                        await fetchAndRenderResults({ force: true });
+                    } catch (error) {
+                        console.error('修改黑名单规则失败:', error);
+                        Notification.error(error.message);
+                    }
+                });
+                row.appendChild(button);
+            }
+            list.appendChild(row);
+        }
+        if (!(data.items || []).length) list.textContent = '还没有黑名单规则。';
+    } catch (error) {
+        console.error('读取黑名单规则失败:', error);
+        list.textContent = `无法读取规则：${error.message}`;
+    }
+}
+
+function resultRulePayload() {
+    const selectedFile = document.getElementById('result-file-selector')?.value;
+    const global = document.getElementById('blacklist-global')?.checked;
+    if (!global && !resultTaskRef(selectedFile)) {
+        throw new Error('请先选择一个具体任务，或明确勾选“本人所有任务”。');
+    }
+    return {
+        scope: global ? 'global' : 'task', task_ref: global ? null : resultTaskRef(selectedFile),
+        kind: document.getElementById('blacklist-kind').value,
+        pattern: document.getElementById('blacklist-pattern').value.trim(),
+        filename: selectedFile
+    };
+}
+
+function resultTaskRef(filename) {
+    if (filename === 'all') return null;
+    const task = resultViewTasks.find(item => `${String(item.task_name || '').replace(/ /g, '_').replace(/\//g, '_')}_full_data.jsonl` === filename);
+    return task?.stable_task_id || null;
+}
+
+async function saveResultViewPreference() {
+    if (!resultViewPreference) return;
+    const selector = document.getElementById('result-file-selector');
+    if (!selector) return;
+    const filters = {
+        recommended_only: !!document.getElementById('recommended-only-checkbox')?.checked,
+        include_hidden: !!document.getElementById('include-hidden-checkbox')?.checked,
+        task_name: document.getElementById('task-name-filter')?.value || 'all',
+        keyword: document.getElementById('keyword-filter')?.value || 'all',
+        ai_criteria: document.getElementById('ai-criteria-filter')?.value || 'all',
+        manual_keyword: document.getElementById('manual-keyword-filter')?.value || ''
+    };
+    try {
+        resultViewPreference = await resultManagementRequest('view-preferences', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expected_revision: resultViewPreference.revision,
+                task_ref: resultTaskRef(selector.value), filters,
+                sort_by: document.getElementById('sort-by-selector')?.value || 'crawl_time',
+                sort_order: document.getElementById('sort-order-selector')?.value || 'desc' })
+        });
+    } catch (error) {
+        console.error('保存结果筛选偏好失败:', error);
+        Notification.warning(`筛选偏好未保存：${error.message}`);
+        try { resultViewPreference = await resultManagementRequest('view-preferences'); }
+        catch (reloadError) { console.error('重读结果筛选偏好失败:', reloadError); }
+    }
+}
+
+function scheduleResultPreferenceSave() {
+    if (resultPreferenceTimer) clearTimeout(resultPreferenceTimer);
+    resultPreferenceTimer = setTimeout(saveResultViewPreference, 500);
+}
+
 async function fetchAndRenderResults(options = {}) {
     const { silent = false, force = false } = options;
     const scrollContainer = document.querySelector('main');
@@ -19,17 +134,19 @@ async function fetchAndRenderResults(options = {}) {
     const keywordFilter = document.getElementById('keyword-filter');
     const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
     const manualKeywordFilter = document.getElementById('manual-keyword-filter');
+    const includeHiddenCheckbox = document.getElementById('include-hidden-checkbox');
     const container = document.getElementById('results-grid-container');
     const selectToggleBtn = document.getElementById('toggle-results-selection');
 
     if (!selector || !checkbox || !container || !sortBySelector || !sortOrderSelector || !taskNameFilter || !keywordFilter || !aiCriteriaFilter || !manualKeywordFilter || !selectToggleBtn) return;
 
     const selectedFile = selector.value;
-    const recommendedOnly = checkbox.checked;
-    const taskName = taskNameFilter.value;
-    const keyword = keywordFilter.value;
-    const manualKeyword = manualKeywordFilter.value;
-    const aiCriteria = aiCriteriaFilter.value;
+    const restored = pendingResultFilters;
+    const recommendedOnly = restored ? !!restored.recommended_only : checkbox.checked;
+    const taskName = restored?.task_name || taskNameFilter.value;
+    const keyword = restored?.keyword || keywordFilter.value;
+    const manualKeyword = restored?.manual_keyword ?? manualKeywordFilter.value;
+    const aiCriteria = restored?.ai_criteria || aiCriteriaFilter.value;
     const sortBy = sortBySelector.value;
     const sortOrder = sortOrderSelector.value;
 
@@ -40,17 +157,13 @@ async function fetchAndRenderResults(options = {}) {
         return;
     }
 
-    localStorage.setItem('lastSelectedResultFile', selectedFile);
-
     if (!silent) {
         container.innerHTML = '<p>正在加载结果...</p>';
     }
-    let dataForFilters = null;
     let dataForDisplay = null;
     try {
-        // 使用所有筛选条件获取结果，但如果是查看所有结果或切换结果文件，则获取所有结果以更新筛选选项
-        dataForFilters = await fetchResultContent(selectedFile, false, 'all', 'all', 'all', 'crawl_time', 'desc');
-        dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword, aiCriteria, sortBy, sortOrder, manualKeyword);
+        dataForDisplay = await fetchResultContent(selectedFile, recommendedOnly, taskName, keyword,
+            aiCriteria, sortBy, sortOrder, manualKeyword, resultViewPage, includeHiddenCheckbox?.checked || false);
     } catch (error) {
         console.error('结果加载失败:', error);
         container.innerHTML = '<p>结果加载失败，请稍后重试。</p>';
@@ -59,35 +172,48 @@ async function fetchAndRenderResults(options = {}) {
     }
 
     // 总是更新筛选控件的选项，无论当前筛选条件是什么
-    if (dataForFilters && dataForFilters.items) {
-        // 获取所有唯一的任务名称、关键词和AI标准
-        const taskNames = [...new Set(dataForFilters.items.map(item => item['任务名称'] || 'unknown'))].sort();
-        const keywords = [...new Set(dataForFilters.items.map(item => item['搜索关键字'] || 'unknown'))].sort();
-        const aiCriterias = [...new Set(dataForFilters.items.map(item => item['AI标准'] || 'N/A'))].sort();
+    if (dataForDisplay && dataForDisplay.filter_options) {
+        const taskNames = dataForDisplay.filter_options.task_names || [];
+        const keywords = dataForDisplay.filter_options.keywords || [];
+        const aiCriterias = dataForDisplay.filter_options.ai_criteria || [];
 
         // 更新任务名称筛选
-        taskNameFilter.innerHTML = '<option value="all">所有任务</option>' + taskNames.map(name => `<option value="${name}">${name}</option>`).join('');
+        taskNameFilter.replaceChildren(new Option('所有任务', 'all'), ...taskNames.map(name => new Option(name, name)));
         // 恢复当前选择
-        taskNameFilter.value = taskName;
+        taskNameFilter.value = taskNames.includes(taskName) ? taskName : 'all';
 
         // 更新关键词筛选
-        keywordFilter.innerHTML = '<option value="all">所有关键词</option>' + keywords.map(keyword => `<option value="${keyword}">${keyword}</option>`).join('');
+        keywordFilter.replaceChildren(new Option('所有关键词', 'all'), ...keywords.map(value => new Option(value, value)));
         // 恢复当前选择
-        keywordFilter.value = keyword;
+        keywordFilter.value = keywords.includes(keyword) ? keyword : 'all';
 
         // 更新AI标准筛选，优化显示内容，仅保留核心信息
-        aiCriteriaFilter.innerHTML = '<option value="all">所有AI标准</option>' + aiCriterias.map(criteria => {
+        aiCriteriaFilter.replaceChildren(new Option('所有AI标准', 'all'), ...aiCriterias.map(criteria => {
             // 移除前缀和后缀，仅保留核心信息
             const displayText = criteria
                 .replace(/^criteria\//i, '') // 移除前缀
                 .replace(/_criteria\.txt$/i, '') // 移除后缀
                 .replace(/^prompts\/(.*?)_criteria\.txt$/i, '$1'); // 处理旧路径
 
-            return `<option value="${criteria}">${displayText}</option>`;
-        }).join('');
+            return new Option(displayText, criteria);
+        }));
         // 恢复当前选择
-        aiCriteriaFilter.value = aiCriteria;
+        aiCriteriaFilter.value = aiCriterias.includes(aiCriteria) ? aiCriteria : 'all';
     }
+    pendingResultFilters = null;
+    if (taskNameFilter.value !== taskName || keywordFilter.value !== keyword || aiCriteriaFilter.value !== aiCriteria) {
+        resultViewPage = 1;
+        scheduleResultPreferenceSave();
+        await fetchAndRenderResults({ force: true });
+        return;
+    }
+    const total = Number(dataForDisplay.total_items || 0);
+    const pageCount = Math.max(1, Math.ceil(total / Number(dataForDisplay.limit || 20)));
+    document.getElementById('results-page-label').textContent = `第 ${resultViewPage}/${pageCount} 页`;
+    document.getElementById('results-prev-page').disabled = resultViewPage <= 1;
+    document.getElementById('results-next-page').disabled = resultViewPage >= pageCount;
+    const stats = dataForDisplay.view_stats || {};
+    document.getElementById('results-view-stats').textContent = `当前筛选 ${total} 条；屏蔽 ${stats.hidden_count || 0} 条，黑名单命中 ${stats.blacklist_count || 0} 条。`;
 
     const signature = JSON.stringify({
         file: selectedFile,
@@ -98,6 +224,8 @@ async function fetchAndRenderResults(options = {}) {
         sortBy,
         sortOrder,
         manualKeyword,
+        includeHidden: includeHiddenCheckbox?.checked || false,
+        page: resultViewPage,
         items: dataForDisplay?.items || [],
     });
     if (force || signature !== lastResultsSignature) {
@@ -111,6 +239,8 @@ async function fetchAndRenderResults(options = {}) {
 }
 
 async function initializeResultsView() {
+    resultViewPage = 1;
+    if (resultPreferenceTimer) clearTimeout(resultPreferenceTimer);
     const selector = document.getElementById('result-file-selector');
     const checkbox = document.getElementById('recommended-only-checkbox');
     const refreshBtn = document.getElementById('refresh-results-btn');
@@ -125,6 +255,25 @@ async function initializeResultsView() {
     const enterSelectionBtn = document.getElementById('enter-selection-mode-btn');
     const exitSelectionBtn = document.getElementById('exit-selection-mode-btn');
     const selectionModePanel = document.getElementById('selection-mode-panel');
+    const includeHidden = document.getElementById('include-hidden-checkbox');
+    localStorage.removeItem('lastSelectedResultFile');
+    try {
+        const [preference, taskResponse] = await Promise.all([
+            resultManagementRequest('view-preferences'), fetch('/api/tasks')
+        ]);
+        if (!taskResponse.ok) throw new Error('无法读取任务列表');
+        resultViewTasks = await taskResponse.json();
+        resultViewPreference = preference;
+        pendingResultFilters = preference.filters || {};
+        checkbox.checked = !!pendingResultFilters.recommended_only;
+        includeHidden.checked = !!pendingResultFilters.include_hidden;
+        document.getElementById('manual-keyword-filter').value = pendingResultFilters.manual_keyword || '';
+        if (['crawl_time', 'publish_time', 'price'].includes(preference.sort_by)) sortBySelector.value = preference.sort_by;
+        if (['asc', 'desc'].includes(preference.sort_order)) sortOrderSelector.value = preference.sort_order;
+    } catch (error) {
+        console.error('读取结果偏好失败:', error);
+        Notification.warning('结果筛选偏好未能读取，将使用本次页面默认值。');
+    }
 
     const readCardFeedbackContext = (card) => {
         if (!card) return null;
@@ -179,17 +328,15 @@ async function initializeResultsView() {
 
     const fileData = await fetchResultFiles();
     if (fileData && fileData.files && fileData.files.length > 0) {
-        const lastSelectedFile = localStorage.getItem('lastSelectedResultFile');
-
-        // 确定要选择的文件。如果没有存储任何内容，则默认选择 "所有结果"。
         let fileToSelect = 'all';
-        // 如果有上次选择的文件且不是 "all"，则使用它
-        if (lastSelectedFile && lastSelectedFile !== 'all' && fileData.files.includes(lastSelectedFile)) {
-            fileToSelect = lastSelectedFile;
+        if (resultViewPreference?.task_ref) {
+            const task = resultViewTasks.find(item => item.stable_task_id === resultViewPreference.task_ref);
+            const savedFile = task ? `${String(task.task_name || '').replace(/ /g, '_').replace(/\//g, '_')}_full_data.jsonl` : '';
+            if (savedFile && fileData.files.includes(savedFile)) fileToSelect = savedFile;
         }
 
         // Add "所有结果" option
-        const options = ['<option value="all" ' + (fileToSelect === 'all' ? 'selected' : '') + '>所有结果</option>'].concat(
+        const options = [new Option('所有结果', 'all')].concat(
             fileData.files.map(f => {
                 // 优化显示内容，仅保留核心文件名
                 const displayText = f
@@ -197,38 +344,118 @@ async function initializeResultsView() {
                     .replace(/_full_data\.json$/i, '') // 移除_full_data.json后缀
                     .replace(/\.jsonl$/i, '') // 移除.jsonl后缀
                     .replace(/\.json$/i, ''); // 移除.json后缀
-                return `<option value="${f}" ${f === fileToSelect ? 'selected' : ''}>${displayText}</option>`;
+                return new Option(displayText, f);
             })
         );
-        selector.innerHTML = options.join('');
+        selector.replaceChildren(...options);
+        selector.value = fileToSelect;
+        if (resultViewPreference?.task_ref && fileToSelect === 'all') scheduleResultPreferenceSave();
 
         // 选择器的值现在已通过'selected'属性正确设置。
         // 我们可以继续添加监听器并执行初始请求。
 
         // 为所有筛选器添加事件监听器
-        selector.addEventListener('change', fetchAndRenderResults);
+        const onFilterChange = () => {
+            resultViewPage = 1;
+            scheduleResultPreferenceSave();
+            fetchAndRenderResults();
+        };
+        selector.addEventListener('change', onFilterChange);
 
         // Initialize the "仅看AI推荐" button state
         checkbox.setAttribute('data-checked', 'false');
 
         // 直接处理复选框更改事件，因为它现在是input type="checkbox"类型
         checkbox.addEventListener('change', () => {
-            fetchAndRenderResults();
+            onFilterChange();
         });
 
         const taskNameFilter = document.getElementById('task-name-filter');
         const keywordFilter = document.getElementById('keyword-filter');
         const aiCriteriaFilter = document.getElementById('ai-criteria-filter');
         const manualKeywordFilter = document.getElementById('manual-keyword-filter');
-        if (taskNameFilter) taskNameFilter.addEventListener('change', fetchAndRenderResults);
-        if (keywordFilter) keywordFilter.addEventListener('change', fetchAndRenderResults);
-        if (aiCriteriaFilter) aiCriteriaFilter.addEventListener('change', fetchAndRenderResults);
-        if (manualKeywordFilter) manualKeywordFilter.addEventListener('input', fetchAndRenderResults);
+        if (taskNameFilter) taskNameFilter.addEventListener('change', onFilterChange);
+        if (keywordFilter) keywordFilter.addEventListener('change', onFilterChange);
+        if (aiCriteriaFilter) aiCriteriaFilter.addEventListener('change', onFilterChange);
+        if (manualKeywordFilter) manualKeywordFilter.addEventListener('input', onFilterChange);
+        includeHidden.addEventListener('change', onFilterChange);
 
         // 添加现有的事件监听器
-        sortBySelector.addEventListener('change', fetchAndRenderResults);
-        sortOrderSelector.addEventListener('change', fetchAndRenderResults);
+        sortBySelector.addEventListener('change', onFilterChange);
+        sortOrderSelector.addEventListener('change', onFilterChange);
         refreshBtn.addEventListener('click', () => fetchAndRenderResults({ force: true }));
+        document.getElementById('results-prev-page').addEventListener('click', () => {
+            resultViewPage = Math.max(1, resultViewPage - 1);
+            fetchAndRenderResults({ force: true });
+        });
+        document.getElementById('results-next-page').addEventListener('click', () => {
+            resultViewPage += 1;
+            fetchAndRenderResults({ force: true });
+        });
+        document.getElementById('export-results-btn').addEventListener('click', async () => {
+            const params = resultViewParams(selector.value, checkbox.checked,
+                taskNameFilter?.value || 'all', keywordFilter?.value || 'all', aiCriteriaFilter?.value || 'all',
+                sortBySelector.value, sortOrderSelector.value, manualKeywordFilter?.value || '', includeHidden.checked);
+            try {
+                const response = await fetch(`/api/result-management/export.csv?${params}`);
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data?.message || data?.detail?.message || '导出失败');
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'results-view.csv';
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('结果导出失败:', error);
+                Notification.error(error.message);
+            }
+        });
+        document.getElementById('manage-blacklist-btn').addEventListener('click', async () => {
+            const panel = document.getElementById('blacklist-panel');
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) await loadResultBlacklistRules();
+        });
+        document.getElementById('preview-blacklist-btn').addEventListener('click', async () => {
+            const label = document.getElementById('blacklist-preview');
+            try {
+                const data = await resultManagementRequest('blacklist-rules/preview', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(resultRulePayload())
+                });
+                label.textContent = `前 ${data.sampled} 条抽样中命中 ${data.matched} 条：${data.items.map(item => item.title).join('、')}`;
+            } catch (error) {
+                console.error('预览黑名单规则失败:', error);
+                label.textContent = error.message;
+            }
+        });
+        document.getElementById('add-blacklist-btn').addEventListener('click', async () => {
+            try {
+                const payload = resultRulePayload();
+                if (editingResultRule) {
+                    await resultManagementRequest(`blacklist-rules/${encodeURIComponent(editingResultRule.id)}`, {
+                        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...payload, expected_revision: editingResultRule.revision })
+                    });
+                } else {
+                    await resultManagementRequest('blacklist-rules', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...payload, expected_revision: 0 })
+                    });
+                }
+                editingResultRule = null;
+                document.getElementById('add-blacklist-btn').textContent = '新增规则';
+                document.getElementById('blacklist-pattern').value = '';
+                await loadResultBlacklistRules();
+                await fetchAndRenderResults({ force: true });
+            } catch (error) {
+                console.error('保存黑名单规则失败:', error);
+                Notification.error(error.message);
+            }
+        });
 
         if (advancedToggleBtn && advancedPanel) {
             const isDesktop = !window.matchMedia("(max-width: 1366px) and (hover: none) and (pointer: coarse)").matches;
@@ -459,7 +686,23 @@ async function initializeResultsView() {
 
         // ============== 点击卡片快速选中（选择模式内外均可） ==============
         if (gridContainer) {
-            gridContainer.addEventListener('click', (e) => {
+            gridContainer.addEventListener('click', async (e) => {
+                const hideButton = e.target.closest('.result-hide-btn');
+                if (hideButton) {
+                    e.stopPropagation();
+                    const itemId = hideButton.dataset.itemId;
+                    if (!itemId) return;
+                    try {
+                        await resultManagementRequest(`hidden-items/${encodeURIComponent(itemId)}`, {
+                            method: hideButton.textContent === '恢复屏蔽' ? 'DELETE' : 'PUT'
+                        });
+                        await fetchAndRenderResults({ force: true });
+                    } catch (error) {
+                        console.error('修改商品屏蔽状态失败:', error);
+                        Notification.error(error.message);
+                    }
+                    return;
+                }
                 // 不拦截按钮、链接、overlay 按钮、复选框
                 if (e.target.closest('button, a, .overlay-fb-btn, .result-select-checkbox, .delete-card-btn, label.result-select-box')) return;
                 const card = e.target.closest('.result-card');

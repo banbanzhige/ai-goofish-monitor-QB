@@ -1127,7 +1127,7 @@ class PostgresAdapter(StorageInterface):
                     MonitoringResult.product_info['商品标题'].astext.ilike(f'%{keyword}%')
                 )
             
-            results = query.order_by(MonitoringResult.crawled_at.desc()).offset(offset).limit(limit).all()
+            results = query.order_by(MonitoringResult.crawled_at.desc(), MonitoringResult.id.desc()).offset(offset).limit(limit).all()
             return [self._result_to_legacy_format(r) for r in results]
     
     def _result_to_legacy_format(self, result: MonitoringResult) -> Dict[str, Any]:

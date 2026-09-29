@@ -137,6 +137,19 @@ class LocalUpstreamStore:
         except (OSError, Timeout):
             raise LocalUpstreamStateError("local upstream v2 state cannot be read safely") from None
 
+    def read_many(self, names: tuple[str, ...]) -> dict[str, dict]:
+        """在同一把跨进程锁内读取结果视图所需的同一版本快照。"""
+        if not names or any(name not in _JSON_STORES for name in names):
+            raise LocalUpstreamStateError("unknown local upstream store")
+        try:
+            with FileLock(str(self.root / ".store.lock"), timeout=30):
+                self._validated_root()
+                return {name: self._read_json(name) for name in names}
+        except LocalUpstreamStateError:
+            raise
+        except (OSError, Timeout):
+            raise LocalUpstreamStateError("local upstream v2 state cannot be read safely") from None
+
     def update(self, name: str, *, expected_revision: int,
                transform: Callable[[list[dict]], list[dict]]) -> int:
         """同一文件锁内 CAS 修改；临时文件落盘后原子替换。"""
