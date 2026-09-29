@@ -245,6 +245,33 @@ class LocalUpstreamStore:
         except (OSError, Timeout):
             raise LocalUpstreamStateError("local price observations cannot be read safely") from None
 
+    def iter_price_observations(self):
+        """锁内校验后逐行读取；消费方提前关闭即停止磁盘读取。"""
+        try:
+            with FileLock(str(self.root / ".store.lock"), timeout=30):
+                self._validated_root()
+                path = self.root / "price_observations.jsonl"
+                if path.stat().st_size > _MAX_PRICE_BYTES:
+                    raise LocalUpstreamStateError("local price observation limit exceeded")
+                keys = set()
+                with path.open("rb") as stream:
+                    for line in stream:
+                        if not line.endswith(b"\n"):
+                            raise LocalUpstreamStateError("local price observation tail is incomplete")
+                        try:
+                            record = json.loads(line.decode("utf-8"))
+                        except (UnicodeError, json.JSONDecodeError):
+                            raise LocalUpstreamStateError("local price observations cannot be verified") from None
+                        key = self._price_key(record)
+                        if key in keys:
+                            raise LocalUpstreamStateError("local price observation key is duplicated")
+                        keys.add(key)
+                        yield record
+        except LocalUpstreamStateError:
+            raise
+        except (OSError, Timeout, UnicodeError, json.JSONDecodeError):
+            raise LocalUpstreamStateError("local price observations cannot be read safely") from None
+
     def append_price_observation(self, observation: dict) -> bool:
         """跨进程锁内按三元键去重，整份有界日志原子替换以避免断电半行。"""
 

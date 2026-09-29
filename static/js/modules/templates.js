@@ -34,6 +34,7 @@ var templates = {
                         <div class="filter-group">
                             <div class="filter-label">当前视图</div>
                             <button id="export-results-btn" class="control-button">⬇️ 导出 CSV</button>
+                            <button id="export-prices-btn" class="control-button">⬇️ 导出价格观察</button>
                             <button id="manage-blacklist-btn" class="control-button">🚫 黑名单</button>
                         </div>
                         <div class="filter-group results-select-group">
@@ -129,6 +130,7 @@ var templates = {
                     <div id="blacklist-rules-list"></div>
                 </div>
                 <div id="results-view-stats" aria-live="polite"></div>
+                <div id="results-price-stats" aria-live="polite"></div>
                 <div id="results-pagination" class="results-filter-bar">
                     <button id="results-prev-page" class="control-button">上一页</button>
                     <span id="results-page-label"></span>
@@ -137,6 +139,14 @@ var templates = {
                 <div id="results-grid-container">
                     <p>请先选择一个结果文件。</p>
                 </div>
+                <dialog id="price-history-dialog" class="price-history-dialog" aria-labelledby="price-history-title">
+                    <div class="price-history-header">
+                        <h2 id="price-history-title">价格历史</h2>
+                        <button type="button" id="price-history-close" class="control-button">关闭</button>
+                    </div>
+                    <div id="price-history-content" aria-live="polite"></div>
+                    <button type="button" id="price-history-more" class="control-button" hidden>加载更多</button>
+                </dialog>
             </section>`,
     logs: () => `
             <section id="logs-section" class="content-section">

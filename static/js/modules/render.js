@@ -1077,6 +1077,8 @@ function renderResultsGrid(data) {
         const seller = item.卖家信息 || {};
         const ai = item.ai_analysis || {};
         const taskMeta = tasksByName[item.任务名称] || {};
+        const priceObservation = item.price_observation || {};
+        const priceStatus = data.price_observation_status || 'ok';
         const personalOnly = item.personal_only ?? taskMeta.personal_only ?? false;
         const inspectionService = item.inspection_service ?? taskMeta.inspection_service ?? false;
         const accountAssurance = item.account_assurance ?? taskMeta.account_assurance ?? false;
@@ -1119,6 +1121,16 @@ function renderResultsGrid(data) {
             div.textContent = unsafe;
             return div.innerHTML;
         };
+        let priceHistoryText = '近 30 天暂无观察';
+        if (priceStatus === 'unavailable') priceHistoryText = '价格历史暂不可用';
+        else if (priceStatus === 'limit') priceHistoryText = '价格历史过多，请缩小范围';
+        else if (priceObservation.observation_count > 0) {
+            const lowest = priceObservation.lowest_amount === null ? '无有效金额' : `${priceObservation.currency} ${priceObservation.lowest_amount}`;
+            const change = priceObservation.change_amount === null ? '暂无可比变动' :
+                Number(priceObservation.change_amount) > 0 ? `较上次上涨 ${priceObservation.change_amount}` :
+                Number(priceObservation.change_amount) < 0 ? `较上次下降 ${Math.abs(Number(priceObservation.change_amount)).toFixed(2)}` : '较上次持平';
+            priceHistoryText = `近 30 天观察 ${priceObservation.observation_count} 次 · 历史低价 ${lowest} · ${change}`;
+        }
 
         // 从商品链接中提取商品ID
         const extractItemId = (url) => {
@@ -1260,7 +1272,8 @@ function renderResultsGrid(data) {
 
         // 从商品链接中提取商品ID
         const itemId = String(
-            extractItemId(info.商品链接)
+            info.商品ID
+            || extractItemId(info.商品链接)
             || info.item_id
             || info.id
             || item.item_id
@@ -1302,6 +1315,7 @@ function renderResultsGrid(data) {
                 <div class="card-content">
                 <h3 class="card-title"><a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" title="${escapeHtml(info.商品标题) || ''}">${highlightKeyword(escapeHtml(info.商品标题), manualKeyword) || '无标题'}</a></h3>
                     <p class="card-price">${highlightKeyword(escapeHtml(info.当前售价), manualKeyword) || '价格未知'}</p>
+                    <p class="price-history-note">${escapeHtml(priceHistoryText)}</p>
                     ${(() => {
                 const filterTags = [];
                 if (personalOnly) filterTags.push('个人闲置');
@@ -1372,6 +1386,7 @@ function renderResultsGrid(data) {
                             </div>
                         </div>
                         <div class="card-buttons">
+                            <button type="button" class="action-btn price-history-btn" data-item-id="${escapeHtml(itemId)}" data-task-ref="${escapeHtml(item.price_task_ref || '')}">价格历史</button>
                             <button type="button" class="action-btn send-notification-btn" title="发送通知">发送通知</button>
                             <a href="${escapeHtml(info.商品链接) || '#'}" target="_blank" class="action-btn">查看详情</a>
                         </div>

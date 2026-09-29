@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 from urllib.parse import urlencode
 from typing import Optional, Dict, Any, List, Tuple
+from uuid import uuid4
 
 from playwright.async_api import (
     Response,
@@ -49,6 +50,7 @@ from src.utils import (
     log_time,
 )
 from src.portable.app_paths import get_portable_runtime_paths, portable_browser_executable
+from src.storage.price_observations import PriceObservationError, PriceObservationRepository
 from src.search_requests import (
     advance_search_page,
     build_extra_headers as _build_extra_headers,
@@ -881,8 +883,14 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
     bound_account: 绑定的账号名，如果指定则从 state/{bound_account}.json 加载
     """
     owner_id = (os.getenv("GOOFISH_OWNER_ID") or "").strip() or None
+    price_run_id = str(uuid4())
+    price_task_ref = task_config.get("id") if owner_id else task_config.get("stable_task_id")
+    price_observations_enabled = bool(price_task_ref)
     keyword = task_config['keyword']
     task_name = task_config.get('task_name', keyword)
+    if not price_observations_enabled:
+        log_time("任务缺少稳定标识，本次运行无法记录价格历史；请先完成 v2 升级。",
+                 task_name=task_name, level="warning")
     max_pages = task_config.get('max_pages', 1)
     personal_only = task_config.get('personal_only', False)
     min_price = _normalize_price_bound_value(task_config.get('min_price'))
@@ -2313,6 +2321,27 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                         end_reason = f"操作终止-结束原因：已达到调试上限 ({debug_limit})"
                         break
 
+                    raw_search_price = item_data.pop("_搜索价格原文", item_data.get("当前售价"))
+                    if price_observations_enabled:
+                        item_id = str(item_data.get("商品ID") or "").strip()
+                        if item_id and item_id != "未知ID":
+                            try:
+                                from src.storage import get_storage
+                                price_repo = PriceObservationRepository(
+                                    owner_storage or get_storage(), owner_id or "local_admin")
+                                price_repo.append(
+                                    task_ref=price_task_ref, task_name=task_name,
+                                    item_id=item_id, run_id=price_run_id,
+                                    raw_price=raw_search_price)
+                            except PriceObservationError as exc:
+                                log_time(f"价格观察不可用，本次运行停止记录价格：{exc}",
+                                         task_name=task_name, level="warning")
+                                price_observations_enabled = False
+                            except Exception:
+                                log_time("价格观察初始化失败，本次运行停止记录价格。",
+                                         task_name=task_name, level="warning")
+                                price_observations_enabled = False
+
                     unique_key = get_link_unique_key(item_data["商品链接"])
                     if unique_key in processed_links:
                         log_time(f"[页内进度 {i}/{total_items_on_page}] 商品 '{item_data['商品标题'][:20]}...' 已存在，跳过。", task_name=task_name)
@@ -2448,6 +2477,8 @@ async def fetch_xianyu(task_config: dict, debug_limit: int = 0, bound_account: s
                                 "商品信息": item_data,
                                 "卖家信息": user_profile_data
                             }
+                            if price_task_ref and not owner_id:
+                                final_record["stable_task_id"] = str(price_task_ref)
 
                             # 当前任务使用的Bayes版本，供预计算与推荐度融合统一使用
                             bayes_profile = task_config.get("bayes_profile", "bayes_v1")

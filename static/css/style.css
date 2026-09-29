@@ -1459,6 +1459,34 @@ input:checked+.slider:before {
     /* Ensure cards align to the top */
 }
 
+.price-history-note {
+    margin: 2px 0 8px;
+    color: #64748b;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+#results-price-stats {
+    margin: 4px 0 10px;
+    color: #475569;
+    font-size: 0.9rem;
+}
+
+.price-history-dialog {
+    width: min(92vw, 640px);
+    max-height: 80vh;
+    overflow: auto;
+    border: 1px solid #d8dee9;
+    border-radius: 10px;
+    padding: 18px;
+}
+
+.price-history-dialog::backdrop { background: rgba(15, 23, 42, 0.5); }
+.price-history-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.price-history-header h2 { margin: 0; }
+#price-history-content p { padding: 7px 0; border-bottom: 1px solid #e5e7eb; }
+.price-history-chart { display: block; width: 100%; height: 88px; margin: 5px 0 14px; }
+
 .result-card {
     background-color: #fff;
     border-radius: 8px;

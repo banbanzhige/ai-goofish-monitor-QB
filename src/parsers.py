@@ -24,8 +24,13 @@ async def _parse_search_results_json(json_data: dict, source: str) -> list:
 
             title = await safe_get(main_data, "title", default="未知标题")
             price_parts = await safe_get(main_data, "price", default=[])
-            price = "".join([str(p.get("text", "")) for p in price_parts if isinstance(p, dict)]).replace("当前价", "").strip() if isinstance(price_parts, list) else "价格异常"
-            if "万" in price: price = f"¥{float(price.replace('¥', '').replace('万', '')) * 10000:.0f}"
+            raw_price = "".join([str(p.get("text", "")) for p in price_parts if isinstance(p, dict)]).replace("当前价", "").strip() if isinstance(price_parts, list) else "价格异常"
+            price = raw_price
+            if "万" in price:
+                try:
+                    price = f"¥{float(price.replace('¥', '').replace('万', '')) * 10000:.0f}"
+                except ValueError:
+                    pass
             area = await safe_get(main_data, "area", default="地区未知")
             seller = await safe_get(main_data, "userNickName", default="匿名卖家")
             raw_link = await safe_get(item, "data", "item", "main", "targetUrl", default="")
@@ -48,6 +53,7 @@ async def _parse_search_results_json(json_data: dict, source: str) -> list:
             page_data.append({
                 "商品标题": title,
                 "当前售价": price,
+                "_搜索价格原文": raw_price,
                 "商品原价": original_price,
                 "“想要”人数": wants_count,
                 "商品标签": tags,

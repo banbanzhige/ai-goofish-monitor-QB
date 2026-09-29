@@ -4,7 +4,7 @@ import json
 import csv
 import io
 import aiofiles
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -14,6 +14,9 @@ from src.storage import get_storage
 from src.web.auth import get_current_user, is_multi_user_mode, require_category
 from src.logging_config import get_logger
 from src.storage.result_management import ResultManagementError, ResultManagementRepository
+from src.storage.price_observations import (
+    PriceObservationError, PriceObservationRepository, summarize_item, summarize_market,
+)
 from src.web.result_filters import InvalidRule, ResultViewHttpError, apply_view_rules, validate_rule
 
 
@@ -63,6 +66,9 @@ def _is_ai_recommended(ai_analysis: dict) -> bool:
 
 def _extract_item_id(item: Dict[str, Any]) -> str:
     info = item.get(PRODUCT_KEY, {}) if isinstance(item, dict) else {}
+    direct = str(info.get("商品ID") or "").strip() if isinstance(info, dict) else ""
+    if direct and direct != "未知ID":
+        return direct
     link = str(info.get(LINK_KEY, ""))
     match = re.search(r"id=(\d+)", link)
     return match.group(1) if match else ""
@@ -70,7 +76,8 @@ def _extract_item_id(item: Dict[str, Any]) -> str:
 
 def _decorate_record(record: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, Any]:
     normalized = dict(record or {})
-    normalized.setdefault(TASK_NAME_KEY, task.get("task_name"))
+    normalized[TASK_NAME_KEY] = task.get("task_name")
+    normalized["_result_task_ref"] = str(task.get("id") or task.get("stable_task_id") or "")
     normalized.setdefault(KEYWORD_KEY, task.get("keyword"))
     normalized.setdefault(CRITERIA_KEY, task.get("ai_prompt_criteria_file", "N/A"))
     normalized.setdefault(CRAWL_TIME_KEY, normalized.get("crawled_at", ""))
@@ -503,6 +510,15 @@ async def _load_results_for_view(filename: str, owner_id: Optional[str], storage
             if len(results) >= cap:
                 break
     else:
+        try:
+            async with aiofiles.open("config.json", "r", encoding="utf-8") as f:
+                tasks = json.loads(await f.read())
+        except Exception as exc:
+            logger.warning("读取任务配置失败，结果仍按原始记录展示", exc_info=exc)
+            tasks = []
+        task_by_file = {_safe_task_filename(task.get("task_name")): task for task in tasks}
+        task_by_ref = {str(task.get("stable_task_id")): task for task in tasks
+                       if task.get("stable_task_id")}
         if filename == "all":
             jsonl_dir = "jsonl"
             if not os.path.isdir(jsonl_dir):
@@ -512,7 +528,11 @@ async def _load_results_for_view(filename: str, owner_id: Optional[str], storage
             for file in files:
                 filepath = os.path.join(jsonl_dir, file)
                 try:
-                    results.extend(await _load_records(filepath, limit=cap - len(results)))
+                    loaded = await _load_records(filepath, limit=cap - len(results))
+                    for record in loaded:
+                        task = (task_by_ref.get(str(record["stable_task_id"]))
+                                if record.get("stable_task_id") else task_by_file.get(file))
+                        results.append(_decorate_record(record, task) if task else record)
                 except Exception as e:
                     logger.warning(f"读取文件失败: {file}, 错误: {e}", extra={"event": "result_file_load_failed"})
                 if len(results) >= cap:
@@ -524,15 +544,14 @@ async def _load_results_for_view(filename: str, owner_id: Optional[str], storage
             if not os.path.exists(filepath):
                 raise HTTPException(status_code=404, detail="结果文件未找到。")
             try:
-                results = await _load_records(filepath, limit=cap)
+                loaded = await _load_records(filepath, limit=cap)
+                for record in loaded:
+                    task = (task_by_ref.get(str(record["stable_task_id"]))
+                            if record.get("stable_task_id") else task_by_file.get(filename))
+                    results.append(_decorate_record(record, task) if task else record)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"读取结果文件时出错: {e}")
 
-        try:
-            async with aiofiles.open("config.json", "r", encoding="utf-8") as f:
-                tasks = json.loads(await f.read())
-        except Exception:
-            tasks = []
     if not preview and len(results) > 50000:
         raise ResultViewHttpError(429, "RESULT_LIMIT", "结果超过 50,000 条，请缩小任务范围。")
     return (results[:100] if preview else results), tasks
@@ -574,7 +593,9 @@ async def _query_result_view(filename: str, request: Request, *, recommended_onl
         raise ResultViewHttpError(503, "INVALID_SAVED_RULE", "已保存的规则无效，请检查规则状态。") from None
     task_refs = {str(task.get("task_name")): str(task.get("id") if owner_id else task.get("stable_task_id"))
                  for task in tasks}
-    view_filter = lambda record: task_refs.get(str(record.get(TASK_NAME_KEY)))
+    view_filter = lambda record: (record.get("_result_task_ref") or
+                                  (None if record.get("stable_task_id") else
+                                   task_refs.get(str(record.get(TASK_NAME_KEY)))))
     visible_all, _ = apply_view_rules(results, hidden_ids, rules, _extract_item_id,
                                       view_filter, include_hidden=include_hidden)
     filter_options = {
@@ -619,6 +640,59 @@ async def get_result_file_content(
     feedback_status_map = _build_feedback_status_map(owner_id=owner_id)
     _attach_feedback_status(paginated_results, feedback_status_map)
 
+    price_status = "ok"
+    market_groups = []
+    user = get_current_user(request)
+    if user:
+        try:
+            repo = PriceObservationRepository(get_storage(), str(user.get("user_id")))
+            task_refs = {str(task.get("task_name")): str(task.get("id") if owner_id else task.get("stable_task_id"))
+                         for task in tasks if task.get("id" if owner_id else "stable_task_id")}
+            selected_ref = next((ref for name, ref in task_refs.items()
+                                 if _safe_task_filename(name) == filename), None) if filename != "all" else None
+            if filename != "all" and selected_ref is None:
+                candidate_refs = {str(record.get("_result_task_ref")) for record in visible
+                                  if record.get("_result_task_ref")}
+                if len(candidate_refs) == 1:
+                    selected_ref = next(iter(candidate_refs))
+            def record_task_ref(record):
+                if record.get("_result_task_ref"):
+                    return record["_result_task_ref"]
+                if record.get("stable_task_id"):
+                    return None
+                return selected_ref or task_refs.get(str(record.get(TASK_NAME_KEY)))
+
+            visible_pairs = {(record_task_ref(record), _extract_item_id(record))
+                             for record in visible}
+            if visible_pairs:
+                now = datetime.now(timezone.utc)
+                price_rows = repo.list_observations(since=now - timedelta(days=30), until=now,
+                                                    task_ref=selected_ref, limit=50001)
+                if len(price_rows) > 50000:
+                    price_status = "limit"
+                else:
+                    price_rows = [row for row in price_rows
+                                  if (row["task_ref"], row["item_id"]) in visible_pairs]
+                    market_groups = summarize_market(price_rows)
+                    for group in market_groups:
+                        group["task_name"] = next((name for name, ref in task_refs.items()
+                                                   if ref == group["task_ref"]), "当前任务")
+                    market_groups = market_groups[:20]
+                    grouped = {}
+                    for row in price_rows:
+                        grouped.setdefault((row["task_ref"], row["item_id"]), []).append(row)
+                    for record in paginated_results:
+                        ref = record_task_ref(record)
+                        record["price_observation"] = summarize_item(
+                            grouped.get((ref, _extract_item_id(record)), []))
+                        record["price_task_ref"] = ref
+        except PriceObservationError as exc:
+            logger.warning("价格观察加载失败，结果列表继续展示", exc_info=exc)
+            price_status = "unavailable"
+        except Exception:
+            logger.exception("价格观察视图生成失败，结果列表继续展示")
+            price_status = "unavailable"
+
     return {
         "total_items": stats["total_items"],
         "view_stats": stats,
@@ -627,6 +701,8 @@ async def get_result_file_content(
         "limit": limit,
         "items": paginated_results,
         "tasks": tasks,
+        "price_observation_status": price_status,
+        "price_market_groups": market_groups,
     }
 
 

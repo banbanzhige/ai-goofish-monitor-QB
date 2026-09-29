@@ -272,7 +272,7 @@ def _source_files(source_root: Path) -> list[PlannedFile]:
                 continue
             if relative not in tracked and not (
                 relative.startswith("src/portable/") and candidate.suffix == ".py"
-                or relative in {"src/runtime_paths.py", "src/log_retention.py", "src/account_policy.py", "src/web/account_models.py", "src/storage/upstream_local.py", "src/storage/result_management.py", "src/web/result_filters.py", "src/web/result_management.py", "static/js/account_policy.js", "templates/portable_setup.html", "static/portable/setup.js", "static/portable/setup.css"}
+                or relative in {"src/runtime_paths.py", "src/log_retention.py", "src/account_policy.py", "src/web/account_models.py", "src/storage/upstream_local.py", "src/storage/result_management.py", "src/storage/price_observations.py", "src/web/result_filters.py", "src/web/result_management.py", "src/web/price_observations.py", "static/js/account_policy.js", "templates/portable_setup.html", "static/portable/setup.js", "static/portable/setup.css"}
             ):
                 raise BundleError("untracked program asset requires an explicit build allow-list entry")
             if candidate.name.startswith(".") or candidate.suffix.lower() in {".log", ".bak", ".zip", ".tmp", ".env"}:

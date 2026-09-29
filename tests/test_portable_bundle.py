@@ -328,7 +328,7 @@ class PortableBundleTests(unittest.TestCase):
         self.assertIn("scripts/portable/python-bootstrap.py", paths)
         self.assertIn("src/log_retention.py", paths)
         self.assertNotIn("src/storage/server_migration.py", paths)
-        for path in ("src/account_policy.py", "src/web/account_models.py", "src/storage/result_management.py", "src/web/result_filters.py", "src/web/result_management.py", "static/js/account_policy.js"):
+        for path in ("src/account_policy.py", "src/web/account_models.py", "src/storage/result_management.py", "src/storage/price_observations.py", "src/web/result_filters.py", "src/web/result_management.py", "src/web/price_observations.py", "static/js/account_policy.js"):
             self.assertIn(path, paths)
         self.assertIn("License", paths)
         self.assertIn("defaults/prompts/base_prompt.txt", paths)

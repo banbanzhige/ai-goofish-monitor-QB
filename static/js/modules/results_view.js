@@ -214,6 +214,15 @@ async function fetchAndRenderResults(options = {}) {
     document.getElementById('results-next-page').disabled = resultViewPage >= pageCount;
     const stats = dataForDisplay.view_stats || {};
     document.getElementById('results-view-stats').textContent = `当前筛选 ${total} 条；屏蔽 ${stats.hidden_count || 0} 条，黑名单命中 ${stats.blacklist_count || 0} 条。`;
+    const priceStats = document.getElementById('results-price-stats');
+    if (priceStats) {
+        const groups = dataForDisplay.price_market_groups || [];
+        const status = dataForDisplay.price_observation_status;
+        priceStats.textContent = status === 'unavailable' ? '价格采样暂不可用。' :
+            status === 'limit' ? '价格观察过多，请缩小任务或时间范围。' :
+            groups.length ? groups.map(group => `${group.task_name || '当前任务'} · 本人该任务采样参考：${group.currency} 中位数 ${group.median_amount}，${group.sample_count} 件商品${group.reference_insufficient ? '（参考不足）' : ''}；规格、成色可能不可比。`).join(' ') :
+            '近 30 天暂无可统计的价格观察。';
+    }
 
     const signature = JSON.stringify({
         file: selectedFile,
@@ -411,6 +420,28 @@ async function initializeResultsView() {
                 URL.revokeObjectURL(url);
             } catch (error) {
                 console.error('结果导出失败:', error);
+                Notification.error(error.message);
+            }
+        });
+        document.getElementById('export-prices-btn')?.addEventListener('click', async () => {
+            const params = resultViewParams(selector.value, checkbox.checked,
+                taskNameFilter?.value || 'all', keywordFilter?.value || 'all', aiCriteriaFilter?.value || 'all',
+                sortBySelector.value, sortOrderSelector.value, manualKeywordFilter?.value || '', includeHidden.checked);
+            try {
+                const response = await fetch(`/api/price-observations/export.csv?${params}`);
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data?.detail?.message || '价格观察导出失败');
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'price-observations.csv';
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('价格观察导出失败:', error);
                 Notification.error(error.message);
             }
         });
@@ -657,6 +688,74 @@ async function initializeResultsView() {
         // ============== 选择模式进入/退出 ==============
         let isSelectionMode = false;
         const gridContainer = document.getElementById('results-grid-container');
+        const priceDialog = document.getElementById('price-history-dialog');
+        const priceContent = document.getElementById('price-history-content');
+        const priceMore = document.getElementById('price-history-more');
+        let priceQuery = null;
+        let priceCursor = null;
+        document.getElementById('price-history-close')?.addEventListener('click', () => priceDialog?.close());
+        const loadPriceHistory = async (append = false) => {
+            if (!priceQuery || !priceContent) return;
+            const params = new URLSearchParams(priceQuery);
+            if (append && priceCursor) params.set('cursor', priceCursor);
+            try {
+                const itemId = params.get('item_id');
+                params.delete('item_id');
+                const response = await fetch(`/api/price-observations/items/${encodeURIComponent(itemId)}?${params}`);
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data?.detail?.message || '价格历史读取失败');
+                }
+                const data = await response.json();
+                if (!append) {
+                    priceContent.replaceChildren();
+                    const summary = document.createElement('p');
+                    const first = data.summaries?.[0];
+                    const change = first?.change_amount === null || first?.change_amount === undefined ? '暂无可比变动' :
+                        Number(first.change_amount) > 0 ? `较上次上涨 ${first.change_amount}` :
+                        Number(first.change_amount) < 0 ? `较上次下降 ${Math.abs(Number(first.change_amount)).toFixed(2)}` : '较上次持平';
+                    summary.textContent = first ? `观察 ${first.observation_count} 次；最低 ${first.currency || ''} ${first.lowest_amount ?? '无有效金额'}；最高 ${first.highest_amount ?? '无有效金额'}；${change}。` : '近 30 天暂无观察。';
+                    priceContent.appendChild(summary);
+                    const currency = first?.currency;
+                    const points = (data.items || []).filter(row => row.currency === currency && row.amount !== null)
+                        .map(row => Number(row.amount)).filter(Number.isFinite).reverse();
+                    if (points.length > 1) {
+                        const title = document.createElement('p');
+                        title.textContent = `最近 ${points.length} 次有效观察走势（${currency}，仅本页）`;
+                        priceContent.appendChild(title);
+                        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                        svg.setAttribute('viewBox', '0 0 320 88');
+                        svg.setAttribute('role', 'img');
+                        svg.setAttribute('aria-label', title.textContent);
+                        svg.classList.add('price-history-chart');
+                        const low = Math.min(...points);
+                        const high = Math.max(...points);
+                        const range = Math.max(high - low, 1);
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                        line.setAttribute('points', points.map((amount, index) =>
+                            `${8 + index * 304 / (points.length - 1)},${76 - (amount - low) * 64 / range}`).join(' '));
+                        line.setAttribute('fill', 'none');
+                        line.setAttribute('stroke', '#2563eb');
+                        line.setAttribute('stroke-width', '2.5');
+                        svg.appendChild(line);
+                        priceContent.appendChild(svg);
+                    }
+                }
+                for (const row of data.items || []) {
+                    const line = document.createElement('p');
+                    const moment = new Date(row.observed_at);
+                    line.textContent = `${Number.isNaN(moment.getTime()) ? row.observed_at : moment.toLocaleString()} · ${row.currency} · ${row.amount ?? row.raw_price} · 来源：${row.source}`;
+                    priceContent.appendChild(line);
+                }
+                priceCursor = data.next_cursor;
+                if (priceMore) priceMore.hidden = !priceCursor;
+            } catch (error) {
+                console.error('价格历史读取失败:', error);
+                if (!append) priceContent.textContent = `价格历史读取失败：${error.message}`;
+                else Notification.error(error.message);
+            }
+        };
+        priceMore?.addEventListener('click', () => loadPriceHistory(true));
 
         const hasActiveSelections = () => {
             return document.querySelectorAll('.result-select-checkbox:checked').length > 0;
@@ -687,6 +786,23 @@ async function initializeResultsView() {
         // ============== 点击卡片快速选中（选择模式内外均可） ==============
         if (gridContainer) {
             gridContainer.addEventListener('click', async (e) => {
+                const priceButton = e.target.closest('.price-history-btn');
+                if (priceButton) {
+                    e.stopPropagation();
+                    if (!priceButton.dataset.itemId || !priceDialog) return;
+                    const params = resultViewParams(selector.value, checkbox.checked,
+                        taskNameFilter?.value || 'all', keywordFilter?.value || 'all', aiCriteriaFilter?.value || 'all',
+                        sortBySelector.value, sortOrderSelector.value, manualKeywordFilter?.value || '', includeHidden.checked);
+                    params.set('item_id', priceButton.dataset.itemId);
+                    if (priceButton.dataset.taskRef) params.set('task_ref', priceButton.dataset.taskRef);
+                    priceQuery = params;
+                    priceCursor = null;
+                    priceContent.textContent = '正在加载价格历史...';
+                    if (priceMore) priceMore.hidden = true;
+                    priceDialog.showModal();
+                    await loadPriceHistory();
+                    return;
+                }
                 const hideButton = e.target.closest('.result-hide-btn');
                 if (hideButton) {
                     e.stopPropagation();

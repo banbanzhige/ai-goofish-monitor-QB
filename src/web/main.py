@@ -29,6 +29,7 @@ from src.web.task_manager import router as task_router, update_task_running_stat
 from src.web.log_manager import router as log_router
 from src.web.result_manager import router as result_router
 from src.web.result_management import router as result_management_router
+from src.web.price_observations import router as price_observations_router
 from src.web.result_filters import ResultViewHttpError
 from src.web.settings_manager import router as settings_router
 from src.web.notification_manager_v2 import router as notification_router
@@ -512,6 +513,7 @@ app.include_router(task_router)
 app.include_router(log_router)
 app.include_router(result_router)
 app.include_router(result_management_router)
+app.include_router(price_observations_router)
 app.include_router(settings_router)
 app.include_router(notification_router)
 app.include_router(ai_router)
